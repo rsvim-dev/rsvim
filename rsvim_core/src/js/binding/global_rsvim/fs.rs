@@ -674,7 +674,6 @@ pub fn link_sync<'s>(
   let oldpath = args.get(0).to_rust_string_lossy(scope);
   debug_assert!(is_v8_str!(args.get(1)));
   let newpath = args.get(1).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(2)));
   trace!("RsvimFs.link: oldpath:{:?},newpath:{:?}", oldpath, newpath);
 
   match fs_link(Path::new(&oldpath), Path::new(&newpath)) {
