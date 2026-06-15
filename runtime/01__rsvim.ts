@@ -846,6 +846,54 @@ export namespace RsvimFs {
   }
 
   /**
+   * Create hard link from a file path.
+   *
+   * @param {string} oldpath - Original file path.
+   * @param {string} newpath - New symbolic link that pointing to the original file.
+   * @returns {Promise<void>} It resolves to nothing.
+   *
+   * @throws Throws {@link !TypeError} if any parameter is invalid. Or throws {@link Error} if failed to create hard link from the file.
+   *
+   * @example
+   * ```javascript
+   * try {
+   *   await Rsvim.fs.link("README.md", "linked-README.md");
+   *   Rsvim.cmd.echo(`Created hard link "linked-README.md" pointing to "README.md"`);
+   * } catch (e) {
+   *   Rsvim.cmd.echo(`Failed to create hard link pointing to "README.md": ${e}`);
+   * }
+   * ```
+   */
+  export async function link(oldpath: string, newpath: string): Promise<void> {
+    checkIsString(oldpath, `"Rsvim.fs.link" oldpath`);
+    checkIsString(newpath, `"Rsvim.fs.link" newpath`);
+
+    // @ts-ignore Ignore warning
+    return await __InternalRsvimGlobalObject.fs_link(oldpath, newpath);
+  }
+
+  /**
+   * Sync version of {@link link}.
+   *
+   * @example
+   * ```javascript
+   * try {
+   *   Rsvim.fs.linkSync("README.md", "linked-README.md");
+   *   Rsvim.cmd.echo(`Created hard link "linked-README.md" pointing to "README.md"`);
+   * } catch (e) {
+   *   Rsvim.cmd.echo(`Failed to create hard link pointing to "README.md": ${e}`);
+   * }
+   * ```
+   */
+  export function linkSync(oldpath: string, newpath: string): void {
+    checkIsString(oldpath, `"Rsvim.fs.link" oldpath`);
+    checkIsString(newpath, `"Rsvim.fs.link" newpath`);
+
+    // @ts-ignore Ignore warning
+    __InternalRsvimGlobalObject.fs_link_sync(oldpath, newpath);
+  }
+
+  /**
    * Open options.
    *
    * :::tip
