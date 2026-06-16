@@ -265,10 +265,7 @@ impl BufferManager {
       Ok(abs_filename) => abs_filename.to_path_buf(),
       Err(e) => {
         trace!("Failed to absolutize filepath {:?}:{:?}", filename, e);
-        return Err(TheErr::NormalizePathFailed(
-          filename.to_string_lossy().to_compact_string(),
-          e,
-        ));
+        return Err(TheErr::NormalizePathFailed(filename.to_path_buf(), e));
       }
     };
 

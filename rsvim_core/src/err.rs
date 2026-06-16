@@ -56,7 +56,7 @@ pub enum TheErr {
   UndoCommitNotExist(usize),
 
   #[error("Failed to normalize path `{0}`: {1}.")]
-  NormalizePathFailed(CompactString, IoErr),
+  NormalizePathFailed(PathBuf, IoErr),
 
   #[error("Command `{0}` not found.")]
   CommandNotFound(CompactString),
