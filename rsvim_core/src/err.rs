@@ -74,7 +74,7 @@ pub enum TheErr {
   ModuleNotFound(ModulePath),
 
   #[error("Failed to compile typescript: {0}.")]
-  CompileTypeScriptFailed(Cow<'static, str>),
+  CompileTypeScriptFailed(CompactString),
 
   #[error("Not enough arguments specified.")]
   ArgumentsNotEnough,

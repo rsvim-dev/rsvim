@@ -20,6 +20,7 @@ use swc_ecma_transforms_base::hygiene::hygiene;
 use swc_ecma_transforms_base::resolver;
 // use swc_ecma_transforms_react::react;
 // use swc_ecma_transforms_react::Options;
+use compact_str::ToCompactString;
 use swc_ecma_transforms_typescript::strip;
 
 pub struct TypeScript;
@@ -55,7 +56,11 @@ impl TypeScript {
 
     let program = match parser.parse_program() {
       Ok(module) => module,
-      Err(e) => return Err(TheErr::CompileTypeScriptFailed(e.kind().msg())),
+      Err(e) => {
+        return Err(TheErr::CompileTypeScriptFailed(
+          e.kind().msg().to_compact_string(),
+        ));
+      }
     };
 
     // This is where we're gonna store the JavaScript output.
