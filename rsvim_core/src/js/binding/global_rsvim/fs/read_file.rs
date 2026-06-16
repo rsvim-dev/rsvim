@@ -3,7 +3,6 @@
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 
 pub fn fs_read_file(path: &Path) -> TheResult<Vec<u8>> {
   match std::fs::read(path) {
@@ -11,10 +10,7 @@ pub fn fs_read_file(path: &Path) -> TheResult<Vec<u8>> {
       trace!("path:{:?},buf.len:{}", path, buf.len());
       Ok(buf)
     }
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
@@ -24,10 +20,7 @@ pub async fn async_fs_read_file(path: &Path) -> TheResult<Vec<u8>> {
       trace!("path:{:?},buf.len:{}", path, buf.len());
       Ok(buf)
     }
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
