@@ -80,7 +80,7 @@ pub enum TheErr {
   ArgumentsNotEnough,
 
   #[error("File `{0}` not found: {1}.")]
-  FileNotFound(CompactString, IoErr),
+  FileNotFound(PathBuf, IoErr),
 
   #[error("Failed to open file `{0}`: {1}.")]
   OpenFileFailed(PathBuf, IoErr),
