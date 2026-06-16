@@ -438,16 +438,24 @@ pub fn read_text_file_sync<'s>(
   }
 }
 
+fn _lstat_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> String {
+  debug_assert!(args.length() == 1);
+  debug_assert!(is_v8_str!(args.get(0)));
+  let filename = args.get(0).to_rust_string_lossy(scope);
+  trace!("RsvimFs lstat filename:{:?}", filename);
+  filename
+}
+
 /// `Rsvim.fs.lstat` API.
 pub fn lstat<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  trace!("RsvimFs.lstat: {:?}", filename);
+  let filename = _lstat_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -485,10 +493,7 @@ pub fn lstat_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  trace!("RsvimFs.lstatSync: {:?}", filename);
+  let filename = _lstat_args(scope, args);
 
   match fs_lstat(Path::new(&filename)) {
     Ok(info) => {
@@ -501,16 +506,24 @@ pub fn lstat_sync<'s>(
   }
 }
 
+fn _stat_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> String {
+  debug_assert!(args.length() == 1);
+  debug_assert!(is_v8_str!(args.get(0)));
+  let filename = args.get(0).to_rust_string_lossy(scope);
+  trace!("RsvimFs stat filename:{:?}", filename);
+  filename
+}
+
 /// `Rsvim.fs.stat` API.
 pub fn stat<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  trace!("RsvimFs.stat: {:?}", filename);
+  let filename = _stat_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -548,10 +561,7 @@ pub fn stat_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  trace!("RsvimFs.statSync: {:?}", filename);
+  let filename = _stat_args(scope, args);
 
   match fs_stat(Path::new(&filename)) {
     Ok(info) => {
@@ -564,11 +574,13 @@ pub fn stat_sync<'s>(
   }
 }
 
-/// `Rsvim.fs.symlink` API.
-pub fn symlink<'s>(
+fn _symlink_args<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
+) -> (
+  /* oldpath */ String,
+  /* newpath */ String,
+  /* options */ FsSymlinkOptions,
 ) {
   debug_assert!(args.length() == 3);
   debug_assert!(is_v8_str!(args.get(0)));
@@ -579,9 +591,19 @@ pub fn symlink<'s>(
   let options = args.get(2).to_rust_string_lossy(scope);
   let options = FsSymlinkOptions::from_str(&options).unwrap();
   trace!(
-    "RsvimFs.symlink: oldpath:{:?},newpath:{:?},options:{:?}",
+    "RsvimFs symlink oldpath:{:?},newpath:{:?},options:{:?}",
     oldpath, newpath, options
   );
+  (oldpath, newpath, options)
+}
+
+/// `Rsvim.fs.symlink` API.
+pub fn symlink<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+  mut rv: v8::ReturnValue,
+) {
+  let (oldpath, newpath, options) = _symlink_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -620,18 +642,7 @@ pub fn symlink_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 3);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let oldpath = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(1)));
-  let newpath = args.get(1).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(2)));
-  let options = args.get(2).to_rust_string_lossy(scope);
-  let options = FsSymlinkOptions::from_str(&options).unwrap();
-  trace!(
-    "RsvimFs.symlink: oldpath:{:?},newpath:{:?},options:{:?}",
-    oldpath, newpath, options
-  );
+  let (oldpath, newpath, options) = _symlink_args(scope, args);
 
   match fs_symlink(Path::new(&oldpath), Path::new(&newpath), options) {
     Ok(_) => rv.set_undefined(),
@@ -641,18 +652,26 @@ pub fn symlink_sync<'s>(
   }
 }
 
+fn _link_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> (/* oldpath */ String, /* newpath */ String) {
+  debug_assert!(args.length() == 2);
+  debug_assert!(is_v8_str!(args.get(0)));
+  let oldpath = args.get(0).to_rust_string_lossy(scope);
+  debug_assert!(is_v8_str!(args.get(1)));
+  let newpath = args.get(1).to_rust_string_lossy(scope);
+  trace!("RsvimFs link oldpath:{:?},newpath:{:?}", oldpath, newpath);
+  (oldpath, newpath)
+}
+
 /// `Rsvim.fs.link` API.
 pub fn link<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let oldpath = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(1)));
-  let newpath = args.get(1).to_rust_string_lossy(scope);
-  trace!("RsvimFs.link: oldpath:{:?},newpath:{:?}", oldpath, newpath);
+  let (oldpath, newpath) = _link_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -690,12 +709,7 @@ pub fn link_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let oldpath = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(1)));
-  let newpath = args.get(1).to_rust_string_lossy(scope);
-  trace!("RsvimFs.link: oldpath:{:?},newpath:{:?}", oldpath, newpath);
+  let (oldpath, newpath) = _link_args(scope, args);
 
   match fs_link(Path::new(&oldpath), Path::new(&newpath)) {
     Ok(_) => rv.set_undefined(),
@@ -705,18 +719,26 @@ pub fn link_sync<'s>(
   }
 }
 
+fn _mkdir_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> (/* path */ String, /* options */ FsMkdirOptions) {
+  debug_assert!(args.length() == 2);
+  debug_assert!(is_v8_str!(args.get(0)));
+  let path = args.get(0).to_rust_string_lossy(scope);
+  debug_assert!(args.get(1).is_object());
+  let options = FsMkdirOptions::from_v8(scope, args.get(1));
+  trace!("RsvimFs mkdir path:{:?},options:{:?}", path, options);
+  (path, options)
+}
+
 /// `Rsvim.fs.mkdir` API.
 pub fn mkdir<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let path = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(args.get(1).is_object());
-  let options = FsMkdirOptions::from_v8(scope, args.get(1));
-  trace!("RsvimFs.mkdir: path:{:?},options:{:?}", path, options);
+  let (path, options) = _mkdir_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -754,12 +776,7 @@ pub fn mkdir_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let path = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(args.get(1).is_object());
-  let options = FsMkdirOptions::from_v8(scope, args.get(1));
-  trace!("RsvimFs.mkdirSync: path:{:?},options:{:?}", path, options);
+  let (path, options) = _mkdir_args(scope, args);
 
   match fs.mkdir(Path::new(&oldpath), Path::new(&newpath)) {
     Ok(_) => rv.set_undefined(),
