@@ -189,6 +189,8 @@ pub fn create_new_context<'s, 'b>(
     );
     set_function_to(scope, vim, "fs_link", global_rsvim::fs::link);
     set_function_to(scope, vim, "fs_link_sync", global_rsvim::fs::link_sync);
+    set_function_to(scope, vim, "fs_mkdir", global_rsvim::fs::mkdir);
+    set_function_to(scope, vim, "fs_mkdir_sync", global_rsvim::fs::mkdir_sync);
   }
 
   // For `Rsvim.opt`
