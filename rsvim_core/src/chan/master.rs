@@ -4,8 +4,8 @@
 use crate::buf::BufferId;
 use crate::js::TaskId;
 use crate::js::TimerId;
-use crate::js::binding::global_rsvim::fs::link::FsSymlinkOptions;
 use crate::js::binding::global_rsvim::fs::open::FsOpenOptions;
+use crate::js::binding::global_rsvim::fs::symlink::FsSymlinkOptions;
 use crate::js::resource::ResourceId;
 use crate::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
