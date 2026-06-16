@@ -894,6 +894,54 @@ export namespace RsvimFs {
   }
 
   /**
+   * Make a directory.
+   *
+   * @param {string} path - Directory path.
+   * @param {string} newpath - New symbolic mkdir that pointing to the original file.
+   * @returns {Promise<void>} It resolves to nothing.
+   *
+   * @throws Throws {@mkdir !TypeError} if any parameter is invalid. Or throws {@mkdir Error} if failed to create hard mkdir from the file.
+   *
+   * @example
+   * ```javascript
+   * try {
+   *   await Rsvim.fs.mkdir("README.md", "mkdired-README.md");
+   *   Rsvim.cmd.echo(`Created hard mkdir "mkdired-README.md" pointing to "README.md"`);
+   * } catch (e) {
+   *   Rsvim.cmd.echo(`Failed to create hard mkdir pointing to "README.md": ${e}`);
+   * }
+   * ```
+   */
+  export async function mkdir(oldpath: string, newpath: string): Promise<void> {
+    checkIsString(oldpath, `"Rsvim.fs.mkdir" oldpath`);
+    checkIsString(newpath, `"Rsvim.fs.mkdir" newpath`);
+
+    // @ts-ignore Ignore warning
+    return await __InternalRsvimGlobalObject.fs_mkdir(oldpath, newpath);
+  }
+
+  /**
+   * Sync version of {@mkdir mkdir}.
+   *
+   * @example
+   * ```javascript
+   * try {
+   *   Rsvim.fs.mkdirSync("README.md", "mkdired-README.md");
+   *   Rsvim.cmd.echo(`Created hard mkdir "mkdired-README.md" pointing to "README.md"`);
+   * } catch (e) {
+   *   Rsvim.cmd.echo(`Failed to create hard mkdir pointing to "README.md": ${e}`);
+   * }
+   * ```
+   */
+  export function mkdirSync(oldpath: string, newpath: string): void {
+    checkIsString(oldpath, `"Rsvim.fs.mkdir" oldpath`);
+    checkIsString(newpath, `"Rsvim.fs.mkdir" newpath`);
+
+    // @ts-ignore Ignore warning
+    __InternalRsvimGlobalObject.fs_mkdir_sync(oldpath, newpath);
+  }
+
+  /**
    * Open options.
    *
    * :::tip
@@ -1354,6 +1402,29 @@ export namespace RsvimFs {
    * @inline
    * */
   export type SymlinkOptions = "file" | "dir" | "junction";
+
+  /**
+   * Mkdir options.
+   */
+  export type MkdirOptions = {
+    /**
+     * Whether make directory recursively, by default is `false`.
+     *
+     * @defaultValue `false`
+     */
+    recursive?: boolean;
+
+    /**
+     * Unix permission when creating the directory, by default is `0o777`.
+     *
+     * :::note
+     * This option only works on Unix platforms and is ignored on Windows platforms.
+     * :::
+     *
+     * @defaultValue `0o777`
+     */
+    mode?: number;
+  };
 }
 
 export namespace RsvimOpt {
