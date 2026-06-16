@@ -5,7 +5,6 @@ use crate::js::err::JsError;
 use crate::js::module::ModulePath;
 use crate::js::resource::ResourceId;
 use compact_str::CompactString;
-use std::borrow::Cow;
 use std::path::PathBuf;
 use tree_sitter::LanguageError;
 use tree_sitter_loader::LoaderError;
