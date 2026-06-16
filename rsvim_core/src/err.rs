@@ -94,11 +94,11 @@ pub enum TheErr {
   #[error("Failed to write file `{0}`: {1}.")]
   WriteFileByRidFailed(ResourceId, IoErr),
 
-  #[error("Failed to create symlink `{0}` pointing to `{1}`: {2}.")]
+  #[error("Failed to create symbolic link `{0}` pointing to `{1}`: {2}.")]
   CreateSymlinkFailed(CompactString, CompactString, IoErr),
 
-  #[error("Failed to create link `{0}` pointing to `{1}`: {2}.")]
-  CreateLinkFailed(CompactString, CompactString, IoErr),
+  #[error("Failed to create hard link `{0}` pointing to `{1}`: {2}.")]
+  CreateLinkFailed(PathBuf, PathBuf, IoErr),
 
   #[error("Failed to create directory `{0}`: {1}.")]
   CreateDirectoryFailed(PathBuf, IoErr),

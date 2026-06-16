@@ -8,9 +8,9 @@ use compact_str::ToCompactString;
 pub fn fs_link(oldpath: &Path, newpath: &Path) -> TheResult<()> {
   match std::fs::hard_link(oldpath, newpath) {
     Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateSymlinkFailed(
-      oldpath.to_string_lossy().to_compact_string(),
-      newpath.to_string_lossy().to_compact_string(),
+    Err(e) => Err(TheErr::CreateLinkFailed(
+      oldpath.to_path_buf(),
+      newpath.to_path_buf(),
       e,
     )),
   }
@@ -19,9 +19,9 @@ pub fn fs_link(oldpath: &Path, newpath: &Path) -> TheResult<()> {
 pub async fn async_fs_link(oldpath: &Path, newpath: &Path) -> TheResult<()> {
   match tokio::fs::hard_link(oldpath, newpath).await {
     Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateSymlinkFailed(
-      oldpath.to_string_lossy().to_compact_string(),
-      newpath.to_string_lossy().to_compact_string(),
+    Err(e) => Err(TheErr::CreateLinkFailed(
+      oldpath.to_path_buf(),
+      newpath.to_path_buf(),
       e,
     )),
   }
