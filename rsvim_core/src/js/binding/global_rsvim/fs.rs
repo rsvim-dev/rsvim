@@ -778,7 +778,7 @@ pub fn mkdir_sync<'s>(
 ) {
   let (path, options) = _mkdir_args(scope, args);
 
-  match fs.mkdir(Path::new(&oldpath), Path::new(&newpath)) {
+  match fs_mkdir(Path::new(&path), options) {
     Ok(_) => rv.set_undefined(),
     Err(e) => {
       binding::throw_exception(scope, &e);
