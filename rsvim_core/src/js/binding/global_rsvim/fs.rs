@@ -46,18 +46,26 @@ use crate::prelude::*;
 use itertools::Itertools;
 use std::str::FromStr;
 
+fn open_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> (/* filename */ String, /* options */ FsOpenOptions) {
+  debug_assert!(args.length() == 2);
+  debug_assert!(is_v8_str!(args.get(0)));
+  let filename = args.get(0).to_rust_string_lossy(scope);
+  debug_assert!(args.get(1).is_object());
+  let options = FsOpenOptions::from_v8(scope, args.get(1));
+  trace!("RsvimFs open args:{:?} {:?}", filename, options);
+  (filename, options)
+}
+
 /// `Rsvim.fs.open` API.
 pub fn open<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(args.get(1).is_object());
-  let options = FsOpenOptions::from_v8(scope, args.get(1));
-  trace!("Rsvim.fs.open:{:?} {:?}", filename, options);
+  let (filename, options) = open_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -96,10 +104,7 @@ pub fn open_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  let filename = args.get(0).to_rust_string_lossy(scope);
-  let options = FsOpenOptions::from_v8(scope, args.get(1));
-  trace!("Rsvim.fs.openSync:{:?} {:?}", filename, options);
+  let (filename, options) = open_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
   let resource_table = state_rc.borrow().resource_table.clone();
@@ -721,11 +726,11 @@ pub fn mkdir<'s>(
 
   let mut state = state_rc.borrow_mut();
   let task_id = js::TaskId::next();
-  pending::create_fs.mkdir(
+  pending::create_fs_mkdir(
     &mut state,
     task_id,
     Path::new(&path),
-    Path::new(&newpath),
+    options,
     Box::new(link_cb),
   );
 
@@ -740,10 +745,10 @@ pub fn mkdir_sync<'s>(
 ) {
   debug_assert!(args.length() == 2);
   debug_assert!(is_v8_str!(args.get(0)));
-  let oldpath = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_str!(args.get(1)));
-  let newpath = args.get(1).to_rust_string_lossy(scope);
-  trace!("RsvimFs.link: oldpath:{:?},newpath:{:?}", oldpath, newpath);
+  let path = args.get(0).to_rust_string_lossy(scope);
+  debug_assert!(args.get(1).is_object());
+  let options = FsMkdirOptions::from_v8(scope, args.get(1));
+  trace!("RsvimFs.mkdirSync: path:{:?},options:{:?}", path, options);
 
   match fs.mkdir(Path::new(&oldpath), Path::new(&newpath)) {
     Ok(_) => rv.set_undefined(),
