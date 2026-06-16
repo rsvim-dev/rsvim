@@ -46,7 +46,7 @@ use crate::prelude::*;
 use itertools::Itertools;
 use std::str::FromStr;
 
-fn open_args<'s>(
+fn _open_args<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
 ) -> (/* filename */ String, /* options */ FsOpenOptions) {
@@ -65,7 +65,7 @@ pub fn open<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  let (filename, options) = open_args(scope, args);
+  let (filename, options) = _open_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -104,7 +104,7 @@ pub fn open_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  let (filename, options) = open_args(scope, args);
+  let (filename, options) = _open_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
   let resource_table = state_rc.borrow().resource_table.clone();
