@@ -521,6 +521,40 @@ export declare namespace RsvimFs {
      */
     function linkSync(oldpath: string, newpath: string): void;
     /**
+     * Make a directory.
+     *
+     * @param {string} path - Directory path.
+     * @param {MkdirOptions} newpath - New symbolic mkdir that pointing to the original file.
+     * @returns {Promise<void>} It resolves to nothing.
+     *
+     * @throws Throws {@mkdir !TypeError} if any parameter is invalid. Or throws {@mkdir Error} if failed to create hard mkdir from the file.
+     *
+     * @example
+     * ```javascript
+     * try {
+     *   await Rsvim.fs.mkdir(".rsvim");
+     *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
+     * } catch (e) {
+     *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
+     * }
+     * ```
+     */
+    function mkdir(path: string, options?: RsvimFs.MkdirOptions): Promise<void>;
+    /**
+     * Sync version of {@link mkdir}.
+     *
+     * @example
+     * ```javascript
+     * try {
+     *   Rsvim.fs.mkdirSync(".rsvim");
+     *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
+     * } catch (e) {
+     *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
+     * }
+     * ```
+     */
+    function mkdirSync(path: string, options?: RsvimFs.MkdirOptions): void;
+    /**
      * Open options.
      *
      * :::tip
@@ -897,6 +931,27 @@ export declare namespace RsvimFs {
      * @inline
      * */
     type SymlinkOptions = "file" | "dir" | "junction";
+    /**
+     * Mkdir options.
+     */
+    type MkdirOptions = {
+        /**
+         * Whether make directory recursively, by default is `false`.
+         *
+         * @defaultValue `false`
+         */
+        recursive?: boolean;
+        /**
+         * Unix permission when creating the directory, by default is `0o777`.
+         *
+         * :::note
+         * This option only works on Unix platforms and is ignored on Windows platforms.
+         * :::
+         *
+         * @defaultValue `0o777`
+         */
+        mode?: number;
+    };
 }
 export declare namespace RsvimOpt {
     /**

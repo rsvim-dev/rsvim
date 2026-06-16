@@ -712,6 +712,68 @@ export var RsvimFs;
     }
     RsvimFs.linkSync = linkSync;
     /**
+     * Make a directory.
+     *
+     * @param {string} path - Directory path.
+     * @param {MkdirOptions} newpath - New symbolic mkdir that pointing to the original file.
+     * @returns {Promise<void>} It resolves to nothing.
+     *
+     * @throws Throws {@mkdir !TypeError} if any parameter is invalid. Or throws {@mkdir Error} if failed to create hard mkdir from the file.
+     *
+     * @example
+     * ```javascript
+     * try {
+     *   await Rsvim.fs.mkdir(".rsvim");
+     *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
+     * } catch (e) {
+     *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
+     * }
+     * ```
+     */
+    async function mkdir(path, options) {
+        checkIsString(path, `"Rsvim.fs.mkdir" path`);
+        options = options ?? {
+            recursive: false,
+            mode: 0o777,
+        };
+        checkIsObject(options, `"Rsvim.fs.mkdir" options`);
+        setDefaultFields(options, {
+            recursive: false,
+            mode: 0o777,
+        });
+        // @ts-ignore Ignore warning
+        return await __InternalRsvimGlobalObject.fs_mkdir(path, options);
+    }
+    RsvimFs.mkdir = mkdir;
+    /**
+     * Sync version of {@link mkdir}.
+     *
+     * @example
+     * ```javascript
+     * try {
+     *   Rsvim.fs.mkdirSync(".rsvim");
+     *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
+     * } catch (e) {
+     *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
+     * }
+     * ```
+     */
+    function mkdirSync(path, options) {
+        checkIsString(path, `"Rsvim.fs.mkdirSync" path`);
+        options = options ?? {
+            recursive: false,
+            mode: 0o777,
+        };
+        checkIsObject(options, `"Rsvim.fs.mkdirSync" options`);
+        setDefaultFields(options, {
+            recursive: false,
+            mode: 0o777,
+        });
+        // @ts-ignore Ignore warning
+        __InternalRsvimGlobalObject.fs_mkdir_sync(path, options);
+    }
+    RsvimFs.mkdirSync = mkdirSync;
+    /**
      * The File object that access to an open file on filesystem.
      *
      * @see {@link RsvimFs.open}
