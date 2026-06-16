@@ -897,7 +897,7 @@ export namespace RsvimFs {
    * Make a directory.
    *
    * @param {string} path - Directory path.
-   * @param {string} newpath - New symbolic mkdir that pointing to the original file.
+   * @param {MkdirOptions} newpath - New symbolic mkdir that pointing to the original file.
    * @returns {Promise<void>} It resolves to nothing.
    *
    * @throws Throws {@mkdir !TypeError} if any parameter is invalid. Or throws {@mkdir Error} if failed to create hard mkdir from the file.
@@ -912,9 +912,21 @@ export namespace RsvimFs {
    * }
    * ```
    */
-  export async function mkdir(oldpath: string, newpath: string): Promise<void> {
-    checkIsString(oldpath, `"Rsvim.fs.mkdir" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.mkdir" newpath`);
+  export async function mkdir(
+    path: string,
+    options?: RsvimFs.MkdirOptions,
+  ): Promise<void> {
+    checkIsString(path, `"Rsvim.fs.mkdir" path`);
+
+    options = options ?? {
+      recursive: false,
+      mode: 0o777,
+    };
+    checkIsObject(options, `"Rsvim.fs.mkdir" options`);
+    setDefaultFields(options, {
+      recursive: false,
+      mode: 0o777,
+    });
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_mkdir(oldpath, newpath);
