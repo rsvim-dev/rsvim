@@ -3,7 +3,6 @@
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 
 pub fn fs_link(oldpath: &Path, newpath: &Path) -> TheResult<()> {
   match std::fs::hard_link(oldpath, newpath) {
