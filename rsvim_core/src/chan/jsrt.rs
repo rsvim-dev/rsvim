@@ -48,6 +48,9 @@ pub enum JsMessage {
   /// Master send js runtime the result of fs hard link.
   FsLinkResp(FsLinkResp),
 
+  /// Master send js runtime the result of fs create directory.
+  FsMkdirResp(FsMkdirResp),
+
   /// Master send js runtime the result of load tree-sitter parser.
   LoadTreeSitterParserResp(LoadTreeSitterParserResp),
 
@@ -131,6 +134,14 @@ pub struct FsSymlinkResp {
 
 #[derive(Debug)]
 pub struct FsLinkResp {
+  pub task_id: TaskId,
+
+  // type: `u32`
+  pub maybe_result: Option<TheResult<Vec<u8>>>,
+}
+
+#[derive(Debug)]
+pub struct FsMkdirResp {
   pub task_id: TaskId,
 
   // type: `u32`

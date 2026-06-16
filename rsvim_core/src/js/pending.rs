@@ -5,6 +5,7 @@ use crate::chan::MasterMessage;
 use crate::js::JsRuntimeState;
 use crate::js::TaskId;
 use crate::js::TimerId;
+use crate::js::binding::global_rsvim::fs::mkdir::FsMkdirOptions;
 use crate::js::binding::global_rsvim::fs::open::FsOpenOptions;
 use crate::js::binding::global_rsvim::fs::symlink::FsSymlinkOptions;
 use crate::js::resource::ResourceId;
@@ -196,6 +197,24 @@ pub fn create_fs_link(
       task_id,
       oldpath: oldpath.to_path_buf(),
       newpath: newpath.to_path_buf(),
+    }),
+  );
+}
+
+pub fn create_fs_mkdir(
+  state: &mut JsRuntimeState,
+  task_id: TaskId,
+  path: &Path,
+  options: FsMkdirOptions,
+  cb: TaskCallback,
+) {
+  state.pending_tasks.insert(task_id, cb);
+  chan::send_to_master(
+    state.master_tx.clone(),
+    MasterMessage::FsMkdirReq(chan::FsMkdirReq {
+      task_id,
+      path: path.to_path_buf(),
+      options,
     }),
   );
 }

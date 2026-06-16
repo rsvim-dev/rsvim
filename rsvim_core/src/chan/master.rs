@@ -4,6 +4,7 @@
 use crate::buf::BufferId;
 use crate::js::TaskId;
 use crate::js::TimerId;
+use crate::js::binding::global_rsvim::fs::mkdir::FsMkdirOptions;
 use crate::js::binding::global_rsvim::fs::open::FsOpenOptions;
 use crate::js::binding::global_rsvim::fs::symlink::FsSymlinkOptions;
 use crate::js::resource::ResourceId;
@@ -49,6 +50,9 @@ pub enum MasterMessage {
 
   /// Js runtime ask master to create hard link.
   FsLinkReq(FsLinkReq),
+
+  /// Js runtime ask master to make directory.
+  FsMkdirReq(FsMkdirReq),
 
   /// Ask master to parse text for a syntax editing.
   SyntaxEditReq(SyntaxEditReq),
@@ -138,6 +142,13 @@ pub struct FsLinkReq {
   pub task_id: TaskId,
   pub oldpath: PathBuf,
   pub newpath: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct FsMkdirReq {
+  pub task_id: TaskId,
+  pub path: PathBuf,
+  pub options: FsMkdirOptions,
 }
 
 #[derive(Debug)]
