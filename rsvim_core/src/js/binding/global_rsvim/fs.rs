@@ -55,7 +55,7 @@ fn open_args<'s>(
   let filename = args.get(0).to_rust_string_lossy(scope);
   debug_assert!(args.get(1).is_object());
   let options = FsOpenOptions::from_v8(scope, args.get(1));
-  trace!("RsvimFs open args:{:?} {:?}", filename, options);
+  trace!("RsvimFs open filename:{:?},options:{:?}", filename, options);
   (filename, options)
 }
 
@@ -140,20 +140,30 @@ pub fn close<'s>(
   fs_close(resource_table, file_rid);
 }
 
-/// `File.read` API.
-pub fn read<'s>(
+fn read_args<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
+) -> (
+  /* file rid */ ResourceId,
+  /* buffer */ v8::Local<'s, v8::ArrayBuffer>,
 ) {
-  debug_assert!(args.length() == 2);
   debug_assert!(args.length() == 2);
   debug_assert!(is_v8_int!(args.get(0)));
   let file_rid = i32::from_v8(scope, args.get(0));
   let file_rid = ResourceId::from(file_rid);
   debug_assert!(args.get(1).is_array_buffer());
   let buf = args.get(1).cast::<v8::ArrayBuffer>();
-  trace!("RsvimFs.read: {:?}, {:?}", file_rid, buf);
+  trace!("RsvimFs read file_rid:{:?},buf:{:?}", file_rid, buf);
+  (file_rid, buf)
+}
+
+/// `File.read` API.
+pub fn read<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+  mut rv: v8::ReturnValue,
+) {
+  let (file_rid, buf) = read_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -193,13 +203,7 @@ pub fn read_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_int!(args.get(0)));
-  let file_rid = i32::from_v8(scope, args.get(0));
-  let file_rid = ResourceId::from(file_rid);
-  debug_assert!(args.get(1).is_array_buffer());
-  let buf = args.get(1).cast::<v8::ArrayBuffer>();
-  trace!("RsvimFs.readSync: {:?}, {:?}", file_rid, buf);
+  let (file_rid, buf) = read_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
   let resource_table = state_rc.borrow().resource_table.clone();
