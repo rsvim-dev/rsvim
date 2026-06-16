@@ -140,7 +140,7 @@ pub fn close<'s>(
   fs_close(resource_table, file_rid);
 }
 
-fn read_args<'s>(
+fn _read_args<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   args: v8::FunctionCallbackArguments<'s>,
 ) -> (
@@ -163,7 +163,7 @@ pub fn read<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  let (file_rid, buf) = read_args(scope, args);
+  let (file_rid, buf) = _read_args(scope, args);
 
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
@@ -203,7 +203,7 @@ pub fn read_sync<'s>(
   args: v8::FunctionCallbackArguments<'s>,
   mut rv: v8::ReturnValue,
 ) {
-  let (file_rid, buf) = read_args(scope, args);
+  let (file_rid, buf) = _read_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
   let resource_table = state_rc.borrow().resource_table.clone();
