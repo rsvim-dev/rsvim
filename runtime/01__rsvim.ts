@@ -905,10 +905,10 @@ export namespace RsvimFs {
    * @example
    * ```javascript
    * try {
-   *   await Rsvim.fs.mkdir("README.md", "mkdired-README.md");
-   *   Rsvim.cmd.echo(`Created hard mkdir "mkdired-README.md" pointing to "README.md"`);
+   *   await Rsvim.fs.mkdir(".rsvim");
+   *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
    * } catch (e) {
-   *   Rsvim.cmd.echo(`Failed to create hard mkdir pointing to "README.md": ${e}`);
+   *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
    * }
    * ```
    */
@@ -929,28 +929,40 @@ export namespace RsvimFs {
     });
 
     // @ts-ignore Ignore warning
-    return await __InternalRsvimGlobalObject.fs_mkdir(oldpath, newpath);
+    return await __InternalRsvimGlobalObject.fs_mkdir(path, options);
   }
 
   /**
-   * Sync version of {@mkdir mkdir}.
+   * Sync version of {@link mkdir}.
    *
    * @example
    * ```javascript
    * try {
-   *   Rsvim.fs.mkdirSync("README.md", "mkdired-README.md");
-   *   Rsvim.cmd.echo(`Created hard mkdir "mkdired-README.md" pointing to "README.md"`);
+   *   Rsvim.fs.mkdirSync(".rsvim");
+   *   Rsvim.cmd.echo(`Created directory ".rsvim"`);
    * } catch (e) {
-   *   Rsvim.cmd.echo(`Failed to create hard mkdir pointing to "README.md": ${e}`);
+   *   Rsvim.cmd.echo(`Failed to create directory ".rsvim": ${e}`);
    * }
    * ```
    */
-  export function mkdirSync(oldpath: string, newpath: string): void {
-    checkIsString(oldpath, `"Rsvim.fs.mkdir" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.mkdir" newpath`);
+  export function mkdirSync(
+    path: string,
+    options?: RsvimFs.MkdirOptions,
+  ): void {
+    checkIsString(path, `"Rsvim.fs.mkdirSync" path`);
+
+    options = options ?? {
+      recursive: false,
+      mode: 0o777,
+    };
+    checkIsObject(options, `"Rsvim.fs.mkdirSync" options`);
+    setDefaultFields(options, {
+      recursive: false,
+      mode: 0o777,
+    });
 
     // @ts-ignore Ignore warning
-    __InternalRsvimGlobalObject.fs_mkdir_sync(oldpath, newpath);
+    __InternalRsvimGlobalObject.fs_mkdir_sync(path, options);
   }
 
   /**
