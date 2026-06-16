@@ -89,7 +89,7 @@ pub enum TheErr {
   ReadFileByRidFailed(ResourceId, IoErr),
 
   #[error("Failed to read file `{0}`: {1}.")]
-  ReadFileByPathFailed(CompactString, IoErr),
+  ReadFileByPathFailed(PathBuf, IoErr),
 
   #[error("Failed to write file `{0}`: {1}.")]
   WriteFileByRidFailed(ResourceId, IoErr),

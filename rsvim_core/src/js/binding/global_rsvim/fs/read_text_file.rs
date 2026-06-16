@@ -3,25 +3,18 @@
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 
 pub fn fs_read_text_file(path: &Path) -> TheResult<String> {
   match std::fs::read_to_string(path) {
     Ok(buf) => Ok(buf),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
 pub async fn async_fs_read_text_file(path: &Path) -> TheResult<String> {
   match tokio::fs::read_to_string(path).await {
     Ok(buf) => Ok(buf),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 

@@ -4,7 +4,6 @@ use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 use std::fs::Metadata;
 use std::time::SystemTime;
 
@@ -162,10 +161,7 @@ fn convert_metadata_to_fileinfo(meta: Metadata) -> FsFileInfo {
 pub fn fs_lstat(path: &Path) -> TheResult<FsFileInfo> {
   match std::fs::symlink_metadata(path) {
     Ok(meta) => Ok(convert_metadata_to_fileinfo(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
@@ -173,10 +169,7 @@ pub fn fs_lstat(path: &Path) -> TheResult<FsFileInfo> {
 pub async fn async_fs_lstat(path: &Path) -> TheResult<FsFileInfo> {
   match tokio::fs::symlink_metadata(path).await {
     Ok(meta) => Ok(convert_metadata_to_fileinfo(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
@@ -184,10 +177,7 @@ pub async fn async_fs_lstat(path: &Path) -> TheResult<FsFileInfo> {
 pub fn fs_stat(path: &Path) -> TheResult<FsFileInfo> {
   match std::fs::metadata(path) {
     Ok(meta) => Ok(convert_metadata_to_fileinfo(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
@@ -195,10 +185,7 @@ pub fn fs_stat(path: &Path) -> TheResult<FsFileInfo> {
 pub async fn async_fs_stat(path: &Path) -> TheResult<FsFileInfo> {
   match tokio::fs::metadata(path).await {
     Ok(meta) => Ok(convert_metadata_to_fileinfo(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
   }
 }
 
