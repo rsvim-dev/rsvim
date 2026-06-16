@@ -39,52 +39,14 @@ pub fn fs_mkdir(path: &Path, options: FsMkdirOptions) -> TheResult<()> {
   }
 }
 
-#[cfg(target_family = "windows")]
-pub fn fs_symlink(
-  oldpath: &Path,
-  newpath: &Path,
-  options: FsSymlinkOptions,
-) -> TheResult<()> {
-  match options {
-    FsSymlinkOptions::File => {
-      match std::os::windows::fs::symlink_file(oldpath, newpath) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(TheErr::CreateSymlinkFailed(
-          oldpath.to_string_lossy().to_compact_string(),
-          newpath.to_string_lossy().to_compact_string(),
-          e,
-        )),
-      }
-    }
-    FsSymlinkOptions::Dir => {
-      match std::os::windows::fs::symlink_dir(oldpath, newpath) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(TheErr::CreateSymlinkFailed(
-          oldpath.to_string_lossy().to_compact_string(),
-          newpath.to_string_lossy().to_compact_string(),
-          e,
-        )),
-      }
-    }
-    FsSymlinkOptions::Junction => match junction::create(oldpath, newpath) {
-      Ok(_) => Ok(()),
-      Err(e) => Err(TheErr::CreateSymlinkFailed(
-        oldpath.to_string_lossy().to_compact_string(),
-        newpath.to_string_lossy().to_compact_string(),
-        e,
-      )),
-    },
-  }
-}
-
-pub struct FsSymlinkFuture {
+pub struct FsMkdirFuture {
   pub promise: v8::Global<v8::PromiseResolver>,
   pub maybe_result: Option<TheResult<Vec<u8>>>,
 }
 
-impl JsFuture for FsSymlinkFuture {
+impl JsFuture for FsMkdirFuture {
   fn run(&mut self, scope: &mut v8::PinScope) {
-    trace!("|FsSymlinkFuture|");
+    trace!("|FsMkdirFuture|");
 
     let result = self.maybe_result.take().unwrap();
 
