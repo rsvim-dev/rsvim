@@ -19,6 +19,7 @@ use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
 use crate::js::SnapshotData;
 use crate::js::binding::global_rsvim::fs::link::async_fs_link;
+use crate::js::binding::global_rsvim::fs::mkdir::fs_mkdir;
 use crate::js::binding::global_rsvim::fs::open::async_fs_open;
 use crate::js::binding::global_rsvim::fs::read::fs_read;
 use crate::js::binding::global_rsvim::fs::read_file::async_fs_read_file;
@@ -950,6 +951,22 @@ impl EventLoop {
               async_fs_link(req.oldpath.as_path(), req.newpath.as_path()).await;
             jsrt_forwarder_tx
               .send(JsMessage::FsLinkResp(chan::FsLinkResp {
+                task_id: req.task_id,
+                maybe_result: match maybe_result {
+                  Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
+                  Err(e) => Some(Err(e)),
+                },
+              }))
+              .unwrap();
+          });
+        }
+        MasterMessage::FsMkdirReq(req) => {
+          trace!("Recv FsMkdirReq:{:?}", req.task_id);
+          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          self.detached_tracker.spawn_blocking(move || {
+            let maybe_result = fs_mkdir(req.path.as_path(), req.options);
+            jsrt_forwarder_tx
+              .send(JsMessage::FsMkdirResp(chan::FsMkdirResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
