@@ -440,15 +440,9 @@ impl BufferManager {
             colorscheme,
           ))
         }
-        Err(e) => Err(TheErr::OpenFileFailed(
-          filename.to_string_lossy().to_compact_string(),
-          e,
-        )),
+        Err(e) => Err(TheErr::OpenFileFailed(filename.to_path_buf(), e)),
       },
-      Err(e) => Err(TheErr::OpenFileFailed(
-        filename.to_string_lossy().to_compact_string(),
-        e,
-      )),
+      Err(e) => Err(TheErr::OpenFileFailed(filename.to_path_buf(), e)),
     }
   }
 

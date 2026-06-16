@@ -6,7 +6,6 @@ use crate::js::converter::*;
 use crate::js::resource::ResourceId;
 use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 
 #[derive(
   Debug,
@@ -57,10 +56,7 @@ pub fn fs_open(
       let mut resource_table = lock!(resource_table);
       Ok(resource_table.add_file(file))
     }
-    Err(e) => Err(TheErr::OpenFileFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::OpenFileFailed(path.to_path_buf(), e)),
   }
 }
 
@@ -84,10 +80,7 @@ pub async fn async_fs_open(
       let mut resource_table = lock!(resource_table);
       Ok(resource_table.add_file(file))
     }
-    Err(e) => Err(TheErr::OpenFileFailed(
-      path.to_string_lossy().to_compact_string(),
-      e,
-    )),
+    Err(e) => Err(TheErr::OpenFileFailed(path.to_path_buf(), e)),
   }
 }
 

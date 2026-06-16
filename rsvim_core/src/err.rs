@@ -83,7 +83,7 @@ pub enum TheErr {
   FileNotFound(CompactString, IoErr),
 
   #[error("Failed to open file `{0}`: {1}.")]
-  OpenFileFailed(CompactString, IoErr),
+  OpenFileFailed(PathBuf, IoErr),
 
   #[error("Failed to read file `{0}`: {1}.")]
   ReadFileByRidFailed(ResourceId, IoErr),
