@@ -524,10 +524,10 @@ export declare namespace RsvimFs {
      * Make a directory.
      *
      * @param {string} path - Directory path.
-     * @param {MkdirOptions} newpath - New symbolic mkdir that pointing to the original file.
+     * @param {RsvimFs.MkdirOptions} options - (Optional) Options when create directory, by default is `{recursive: false, mode: 0o777}`, the `mode` option only works on Unix platform, and is ignored on Windows platform.
      * @returns {Promise<void>} It resolves to nothing.
      *
-     * @throws Throws {@mkdir !TypeError} if any parameter is invalid. Or throws {@mkdir Error} if failed to create hard mkdir from the file.
+     * @throws Throws {@link !TypeError} if any parameter is invalid. Or throws {@link Error} if failed to create hard mkdir from the file.
      *
      * @example
      * ```javascript
@@ -1526,7 +1526,7 @@ export declare namespace RsvimRt {
      * to complete before actually exiting, however any new write requests will be rejected.
      * :::
      *
-     * @param {exitCode?} exitCode - (Optional) The editor process exit with this exit code, by default with code `0`.
+     * @param {number} exitCode - (Optional) The editor process exit with this exit code, by default with code `0`.
      *
      * @throws Throws {@link !TypeError} if `exitCode` is neither an integer nor `undefined`.
      *
