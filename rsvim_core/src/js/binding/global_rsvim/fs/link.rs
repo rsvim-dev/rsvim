@@ -1,4 +1,4 @@
-//! File symbolic link.
+//! File hard link.
 
 use crate::js::JsFuture;
 use crate::js::binding;

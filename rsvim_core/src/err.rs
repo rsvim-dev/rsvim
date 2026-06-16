@@ -6,6 +6,7 @@ use crate::js::module::ModulePath;
 use crate::js::resource::ResourceId;
 use compact_str::CompactString;
 use std::borrow::Cow;
+use std::path::PathBuf;
 use tree_sitter::LanguageError;
 use tree_sitter_loader::LoaderError;
 
@@ -98,6 +99,9 @@ pub enum TheErr {
 
   #[error("Failed to create link `{0}` pointing to `{1}`: {2}.")]
   CreateLinkFailed(CompactString, CompactString, IoErr),
+
+  #[error("Failed to create directory `{0}`: {1}.")]
+  CreateDirectoryFailed(PathBuf, IoErr),
 
   #[error("Invalid data.")]
   DataInvalid,
