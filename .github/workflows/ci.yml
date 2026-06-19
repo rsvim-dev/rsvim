@@ -24,7 +24,7 @@ jobs:
     name: Check
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Tsc
         run: |
           npm install -g typescript
@@ -67,7 +67,7 @@ jobs:
         toolchain: [stable, 1.89.0]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: davidlattimore/wild-action@latest
@@ -90,7 +90,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Test
@@ -111,7 +111,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rust-src,clippy,llvm-tools
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: taiki-e/install-action@cargo-llvm-cov
@@ -147,7 +147,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build
         run: cargo build ${{ matrix.profile }}
       - name: Build (--no-default-features)
