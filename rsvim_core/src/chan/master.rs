@@ -42,6 +42,12 @@ pub enum MasterMessage {
   /// Js runtime ask master to read text file into string.
   FsReadTextFileReq(FsReadTextFileReq),
 
+  /// Js runtime ask master to read dir.
+  FsReadDirReq(FsReadDirReq),
+
+  /// Js runtime ask master to read dir next entry.
+  FsReadDirNextReq(FsReadDirNextReq),
+
   /// Js runtime ask master to get fs status.
   FsStatReq(FsStatReq),
 
@@ -120,6 +126,18 @@ pub struct FsReadFileReq {
 pub struct FsReadTextFileReq {
   pub task_id: TaskId,
   pub path: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct FsReadDirReq {
+  pub task_id: TaskId,
+  pub path: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct FsReadDirNextReq {
+  pub task_id: TaskId,
+  pub rid: ResourceId,
 }
 
 #[derive(Debug)]

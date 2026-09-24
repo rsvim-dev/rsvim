@@ -20,7 +20,7 @@ jobs:
     name: Prepare
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ncipollo/release-action@v1
@@ -59,7 +59,7 @@ jobs:
             #   os: ubuntu-22.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rust-src,clippy

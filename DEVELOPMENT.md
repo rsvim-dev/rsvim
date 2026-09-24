@@ -1,6 +1,6 @@
 # Development
 
-## Requirements
+## Toolchain
 
 Please setup your development environment with:
 
@@ -8,10 +8,19 @@ Please setup your development environment with:
   - For Linux, install [gcc](https://gcc.gnu.org/).
   - For macOS, install [Xcode Clang](https://developer.apple.com/xcode/).
   - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/).
-- Install [mise](https://github.com/jdx/mise), then run `mise i` and `npm i`.
-- (Optional) Faster linker for linux, install [clang](https://llvm.org/), [mold](https://github.com/rui314/mold)/[wild](https://github.com/davidlattimore/wild).
+- Install [rust](https://rust-lang.org/tools/install/) and [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), then run `cargo binstall -y cargo-nextest cargo-release git-cliff sccache taplo-cli typos-cli` to install below tools:
+  - [cargo-nextest](https://github.com/nextest-rs/nextest)
+  - [cargo-release](https://github.com/crate-ci/cargo-release)
+  - [git-cliff](https://github.com/orhun/git-cliff)
+  - [sccache](https://github.com/mozilla/sccache)
+  - [taplo-cli](https://github.com/tamasfe/taplo)
+  - [typos-cli](https://github.com/crate-ci/typos)
+- Install [mise](https://github.com/jdx/mise), then run `mise i`.
+- (Optional) Faster linker for linux, install [clang](https://llvm.org/), [mold](https://github.com/rui314/mold).
 
-Also you need to sync git submodules with the [`tests_and_benchmarks`](https://github.com/rsvim/tests_and_benchmarks) repo, use below commands:
+## Repository
+
+Sync git submodules with below commands:
 
 - Run `git submodule update --init --recursive` to update all the recursive submodules.
 - Run `git submodule update --remote --merge` to update to latest commit.

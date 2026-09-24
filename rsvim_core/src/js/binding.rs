@@ -150,14 +150,49 @@ pub fn create_new_context<'s, 'b>(
 
   // For `Rsvim.fs`
   {
-    set_function_to(scope, vim, "fs_open", global_rsvim::fs::open);
+    set_function_to(scope, vim, "fs_open", global_rsvim::fs::open_async);
     set_function_to(scope, vim, "fs_open_sync", global_rsvim::fs::open_sync);
-    set_function_to(scope, vim, "fs_close", global_rsvim::fs::close);
-    set_function_to(scope, vim, "fs_read", global_rsvim::fs::read);
+    set_function_to(scope, vim, "fs_close", global_rsvim::fs::close_sync);
+    set_function_to(scope, vim, "fs_read", global_rsvim::fs::read_async);
     set_function_to(scope, vim, "fs_read_sync", global_rsvim::fs::read_sync);
-    set_function_to(scope, vim, "fs_write", global_rsvim::fs::write);
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_dir",
+      global_rsvim::fs::read_dir_async,
+    );
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_dir_sync",
+      global_rsvim::fs::read_dir_sync,
+    );
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_dir_next",
+      global_rsvim::fs::read_dir_next_async,
+    );
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_dir_next_sync",
+      global_rsvim::fs::read_dir_next_sync,
+    );
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_dir_close",
+      global_rsvim::fs::read_dir_close,
+    );
+    set_function_to(scope, vim, "fs_write", global_rsvim::fs::write_async);
     set_function_to(scope, vim, "fs_write_sync", global_rsvim::fs::write_sync);
-    set_function_to(scope, vim, "fs_read_file", global_rsvim::fs::read_file);
+    set_function_to(
+      scope,
+      vim,
+      "fs_read_file",
+      global_rsvim::fs::read_file_async,
+    );
     set_function_to(
       scope,
       vim,
@@ -168,7 +203,7 @@ pub fn create_new_context<'s, 'b>(
       scope,
       vim,
       "fs_read_text_file",
-      global_rsvim::fs::read_text_file,
+      global_rsvim::fs::read_text_file_async,
     );
     set_function_to(
       scope,
@@ -176,20 +211,20 @@ pub fn create_new_context<'s, 'b>(
       "fs_read_text_file_sync",
       global_rsvim::fs::read_text_file_sync,
     );
-    set_function_to(scope, vim, "fs_lstat", global_rsvim::fs::lstat);
+    set_function_to(scope, vim, "fs_lstat", global_rsvim::fs::lstat_async);
     set_function_to(scope, vim, "fs_lstat_sync", global_rsvim::fs::lstat_sync);
-    set_function_to(scope, vim, "fs_stat", global_rsvim::fs::stat);
+    set_function_to(scope, vim, "fs_stat", global_rsvim::fs::stat_async);
     set_function_to(scope, vim, "fs_stat_sync", global_rsvim::fs::stat_sync);
-    set_function_to(scope, vim, "fs_symlink", global_rsvim::fs::symlink);
+    set_function_to(scope, vim, "fs_symlink", global_rsvim::fs::symlink_async);
     set_function_to(
       scope,
       vim,
       "fs_symlink_sync",
       global_rsvim::fs::symlink_sync,
     );
-    set_function_to(scope, vim, "fs_link", global_rsvim::fs::link);
+    set_function_to(scope, vim, "fs_link", global_rsvim::fs::link_async);
     set_function_to(scope, vim, "fs_link_sync", global_rsvim::fs::link_sync);
-    set_function_to(scope, vim, "fs_mkdir", global_rsvim::fs::mkdir);
+    set_function_to(scope, vim, "fs_mkdir", global_rsvim::fs::mkdir_async);
     set_function_to(scope, vim, "fs_mkdir_sync", global_rsvim::fs::mkdir_sync);
   }
 

@@ -39,6 +39,6 @@ impl PathExt for Path {
   }
 
   fn absolutize_with(&self, cwd: &Path) -> Result<Cow<'_, Path>> {
-    path_absolutize::Absolutize::absolutize_from(self, cwd)
+    Ok(path_absolutize::Absolutize::absolutize_from(self, cwd))
   }
 }

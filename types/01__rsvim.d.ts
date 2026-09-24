@@ -116,9 +116,9 @@ export declare namespace RsvimCmd {
      * :::
      *
      * @param {string} name - Command name that is going to create. Only letters (`a-z` and `A-Z`), digits (`0-9`), underscore (`_`) and exclamation (`!`) are allowed in a command name. Command name must not begin with a digit.
-     * @param {RsvimCmd.CommandCallback} callback - Async callback function that implements the command. It accepts an `ctx` parameter that contains all the information when user is running it. See {@link RsvimCmd.CommandCallback}.
-     * @param {RsvimCmd.CommandAttributes} attributes - (Optional) Attributes that control the command behavior, by default is `{bang:false, nargs:"0"}`, see {@link RsvimCmd.CommandAttributes}.
-     * @param {RsvimCmd.CommandOptions} options - (Optional) Options that control how the command is created, by default is `{force:true}`, see {@link RsvimCmd.CommandOptions}.
+     * @param {RsvimCmd.CommandCallback} callback - Callback function that implements the command. It accepts an `ctx` parameter that contains all the information when user is running it.
+     * @param {RsvimCmd.CommandAttributes} attributes - (Optional) Attributes that control the command behavior, by default is `{bang:false, nargs:"0"}`.
+     * @param {RsvimCmd.CommandOptions} options - (Optional) Options that control how the command is created, by default is `{force:true}`.
      * @returns {(RsvimCmd.CommandDefinition | undefined)} It returns `undefined` is the command is newly created. Or it returns a command definition that was defined previously.
      *
      * @throws Throws {@link !TypeError} if any parameters are invalid. Or throws {@link Error} if command name or alias already exists, but `force` option is not set to override existing command forcibly.
@@ -258,14 +258,16 @@ export declare namespace RsvimCmd {
         alias?: string;
     };
     /**
-     * Command callback function, this is the backend logic that implements a user ex command.
+     * Command callback function, the backend logic that implements a user ex command.
+     *
+     * Note: The callback function can be either sync or async.
      *
      * It accepts a `ctx` parameter that indicates runtime information when the command is executed.
      *
      * @see {@link RsvimCmd.create}
-     * @see {@link CommandContext}
+     * @see {@link RsvimCmd.CommandContext}
   ,  */
-    type CommandCallback = (ctx: CommandContext) => Promise<void>;
+    type CommandCallback = (ctx: CommandContext) => void | Promise<void>;
     /**
      * Command definition.
      */
@@ -336,6 +338,38 @@ export declare namespace RsvimFs {
      * ```
      */
     function openSync(path: string, options?: RsvimFs.OpenOptions): RsvimFs.File;
+    /**
+     * Read a directory with async iterator.
+     *
+     * @param {string} path - Directory path to read.
+     * @returns {AsyncIterable<RsvimFs.DirEntry>} Async iterator.
+     *
+     * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+     *
+     * @example
+     * ```javascript
+     * for await (const entry of Rsvim.fs.readDir(".")) {
+     *   Rsvim.cmd.echo(entry.name);
+     * }
+     * ```
+     */
+    function readDir(path: string): AsyncIterable<RsvimFs.DirEntry>;
+    /**
+     * Sync version of {@link readDir}.
+     *
+     * @param {string} path - Directory path to read.
+     * @returns {Iterable<RsvimFs.DirEntry>} Iterator.
+     *
+     * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+     *
+     * @example
+     * ```javascript
+     * for (const entry of Rsvim.fs.readDirSync(".")) {
+     *   Rsvim.cmd.echo(entry.name);
+     * }
+     * ```
+     */
+    function readDirSync(path: string): Iterable<RsvimFs.DirEntry>;
     /**
      * Read a file in binary mode, i.e. into an array of bytes buffer, without open/close a file descriptor/handle.
      *
@@ -722,6 +756,27 @@ export declare namespace RsvimFs {
          */
         writeSync(buf: Uint8Array): number;
     }
+    /**
+     * Directory entry returned from {@link RsvimFs.readDir} and {@link RsvimFs.readDirSync}.
+     */
+    type DirEntry = {
+        /**
+         * File name.
+         */
+        fileName: string;
+        /**
+         * Whether it is a directory.
+         */
+        isDir: boolean;
+        /**
+         * Whether it is a normal file.
+         */
+        isFile: boolean;
+        /**
+         * Whether it is a symbolic link.
+         */
+        isSymlink: boolean;
+    };
     /**
      * File information, it contains 3 groups of properties:
      * - Common properties that are available for all platforms.

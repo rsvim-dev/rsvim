@@ -39,6 +39,12 @@ pub enum JsMessage {
   /// Master send js runtime the result of fs read_text_file
   FsReadTextFileResp(FsReadTextFileResp),
 
+  /// Master send js runtime the result of fs read_dir.
+  FsReadDirResp(FsReadDirResp),
+
+  /// Master send js runtime the result of fs read_dir_next.
+  FsReadDirNextResp(FsReadDirNextResp),
+
   /// Master send js runtime the result of fs status
   FsStatResp(FsStatResp),
 
@@ -113,6 +119,22 @@ pub struct FsReadTextFileResp {
   pub task_id: TaskId,
 
   // type: `Vec<u8>`
+  pub maybe_result: Option<TheResult<Vec<u8>>>,
+}
+
+#[derive(Debug)]
+pub struct FsReadDirResp {
+  pub task_id: TaskId,
+
+  // type: `ResourceId`
+  pub maybe_result: Option<TheResult<Vec<u8>>>,
+}
+
+#[derive(Debug)]
+pub struct FsReadDirNextResp {
+  pub task_id: TaskId,
+
+  // type: `FsDirEntry`
   pub maybe_result: Option<TheResult<Vec<u8>>>,
 }
 

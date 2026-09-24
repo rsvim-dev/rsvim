@@ -95,6 +95,35 @@ pub fn create_fs_read(
   );
 }
 
+pub fn create_fs_read_dir(
+  state: &mut JsRuntimeState,
+  task_id: TaskId,
+  path: &Path,
+  cb: TaskCallback,
+) {
+  state.pending_tasks.insert(task_id, cb);
+  chan::send_to_master(
+    state.master_tx.clone(),
+    MasterMessage::FsReadDirReq(chan::FsReadDirReq {
+      task_id,
+      path: path.to_path_buf(),
+    }),
+  );
+}
+
+pub fn create_fs_read_dir_next(
+  state: &mut JsRuntimeState,
+  task_id: TaskId,
+  rid: ResourceId,
+  cb: TaskCallback,
+) {
+  state.pending_tasks.insert(task_id, cb);
+  chan::send_to_master(
+    state.master_tx.clone(),
+    MasterMessage::FsReadDirNextReq(chan::FsReadDirNextReq { task_id, rid }),
+  );
+}
+
 pub fn create_fs_read_file(
   state: &mut JsRuntimeState,
   task_id: TaskId,
