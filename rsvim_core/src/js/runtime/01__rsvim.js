@@ -242,9 +242,9 @@ export var RsvimCmd;
      * :::
      *
      * @param {string} name - Command name that is going to create. Only letters (`a-z` and `A-Z`), digits (`0-9`), underscore (`_`) and exclamation (`!`) are allowed in a command name. Command name must not begin with a digit.
-     * @param {RsvimCmd.CommandCallback} callback - Async callback function that implements the command. It accepts an `ctx` parameter that contains all the information when user is running it. See {@link RsvimCmd.CommandCallback}.
-     * @param {RsvimCmd.CommandAttributes} attributes - (Optional) Attributes that control the command behavior, by default is `{bang:false, nargs:"0"}`, see {@link RsvimCmd.CommandAttributes}.
-     * @param {RsvimCmd.CommandOptions} options - (Optional) Options that control how the command is created, by default is `{force:true}`, see {@link RsvimCmd.CommandOptions}.
+     * @param {RsvimCmd.CommandCallback} callback - Callback function that implements the command. It accepts an `ctx` parameter that contains all the information when user is running it.
+     * @param {RsvimCmd.CommandAttributes} attributes - (Optional) Attributes that control the command behavior, by default is `{bang:false, nargs:"0"}`.
+     * @param {RsvimCmd.CommandOptions} options - (Optional) Options that control how the command is created, by default is `{force:true}`.
      * @returns {(RsvimCmd.CommandDefinition | undefined)} It returns `undefined` is the command is newly created. Or it returns a command definition that was defined previously.
      *
      * @throws Throws {@link !TypeError} if any parameters are invalid. Or throws {@link Error} if command name or alias already exists, but `force` option is not set to override existing command forcibly.
@@ -455,6 +455,85 @@ export var RsvimFs;
         return new RsvimFs.File(handle);
     }
     RsvimFs.openSync = openSync;
+    /**
+     * Read a directory with async iterator.
+     *
+     * @param {string} path - Directory path to read.
+     * @returns {AsyncIterable<RsvimFs.DirEntry>} Async iterator.
+     *
+     * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+     *
+     * @example
+     * ```javascript
+     * for await (const entry of Rsvim.fs.readDir(".")) {
+     *   Rsvim.cmd.echo(entry.name);
+     * }
+     * ```
+     */
+    async function* readDir(path) {
+        checkIsString(path, `"Rsvim.fs.readDir" path`);
+        let rid;
+        try {
+            // @ts-ignore Ignore warning
+            rid = await __InternalRsvimGlobalObject.fs_read_dir(path);
+            while (true) {
+                const entry = 
+                // @ts-ignore Ignore warning
+                await __InternalRsvimGlobalObject.fs_read_dir_next(rid);
+                if (entry == null) {
+                    break;
+                }
+                yield entry;
+            }
+        }
+        finally {
+            if (rid != null) {
+                // @ts-ignore Ignore warning
+                __InternalRsvimGlobalObject.fs_read_dir_close(rid);
+                rid = null;
+            }
+        }
+    }
+    RsvimFs.readDir = readDir;
+    /**
+     * Sync version of {@link readDir}.
+     *
+     * @param {string} path - Directory path to read.
+     * @returns {Iterable<RsvimFs.DirEntry>} Iterator.
+     *
+     * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+     *
+     * @example
+     * ```javascript
+     * for (const entry of Rsvim.fs.readDirSync(".")) {
+     *   Rsvim.cmd.echo(entry.name);
+     * }
+     * ```
+     */
+    function* readDirSync(path) {
+        checkIsString(path, `"Rsvim.fs.readDirSync" path`);
+        let rid;
+        try {
+            // @ts-ignore Ignore warning
+            rid = __InternalRsvimGlobalObject.fs_read_dir_sync(path);
+            while (true) {
+                // @ts-ignore Ignore warning
+                const entry = __InternalRsvimGlobalObject.fs_read_dir_next_sync(rid);
+                if (entry == null) {
+                    break;
+                }
+                yield entry;
+            }
+        }
+        finally {
+            if (rid != null) {
+                // @ts-ignore Ignore warning
+                __InternalRsvimGlobalObject.fs_read_dir_close(rid);
+                rid = null;
+            }
+        }
+    }
+    RsvimFs.readDirSync = readDirSync;
     /**
      * Read a file in binary mode, i.e. into an array of bytes buffer, without open/close a file descriptor/handle.
      *

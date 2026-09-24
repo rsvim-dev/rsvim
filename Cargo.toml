@@ -31,23 +31,23 @@ clap = { version = "4.6", default-features = false, features = [
   "usage",
   "derive",
 ] }
-compact_str = "0.9"
+compact_str = "0.10"
 criterion = { version = "0.8", features = ["async_tokio"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 derive-where = "1.6"
 derive_builder = "0.20"
 dirs = "6.0"
 encoding_rs = "0.8"
-env_filter = "1.0"
+env_filter = "2.0"
 fastrand = "2.4"
 fern = "0.7"
 foldhash = "0.2"
 futures = "0.3"
 geo = "0.33"
-gix = "0.84"
+gix = "0.87"
 heck = "0.5"
 icu = "2"
-itertools = "0.14"
+itertools = "0.15"
 jiff = "0.2"
 junction = "2"
 litemap = "0.8"
@@ -61,7 +61,7 @@ normpath = "1.5"
 num-traits = "0.2"
 oxc_resolver = "11.21"
 paste = "1.0"
-path-absolutize = "3.1"
+path-absolutize = "4.0"
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 proc-macro2 = "1"
 quote = "1"
@@ -74,7 +74,7 @@ smallvec = "1.15"
 strum = "0.28"
 strum_macros = "0.28"
 syn = { version = "2", features = ["extra-traits"] }
-taffy = "0.10"
+taffy = "0.12"
 thiserror = "2"
 tikv-jemallocator = "0.7"
 tokio = { version = "1", features = [
@@ -103,43 +103,42 @@ unicode-width = "0.2"
 
 # NOTE: Javascript dependencies always keep the same with `deno` {
 
-# deno: https://github.com/denoland/deno/blob/v2.5.4/Cargo.toml
-# deno_core: https://github.com/denoland/deno_core/blob/0.362.0/Cargo.toml
-# deno_ast: https://github.com/denoland/deno_ast/blob/0.50.3/Cargo.toml
+# deno: https://github.com/denoland/deno/blob/main/Cargo.toml
+# deno_ast: https://github.com/denoland/deno_ast/blob/main/Cargo.toml
 
-swc_atoms = "=9.0.3"
-swc_bundler = "=51.0.0"
-swc_common = "=23.0.1"
-swc_config = "=5.0.0"
+swc_atoms = "=10.0.0"
+swc_bundler = "=56.0.1"
+swc_common = "=26.0.0"
+swc_config = "=6.0.0"
 swc_config_macro = "=1.0.1"
-swc_core = "=68.0.6"
-swc_ecma_ast = "=25.0.0"
-swc_ecma_codegen = "=28.0.1"
+swc_core = "=78.0.0"
+swc_ecma_ast = "=29.0.0"
+swc_ecma_codegen = "=32.0.0"
 swc_ecma_codegen_macros = "=2.0.2"
-swc_ecma_lexer = "=40.0.0"
-swc_ecma_loader = "=24.0.0"
-swc_ecma_parser = "=41.0.1"
-swc_ecma_transforms_base = { version = "=44.0.2", features = [
+swc_ecma_lexer = "=44.0.0"
+swc_ecma_loader = "=27.0.0"
+swc_ecma_parser = "=45.1.1"
+swc_ecma_transforms_base = { version = "=49.0.1", features = [
   "inline-helpers",
 ] }
-swc_ecma_transforms_classes = "=44.0.0"
-swc_ecma_transforms_compat = "=51.0.1"
+swc_ecma_transforms_classes = "=49.0.0"
+swc_ecma_transforms_compat = "=57.0.1"
 swc_ecma_transforms_macros = "=1.0.1"
-swc_ecma_transforms_optimization = "=47.0.0"
-swc_ecma_transforms_proposal = "=44.0.1"
-swc_ecma_transforms_react = "=49.0.0"
-swc_ecma_transforms_typescript = "=49.0.0"
-swc_ecma_utils = "=31.0.0"
-swc_ecma_visit = "=25.0.0"
+swc_ecma_transforms_optimization = "=52.0.0"
+swc_ecma_transforms_proposal = "=49.0.1"
+swc_ecma_transforms_react = "=55.0.1"
+swc_ecma_transforms_typescript = "=55.0.2"
+swc_ecma_utils = "=35.0.1"
+swc_ecma_visit = "=29.0.0"
 swc_eq_ignore_macros = "=1.0.1"
-swc_graph_analyzer = "=14.0.1"
+swc_graph_analyzer = "=14.0.2"
 swc_macros_common = "=1.0.1"
 swc_sourcemap = "=10.0.2"
 swc_trace_macro = "=2.0.2"
-swc_visit = "=2.0.1"
+swc_visit = "=2.0.2"
 
 deno_core_icudata = "0.77"
-v8 = { version = "=149.3.0", default-features = false, features = [
+v8 = { version = "=150.4.0", default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
@@ -162,10 +161,12 @@ opt-level = 1
 debug = true
 debug-assertions = true
 inherits = "release"
+panic = "unwind"
 
 # Release
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "s"
+panic = "abort"
 strip = true

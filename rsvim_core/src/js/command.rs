@@ -31,7 +31,6 @@ const JS_COMMAND_NAME: &str = "js";
 /// Builtin `:js` command
 pub struct CommandFuture {
   pub task_id: TaskId,
-  pub name: CompactString,
   pub context: CommandContext,
   pub is_builtin_js: bool,
   pub definition: Option<CommandDefinitionRc>,
@@ -41,7 +40,12 @@ impl JsFuture for CommandFuture {
   fn run(&mut self, scope: &mut v8::PinScope) {
     trace!(
       "|CommandFuture| command name:{:?}({:?})",
-      self.name, self.task_id
+      self
+        .definition
+        .as_ref()
+        .map(|def| def.name.clone())
+        .unwrap_or("?".to_compact_string()),
+      self.task_id
     );
     if self.is_builtin_js {
       let filename = format!("<command-js:{}>", self.task_id);
@@ -216,7 +220,6 @@ impl CommandManager {
 
       Some(CommandFuture {
         task_id,
-        name,
         context,
         is_builtin_js,
         definition: None,
@@ -241,7 +244,6 @@ impl CommandManager {
 
       Some(CommandFuture {
         task_id,
-        name,
         context,
         is_builtin_js,
         definition,

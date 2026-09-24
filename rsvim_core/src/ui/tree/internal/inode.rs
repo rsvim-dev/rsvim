@@ -5,11 +5,11 @@ use crate::ui::tree::internal::context::TreeContextWk;
 use crate::ui::tree::internal::context::TruncatePolicy;
 use std::fmt::Debug;
 
-// NodeId starts from 100001
+// NodeId starts from 1001
 #[derive(
   Copy, Clone, rsvim_macro::IncrementalId, serde::Serialize, serde::Deserialize,
 )]
-pub struct NodeId(#[start_from(100001)] i32);
+pub struct NodeId(#[start_from(1001)] i32);
 
 pub trait Inodify: Sized + Clone + Debug {
   fn id(&self) -> NodeId;

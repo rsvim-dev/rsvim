@@ -1,17 +1,5 @@
 [tools]
-rust = { version = "stable", components = "rust-src,rust-analyzer" }
-
-"cargo:cargo-expand" = "latest"
-"cargo:cargo-nextest" = "latest"
-"cargo:cargo-release" = "latest"
-"cargo:cargo-watch" = "latest"
-"cargo:git-cliff" = "latest"
-"cargo:sccache" = "latest"
-"cargo:taplo-cli" = "latest"
-"cargo:typos-cli" = "latest"
-
 node = "latest"
-
 "npm:browser-sync" = "latest"
 "npm:markdownlint" = "latest"
 "npm:prettier" = "latest"

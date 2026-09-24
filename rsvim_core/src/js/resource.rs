@@ -1,17 +1,9 @@
 //! Resource.
 
-pub mod child_process;
-pub mod file;
-pub mod text_decoder;
-
 use crate::prelude::*;
-use child_process::ChildProcessResource;
-use child_process::ChildProcessStderrResource;
-use child_process::ChildProcessStdinResource;
-use child_process::ChildProcessStdoutResource;
-use file::FileResource;
 use std::fmt::Debug;
-use text_decoder::TextDecoderResource;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 // ResourceId start from 1.
 #[derive(
@@ -19,10 +11,51 @@ use text_decoder::TextDecoderResource;
 )]
 pub struct ResourceId(#[start_from(1)] i32);
 
-/// Resourcify
-pub trait Resourcify: Sized + Debug + Clone {
-  fn id(&self) -> ResourceId;
+#[derive_where::derive_where(Debug)]
+/// Resource container.
+pub struct ResourceContainer<T> {
+  id: ResourceId,
+
+  #[derive_where(skip)]
+  data: Arc<Mutex<T>>,
 }
+
+impl<T> ResourceContainer<T> {
+  pub fn new(data: T) -> Self {
+    Self {
+      id: ResourceId::next(),
+      data: Arc::new(Mutex::new(data)),
+    }
+  }
+
+  fn id(&self) -> ResourceId {
+    self.id
+  }
+
+  pub fn data(&self) -> Arc<Mutex<T>> {
+    self.data.clone()
+  }
+}
+
+impl<T> Clone for ResourceContainer<T> {
+  fn clone(&self) -> Self {
+    ResourceContainer {
+      id: self.id,
+      data: Arc::clone(&self.data),
+    }
+  }
+}
+
+pub type ChildProcessResource = ResourceContainer<std::process::Child>;
+pub type ChildProcessStdinResource =
+  ResourceContainer<std::process::ChildStdin>;
+pub type ChildProcessStdoutResource =
+  ResourceContainer<std::process::ChildStdout>;
+pub type ChildProcessStderrResource =
+  ResourceContainer<std::process::ChildStderr>;
+pub type FileResource = ResourceContainer<std::fs::File>;
+pub type TextDecoderResource = ResourceContainer<encoding_rs::Decoder>;
+pub type ReadDirResource = ResourceContainer<std::fs::ReadDir>;
 
 #[derive(Debug, Clone)]
 pub enum Resource {
@@ -32,19 +65,7 @@ pub enum Resource {
   ChildProcessStdin(ChildProcessStdinResource),
   ChildProcessStdout(ChildProcessStdoutResource),
   ChildProcessStderr(ChildProcessStderrResource),
-}
-
-impl Resourcify for Resource {
-  fn id(&self) -> ResourceId {
-    match self {
-      Resource::File(r) => r.id(),
-      Resource::TextDecoder(r) => r.id(),
-      Resource::ChildProcess(r) => r.id(),
-      Resource::ChildProcessStdin(r) => r.id(),
-      Resource::ChildProcessStdout(r) => r.id(),
-      Resource::ChildProcessStderr(r) => r.id(),
-    }
-  }
+  ReadDirResource(ReadDirResource),
 }
 
 #[derive(Debug, rsvim_macro::ArcMutexPtr)]
@@ -120,6 +141,15 @@ impl ResourceTable {
     self
       .resources
       .insert(res.id(), Resource::ChildProcessStderr(res));
+    rid
+  }
+
+  pub fn add_read_dir(&mut self, data: std::fs::ReadDir) -> ResourceId {
+    let res = ReadDirResource::new(data);
+    let rid = res.id();
+    self
+      .resources
+      .insert(res.id(), Resource::ReadDirResource(res));
     rid
   }
 

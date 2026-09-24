@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="logo.svg" src="https://raw.githubusercontent.com/rsvim/assets/main/logo/RSVIM-logo.svg" />
+  <img alt="logo.svg" src="https://cdn.jsdelivr.net/gh/rsvim-dev/assets@main/logo/RSVIM-logo.svg" />
 </p>
 
 <p align="center">
@@ -7,12 +7,12 @@ The VIM editor reinvented in Rust+TypeScript.
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/rsvim"><img alt="rsvim" src="https://img.shields.io/crates/v/rsvim" /></a>
-  <a href="https://www.npmjs.com/package/rsvim-types"><img alt="rsvim" src="https://img.shields.io/npm/v/rsvim-types" /></a>
-  <a href="https://docs.rs/rsvim_core/latest/"><img alt="rsvim_core" src="https://img.shields.io/docsrs/rsvim_core?label=docs.rs" /></a>
-  <a href="https://github.com/rsvim/rsvim/actions/workflows/release.yml"><img alt="release.yml" src="https://img.shields.io/github/actions/workflow/status/rsvim/rsvim/release.yml" /></a>
-  <a href="https://github.com/rsvim/rsvim/actions/workflows/ci.yml"><img alt="ci.yml" src="https://img.shields.io/github/actions/workflow/status/rsvim/rsvim/ci.yml?branch=main&label=ci" /></a>
-  <a href="https://app.codecov.io/gh/rsvim/rsvim"><img alt="codecov" src="https://img.shields.io/codecov/c/github/rsvim/rsvim" /></a>
+  <a href="https://crates.io/crates/rsvim"><img alt="crates" src="https://img.shields.io/crates/v/rsvim" /></a>
+  <a href="https://www.npmjs.com/package/rsvim-types"><img alt="npmjs" src="https://img.shields.io/npm/v/rsvim-types" /></a>
+  <a href="https://docs.rs/rsvim_core/latest/"><img alt="rustdocs" src="https://img.shields.io/docsrs/rsvim_core?label=docs.rs" /></a>
+  <!-- a href="https://github.com/rsvim-dev/rsvim/actions/workflows/release.yml"><img alt="release.yml" src="https://img.shields.io/github/actions/workflow/status/rsvim-dev/rsvim/release.yml" /></a-->
+  <a href="https://github.com/rsvim-dev/rsvim/actions/workflows/ci.yml"><img alt="ci.yml" src="https://img.shields.io/github/actions/workflow/status/rsvim-dev/rsvim/ci.yml?branch=main&label=ci" /></a>
+  <a href="https://app.codecov.io/gh/rsvim-dev/rsvim"><img alt="codecov" src="https://img.shields.io/codecov/c/github/rsvim-dev/rsvim" /></a>
   <a href="https://discord.gg/5KtRUCAByB"><img alt="discord" src="https://img.shields.io/discord/1220171472329379870?logo=discord&style=social&label=discord" /></a>
 </p>
 
@@ -32,7 +32,7 @@ RSVIM is an open source terminal based text editor, built from scratch with [Rus
 
 ## Installation
 
-Please download prebuilt executables in [releases](https://github.com/rsvim/rsvim/releases) page, or build with cargo:
+Please download prebuilt executables in releases page, or build with cargo:
 
 ```bash
 cargo install rsvim
@@ -41,20 +41,18 @@ cargo install rsvim
 To get latest updates, build with source:
 
 ```bash
-git clone https://github.com/rsvim/rsvim
-cd rsvim
 cargo install --path ./rsvim_cli
 ```
 
 ## Get Started
 
-Please check out [Documentation](https://rsvim.github.io/) for more details!
+Please check out [Documentation](https://rsvim.pages.dev/) for more details!
 
 ## Contribution
 
-Contributions to RSVIM are always welcomed. A few guidelines that help quickly set up development environment can be found in [DEVELOPMENT.md](https://github.com/rsvim/rsvim/blob/main/DEVELOPMENT.md).
+Contributions to RSVIM are always welcomed. A few guidelines that help quickly set up development environment can be found in "DEVELOPMENT.md".
 
-Road map and high-level design can be found in [RFC](https://github.com/rsvim/rfc), please submit your ideas and designs there if they need fairly large efforts.
+Road map and high-level design can be found in [RFC](https://github.com/rsvim-dev/rfc), please submit your ideas and designs there if they need fairly large efforts.
 
 ## Credits
 
@@ -72,4 +70,4 @@ If you like RSVIM, please consider sponsoring it. Your support encourages contri
 
 ## License
 
-Licensed under [Vim License](https://github.com/rsvim/rsvim/blob/main/LICENSE.txt).
+Licensed under "Vim License".

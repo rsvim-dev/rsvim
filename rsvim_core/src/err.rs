@@ -84,13 +84,13 @@ pub enum TheErr {
   #[error("Failed to open file `{0}`: {1}.")]
   OpenFileFailed(PathBuf, IoErr),
 
-  #[error("Failed to read file `{0}`: {1}.")]
+  #[error("Failed to read file `rid:{0}`: {1}.")]
   ReadFileByRidFailed(ResourceId, IoErr),
 
   #[error("Failed to read file `{0}`: {1}.")]
   ReadFileByPathFailed(PathBuf, IoErr),
 
-  #[error("Failed to write file `{0}`: {1}.")]
+  #[error("Failed to write file `rid:{0}`: {1}.")]
   WriteFileByRidFailed(ResourceId, IoErr),
 
   #[error("Failed to create symbolic link `{0}` pointing to `{1}`: {2}.")]
@@ -101,6 +101,12 @@ pub enum TheErr {
 
   #[error("Failed to create directory `{0}`: {1}.")]
   CreateDirectoryFailed(PathBuf, IoErr),
+
+  #[error("Failed to read directory `{0}`: {1}.")]
+  ReadDirectoryByPathFailed(PathBuf, IoErr),
+
+  #[error("Failed to read directory `rid:{0}`: {1}.")]
+  ReadDirectoryByRidFailed(ResourceId, IoErr),
 
   #[error("Invalid data.")]
   DataInvalid,
@@ -114,13 +120,13 @@ pub enum TheErr {
   #[error("Failed to spawn child process `{0}`: {1}.")]
   SpawnChildProcessFailed(CompactString, IoErr),
 
-  #[error("Failed to read child process stdio `{0}`: {1}.")]
+  #[error("Failed to read child process stdio `rid:{0}`: {1}.")]
   ReadChildProcessStdioFailed(ResourceId, IoErr),
 
-  #[error("Child process `{0}` not found.")]
+  #[error("Child process `rid:{0}` not found.")]
   ChildProcessNotFound(ResourceId),
 
-  #[error("Failed to wait child process `{0}`: {1}.")]
+  #[error("Failed to wait child process `rid:{0}`: {1}.")]
   WaitChildProcessFailed(ResourceId, IoErr),
 }
 

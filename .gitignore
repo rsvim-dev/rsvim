@@ -31,3 +31,4 @@ RSVIM_VERSION.TXT
 # Build binaries
 *.dylib
 *.dll
+*.so

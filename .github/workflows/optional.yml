@@ -22,7 +22,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: amannn/action-semantic-pull-request@v6
         if: ${{ github.ref != 'refs/heads/main' }}
         env:
@@ -46,7 +46,7 @@ jobs:
         with:
           components: rust-src,clippy
       - name: Check out 'current' branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: "0"
       - name: Build 'current' branch
@@ -94,7 +94,7 @@ jobs:
         with:
           components: rust-src,clippy
       - name: Check out 'current' branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: "0"
       - name: Build 'current' branch

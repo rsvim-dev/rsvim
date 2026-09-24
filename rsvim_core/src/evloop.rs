@@ -18,16 +18,18 @@ use crate::hl::ColorSchemeManagerArc;
 use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
 use crate::js::SnapshotData;
-use crate::js::binding::global_rsvim::fs::link::async_fs_link;
-use crate::js::binding::global_rsvim::fs::mkdir::fs_mkdir;
-use crate::js::binding::global_rsvim::fs::open::async_fs_open;
-use crate::js::binding::global_rsvim::fs::read::fs_read;
-use crate::js::binding::global_rsvim::fs::read_file::async_fs_read_file;
-use crate::js::binding::global_rsvim::fs::read_text_file::async_fs_read_text_file;
-use crate::js::binding::global_rsvim::fs::stat::async_fs_lstat;
-use crate::js::binding::global_rsvim::fs::stat::async_fs_stat;
-use crate::js::binding::global_rsvim::fs::symlink::fs_symlink;
-use crate::js::binding::global_rsvim::fs::write::fs_write;
+use crate::js::binding::global_rsvim::fs::link::fs_link_a;
+use crate::js::binding::global_rsvim::fs::mkdir::fs_mkdir_s;
+use crate::js::binding::global_rsvim::fs::open::fs_open_a;
+use crate::js::binding::global_rsvim::fs::read::fs_read_s;
+use crate::js::binding::global_rsvim::fs::read_dir::fs_read_dir_next_s;
+use crate::js::binding::global_rsvim::fs::read_dir::fs_read_dir_s;
+use crate::js::binding::global_rsvim::fs::read_file::fs_read_file_a;
+use crate::js::binding::global_rsvim::fs::read_text_file::fs_read_text_file_a;
+use crate::js::binding::global_rsvim::fs::stat::fs_lstat_a;
+use crate::js::binding::global_rsvim::fs::stat::fs_stat_a;
+use crate::js::binding::global_rsvim::fs::symlink::fs_symlink_s;
+use crate::js::binding::global_rsvim::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
 use crate::js::command::CommandManagerArc;
 use crate::js::module::async_load_import;
@@ -817,8 +819,7 @@ impl EventLoop {
           let resource_table = self.resource_table.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
-              async_fs_open(resource_table, req.path.as_path(), req.options)
-                .await;
+              fs_open_a(resource_table, req.path.as_path(), req.options).await;
             jsrt_forwarder_tx
               .send(JsMessage::FsOpenResp(chan::FsOpenResp {
                 task_id: req.task_id,
@@ -838,7 +839,7 @@ impl EventLoop {
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
-              fs_read(resource_table, req.file_rid, req.bufsize);
+              fs_read_s(resource_table, req.file_rid, req.bufsize);
             jsrt_forwarder_tx
               .send(JsMessage::FsReadResp(chan::FsReadResp {
                 task_id: req.task_id,
@@ -852,7 +853,8 @@ impl EventLoop {
           let resource_table = self.resource_table.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_write(resource_table, req.file_rid, req.buf);
+            let maybe_result =
+              fs_write_s(resource_table, req.file_rid, req.buf);
             jsrt_forwarder_tx
               .send(JsMessage::FsWriteResp(chan::FsWriteResp {
                 task_id: req.task_id,
@@ -866,11 +868,51 @@ impl EventLoop {
               .unwrap();
           });
         }
+        MasterMessage::FsReadDirReq(req) => {
+          trace!("Recv FsReadDirReq:{:?}", req.task_id);
+          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let resource_table = self.resource_table.clone();
+          self.detached_tracker.spawn_blocking(move || {
+            let maybe_result =
+              fs_read_dir_s(resource_table, req.path.as_path());
+            jsrt_forwarder_tx
+              .send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
+                task_id: req.task_id,
+                maybe_result: match maybe_result {
+                  Ok(result) => {
+                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
+                  }
+                  Err(e) => Some(Err(e)),
+                },
+              }))
+              .unwrap();
+          });
+        }
+        MasterMessage::FsReadDirNextReq(req) => {
+          trace!("Recv FsReadDirNextReq:{:?}", req.task_id);
+          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let resource_table = self.resource_table.clone();
+          self.detached_tracker.spawn_blocking(move || {
+            let maybe_result = fs_read_dir_next_s(resource_table, req.rid);
+            jsrt_forwarder_tx
+              .send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
+                task_id: req.task_id,
+                maybe_result: match maybe_result {
+                  Some(Ok(result)) => {
+                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
+                  }
+                  Some(Err(e)) => Some(Err(e)),
+                  None => None,
+                },
+              }))
+              .unwrap();
+          });
+        }
         MasterMessage::FsReadFileReq(req) => {
           trace!("Recv FsReadFileReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
-            let maybe_result = async_fs_read_file(req.path.as_path()).await;
+            let maybe_result = fs_read_file_a(req.path.as_path()).await;
             jsrt_forwarder_tx
               .send(JsMessage::FsReadFileResp(chan::FsReadFileResp {
                 task_id: req.task_id,
@@ -886,8 +928,7 @@ impl EventLoop {
           trace!("Recv FsReadTextFileReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
-            let maybe_result =
-              async_fs_read_text_file(req.path.as_path()).await;
+            let maybe_result = fs_read_text_file_a(req.path.as_path()).await;
             jsrt_forwarder_tx
               .send(JsMessage::FsReadTextFileResp(chan::FsReadTextFileResp {
                 task_id: req.task_id,
@@ -906,9 +947,9 @@ impl EventLoop {
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result = if req.follow_symlink {
-              async_fs_stat(req.path.as_path()).await
+              fs_stat_a(req.path.as_path()).await
             } else {
-              async_fs_lstat(req.path.as_path()).await
+              fs_lstat_a(req.path.as_path()).await
             };
             jsrt_forwarder_tx
               .send(JsMessage::FsStatResp(chan::FsStatResp {
@@ -927,7 +968,7 @@ impl EventLoop {
           trace!("Recv FsSymlinkReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_symlink(
+            let maybe_result = fs_symlink_s(
               req.oldpath.as_path(),
               req.newpath.as_path(),
               req.options,
@@ -948,7 +989,7 @@ impl EventLoop {
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
-              async_fs_link(req.oldpath.as_path(), req.newpath.as_path()).await;
+              fs_link_a(req.oldpath.as_path(), req.newpath.as_path()).await;
             jsrt_forwarder_tx
               .send(JsMessage::FsLinkResp(chan::FsLinkResp {
                 task_id: req.task_id,
@@ -964,7 +1005,7 @@ impl EventLoop {
           trace!("Recv FsMkdirReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_mkdir(req.path.as_path(), req.options);
+            let maybe_result = fs_mkdir_s(req.path.as_path(), req.options);
             jsrt_forwarder_tx
               .send(JsMessage::FsMkdirResp(chan::FsMkdirResp {
                 task_id: req.task_id,

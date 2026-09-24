@@ -828,10 +828,10 @@ impl SyntaxManager {
     debug_assert_eq!(self.grammars.len(), self.metadatas.len());
 
     if cfg!(debug_assertions) {
-      for (name, _) in self.grammars.iter() {
+      for name in self.grammars.keys() {
         debug_assert!(self.metadatas.contains_key(name));
       }
-      for (name, _) in self.metadatas.iter() {
+      for name in self.metadatas.keys() {
         debug_assert!(self.grammars.contains_key(name));
       }
       for (ftype, name) in self.ftypes2names.iter() {

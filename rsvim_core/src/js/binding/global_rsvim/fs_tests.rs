@@ -1214,3 +1214,181 @@ async fn test_fs_mkdir2() -> IoResult<()> {
 
   Ok(())
 }
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_read_dir0() -> IoResult<()> {
+  test_log_init();
+
+  let target = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../tests_and_benchmarks/tree-sitter-python"
+  );
+  info!("target:{:?}", target);
+
+  // case-1: pure rust implementation
+  {
+    match std::fs::read_dir(target) {
+      Ok(rd) => {
+        // for-in automatically handles `None` returned from `rd`
+        for it in rd {
+          match it {
+            Ok(entry) => {
+              info!("case-1 next: {:?}", entry);
+            }
+            Err(e) => {
+              info!("case-1 next failed: {:?}", e);
+            }
+          }
+        }
+      }
+      Err(e) => {
+        info!("case-1 read_dir failed: {:?}", e);
+      }
+    }
+  }
+
+  // case-2: resource table implementation
+  {
+    match std::fs::read_dir(target) {
+      Ok(rd) => {
+        let rd_obj = std::sync::Arc::new(std::sync::Mutex::new(rd));
+        loop {
+          let mut rd_obj2 = rd_obj.lock().unwrap();
+          let it = rd_obj2.next();
+          match it {
+            Some(it2) => match it2 {
+              Ok(entry) => {
+                info!("case-2 next: {:?}", entry);
+              }
+              Err(e) => {
+                info!("case-2 next failed: {:?}", e);
+              }
+            },
+            None => {
+              info!("case-2 next: None");
+              break;
+            }
+          }
+        }
+      }
+      Err(e) => {
+        info!("case-2 read_dir failed: {:?}", e);
+      }
+    }
+  }
+
+  Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_read_dir1() -> IoResult<()> {
+  test_log_init();
+
+  let target = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../tests_and_benchmarks/tree-sitter-python"
+  );
+  info!("target:{:?}", target);
+
+  let terminal_cols = 10_u16;
+  let terminal_rows = 10_u16;
+  let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(100))];
+
+  let src = format!(
+    r###"
+
+  for (const entry of Rsvim.fs.readDirSync({:?})) {{
+    Rsvim.cmd.echo(`name:${{entry.name}},file:${{entry.isFile}},dir:${{entry.isDir}},symlink:${{entry.isSymlink}}`);
+  }}
+"###,
+    target
+  );
+
+  // Prepare $RSVIM_CONFIG/rsvim.js
+  let _tp = make_configs(vec![(Path::new("rsvim.js"), &src)]);
+
+  let mut event_loop =
+    make_event_loop(terminal_cols, terminal_rows, CliOptions::empty());
+
+  event_loop.initialize()?;
+  event_loop
+    .run_with_mock_events(MockEventReader::new(mocked_events))
+    .await?;
+  event_loop.shutdown()?;
+
+  // After running
+  {
+    let mut contents = lock!(event_loop.cmdline_text);
+    let n = contents.message_history().len();
+    assert_eq!(n, 28);
+
+    let msg_re = Regex::new(r"^name:.*,file:(?:true|false),dir:(?:true|false),symlink:(?:true|false)$").unwrap();
+    for i in 0..n {
+      let msg = contents.message_history_mut().pop();
+      assert!(msg.is_some());
+      let msg = msg.unwrap();
+      info!("{}:{:?}", i, msg);
+      assert!(msg_re.is_match(&msg));
+    }
+  }
+
+  Ok(())
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_read_dir2() -> IoResult<()> {
+  test_log_init();
+
+  let target = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../tests_and_benchmarks/tree-sitter-python"
+  );
+  info!("target:{:?}", target);
+
+  let terminal_cols = 10_u16;
+  let terminal_rows = 10_u16;
+  let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(1000))];
+
+  let src = format!(
+    r###"
+
+  for await (const entry of Rsvim.fs.readDir({:?})) {{
+    Rsvim.cmd.echo(`name:${{entry.name}},file:${{entry.isFile}},dir:${{entry.isDir}},symlink:${{entry.isSymlink}}`);
+  }}
+"###,
+    target
+  );
+
+  // Prepare $RSVIM_CONFIG/rsvim.js
+  let _tp = make_configs(vec![(Path::new("rsvim.js"), &src)]);
+
+  let mut event_loop =
+    make_event_loop(terminal_cols, terminal_rows, CliOptions::empty());
+
+  event_loop.initialize()?;
+  event_loop
+    .run_with_mock_events(MockEventReader::new(mocked_events))
+    .await?;
+  event_loop.shutdown()?;
+
+  // After running
+  {
+    let mut contents = lock!(event_loop.cmdline_text);
+    let n = contents.message_history().len();
+    assert_eq!(n, 28);
+
+    let msg_re = Regex::new(r"^name:.*,file:(?:true|false),dir:(?:true|false),symlink:(?:true|false)$").unwrap();
+    for i in 0..n {
+      let msg = contents.message_history_mut().pop();
+      assert!(msg.is_some());
+      let msg = msg.unwrap();
+      info!("{}:{:?}", i, msg);
+      assert!(msg_re.is_match(&msg));
+    }
+  }
+
+  Ok(())
+}

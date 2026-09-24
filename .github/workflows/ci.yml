@@ -24,7 +24,7 @@ jobs:
     name: Check
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Tsc
         run: |
           npm install -g typescript
@@ -67,11 +67,11 @@ jobs:
         toolchain: [stable, 1.89.0]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: davidlattimore/wild-action@latest
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
@@ -90,7 +90,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Test
@@ -111,7 +111,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rust-src,clippy,llvm-tools
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: taiki-e/install-action@cargo-llvm-cov
@@ -127,8 +127,9 @@ jobs:
         with:
           fail_ci_if_error: true
           files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   build:
     name: Build
     strategy:
@@ -147,7 +148,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build
         run: cargo build ${{ matrix.profile }}
       - name: Build (--no-default-features)

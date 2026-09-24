@@ -1,13 +1,19 @@
 //! Write file APIs.
 
+use crate::is_v8_int;
+use crate::js;
 use crate::js::JsFuture;
+use crate::js::JsRuntime;
 use crate::js::binding;
+use crate::js::converter::*;
+use crate::js::pending;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
 use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
+use itertools::Itertools;
 
-pub fn fs_write(
+pub fn fs_write_s(
   resource_table: ResourceTableArc,
   rid: ResourceId,
   buf: Vec<u8>,
@@ -64,5 +70,81 @@ impl JsFuture for FsWriteFuture {
       .open(scope)
       .resolve(scope, bytes_written.into())
       .unwrap();
+  }
+}
+
+fn _get_args<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+) -> (/* file rid */ ResourceId, /* buf */ Vec<u8>) {
+  debug_assert!(args.length() == 2);
+  debug_assert!(is_v8_int!(args.get(0)));
+  let file_rid = i32::from_v8(scope, args.get(0));
+  let file_rid = ResourceId::from(file_rid);
+  debug_assert!(args.get(1).is_array_buffer());
+  let buf = args.get(1).cast::<v8::ArrayBuffer>();
+  let buf = buf
+    .get_backing_store()
+    .iter()
+    .map(|b| b.get())
+    .collect_vec();
+  trace!("RsvimFs write file_rid:{:?},buf:{:?}", file_rid, buf);
+  (file_rid, buf)
+}
+
+/// `File.write` API.
+pub fn write_async<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+  mut rv: v8::ReturnValue,
+) {
+  let (file_rid, buf) = _get_args(scope, args);
+
+  let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
+  let promise = promise_resolver.get_promise(scope);
+
+  let state_rc = JsRuntime::state(scope);
+  let write_cb = {
+    let promise = v8::Global::new(scope, promise_resolver);
+    let state_rc = state_rc.clone();
+    move |maybe_result: Option<TheResult<Vec<u8>>>| {
+      let fut = FsWriteFuture {
+        promise: promise.clone(),
+        maybe_result,
+      };
+      let mut state = state_rc.borrow_mut();
+      state.pending_futures.push(Box::new(fut));
+    }
+  };
+
+  let mut state = state_rc.borrow_mut();
+  let task_id = js::TaskId::next();
+  pending::create_fs_write(
+    &mut state,
+    task_id,
+    file_rid,
+    buf,
+    Box::new(write_cb),
+  );
+
+  rv.set(promise.into());
+}
+
+/// `File.writeSync` API.
+pub fn write_sync<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
+  args: v8::FunctionCallbackArguments<'s>,
+  mut rv: v8::ReturnValue,
+) {
+  let (file_rid, buf) = _get_args(scope, args);
+
+  let state_rc = JsRuntime::state(scope);
+  let resource_table = state_rc.borrow().resource_table.clone();
+
+  match fs_write_s(resource_table, file_rid, buf) {
+    Ok(bytes_written) => {
+      rv.set_int32(bytes_written as i32);
+    }
+    Err(e) => binding::throw_exception(scope, &e),
   }
 }
