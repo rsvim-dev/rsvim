@@ -150,7 +150,7 @@ collapsible_else_if = "allow"
 collapsible_if = "allow"
 new_without_default = "allow"
 nonminimal_bool = "allow"
-type-complexity = "allow"
+type_complexity = "allow"
 
 # Debug
 [profile.dev.package.v8]
