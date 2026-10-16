@@ -138,7 +138,7 @@ swc_trace_macro = "=2.0.2"
 swc_visit = "=2.0.2"
 
 deno_core_icudata = "0.77"
-v8 = { version = "=150.4.0", default-features = false, features = [
+v8 = { version = "=152.2.0", default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
