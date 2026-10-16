@@ -4492,9 +4492,9 @@ dependencies = [
 
 [[package]]
 name = "swc_core"
-version = "82.0.0"
+version = "82.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "843d600a937bc9e87477ed6010fde466f0666d850927477b7e4c7199ed789ae5"
+checksum = "3ca5fec94917705a6206d18e7295ca48419fbff047c11198bf231679d4e6b538"
 dependencies = [
  "swc_allocator",
 ]
@@ -5025,9 +5025,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_utils"
-version = "35.0.2"
+version = "35.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ef03eeed69158884baa19bf5e02d6bf21a8cc2e728346dec3cc913f69cf190c"
+checksum = "ecd5288b59983c77a838f49498a8f88aa7ff9c1c5a059885dceb244293a6701b"
 dependencies = [
  "dragonbox_ecma",
  "indexmap",
