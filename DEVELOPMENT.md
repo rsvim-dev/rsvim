@@ -7,7 +7,7 @@ Please setup your development environment with:
 - Latest C++ toolchain:
   - For Linux, install [gcc](https://gcc.gnu.org/).
   - For macOS, install [Xcode Clang](https://developer.apple.com/xcode/).
-  - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/).
+  - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/), [LLVM](https://llvm.org/).
 - Install [rust](https://rust-lang.org/tools/install/) and [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), then run `cargo binstall -y cargo-nextest cargo-release git-cliff sccache taplo-cli typos-cli` to install below tools:
   - [cargo-nextest](https://github.com/nextest-rs/nextest)
   - [cargo-release](https://github.com/crate-ci/cargo-release)
@@ -16,7 +16,6 @@ Please setup your development environment with:
   - [taplo-cli](https://github.com/tamasfe/taplo)
   - [typos-cli](https://github.com/crate-ci/typos)
 - Install [mise](https://github.com/jdx/mise), then run `mise i`.
-- (Optional) Faster linker for linux, install [clang](https://llvm.org/), [mold](https://github.com/rui314/mold).
 
 ## Repository
 
