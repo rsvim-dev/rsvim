@@ -50,6 +50,7 @@ typescript = [
   "dep:swc_trace_macro",
   "dep:swc_visit",
 ]
+tzdata = ["jiff/tzdb-bundle-always"]
 unicode = ["ropey/unicode_lines"]
 wasm = []
 
