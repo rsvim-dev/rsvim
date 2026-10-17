@@ -25,6 +25,7 @@ SCCACHE = shutil.which("sccache")
 NO_CACHE = False
 
 CLANG = shutil.which("clang")
+CLANG_CL = shutil.which("clang-cl")
 MOLD = shutil.which("mold")
 WILD = shutil.which("wild")
 NO_LINKER = False
@@ -51,6 +52,21 @@ def sccache():
     env("RUSTC_WRAPPER", SCCACHE)
 
 
+def cc():
+    # MSVC 14.44's `cl.exe` fails with D8050 ("failed to put command line into
+    # debug record") when the `cc` crate compiles C code with `-Z7` (debug
+    # info) inside cargo build scripts. Use clang-cl instead, which understands
+    # the same MSVC flags and does not hit the bug.
+    if not WINDOWS:
+        return
+    if CLANG_CL is None:
+        logging.warning(
+            "'clang-cl' not found! MSVC 'cl.exe' may hit D8050 on debug builds."
+        )
+        return
+    env("CC", CLANG_CL)
+
+
 def _linker():
     supported_platform = LINUX and (X86 or ARM)
     if not supported_platform:
@@ -72,6 +88,13 @@ def _linker():
 
 def rustflags():
     flags = ["-Dwarnings"]
+
+    if WINDOWS:
+        # `v8`'s prebuilt static libraries are built with the static CRT
+        # (`/MT`, `libcmt.lib`), so Rust must link the static CRT too. This
+        # mirrors `.cargo/config.toml`, which RUSTFLAGS would otherwise override.
+        flags.append("-Ctarget-feature=+crt-static")
+
     linker_flags = _linker()
     if linker_flags is not None:
         flags.append(linker_flags)
@@ -152,6 +175,7 @@ class Clippy(Cmd):
     def run(self, args) -> None:
         sccache()
         rustflags()
+        cc()
 
         if args.minimal_version:
             cmd = "cargo +1.89 clippy --workspace --all-targets"
@@ -203,6 +227,7 @@ class Test(Cmd):
     def test(self, name, no_default_features, minimal_version) -> None:
         sccache()
         rustflags()
+        cc()
         rust_backtrace()
         rsvim_log()
 
@@ -248,6 +273,7 @@ class Miri(Cmd):
 
     def run(self, args) -> None:
         rustflags()
+        cc()
         rust_backtrace()
         miriflags()
         if args.job is None:
@@ -293,6 +319,7 @@ class Build(Cmd):
     def run(self, args) -> None:
         sccache()
         rustflags()
+        cc()
         if args.minimal_version:
             cmd = "cargo +1.89 build"
         else:
