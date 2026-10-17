@@ -2,15 +2,17 @@
 
 # Formatted with ruff.
 
-from abc import abstractmethod
-from typing import Protocol
-from typing import Optional
 import argparse
 import logging
 import os
 import pathlib
 import platform
 import shutil
+from abc import abstractmethod
+from typing import Optional, Protocol
+
+MSRV = "1.90.0"
+CARGO_MSRV = "cargo +1.90.0"
 
 WINDOWS = platform.system().startswith("Windows") or platform.system().startswith(
     "CYGWIN_NT"
@@ -139,7 +141,7 @@ class Clippy(Cmd):
             "--minimal-version",
             action="store_true",
             dest="minimal_version",
-            help="With minimal rust toolchain version 1.89.0",
+            help=f"With minimal rustc version {MSRV}",
         )
         self.clippy_parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -154,7 +156,7 @@ class Clippy(Cmd):
         rustflags()
 
         if args.minimal_version:
-            cmd = "cargo +1.89 clippy --workspace --all-targets"
+            cmd = f"{CARGO_MSRV} clippy --workspace --all-targets"
         else:
             cmd = "cargo clippy --workspace --all-targets"
         if args.verbose:
@@ -184,7 +186,7 @@ class Test(Cmd):
             "--minimal-version",
             action="store_true",
             dest="minimal_version",
-            help="With minimal rust toolchain version 1.89.0",
+            help=f"With minimal rustc version {MSRV}",
         )
         self.test_parser.add_argument("name", nargs="*", default=[])
 
@@ -207,7 +209,7 @@ class Test(Cmd):
         rsvim_log()
 
         if minimal_version:
-            cmd = "cargo +1.89 nextest run --no-capture"
+            cmd = f"{CARGO_MSRV} nextest run --no-capture"
         else:
             cmd = "cargo nextest run --no-capture"
 
@@ -281,7 +283,7 @@ class Build(Cmd):
             "--minimal-version",
             action="store_true",
             dest="minimal_version",
-            help="With minimal rust toolchain version 1.89.0",
+            help="With minimal rust toolchain version 1.90.0",
         )
 
     def name(self) -> str:
@@ -294,7 +296,7 @@ class Build(Cmd):
         sccache()
         rustflags()
         if args.minimal_version:
-            cmd = "cargo +1.89 build"
+            cmd = "cargo +1.90 build"
         else:
             cmd = "cargo build"
         if args.release:

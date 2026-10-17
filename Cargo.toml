@@ -13,7 +13,7 @@ keywords = ["editor", "neovim", "terminal", "text-editor", "vim"]
 license = "Vim"
 readme = "README.md"
 repository = "https://github.com/rsvim/rsvim"
-rust-version = "1.89.0"
+rust-version = "1.90.0"
 version = "0.1.3-alpha.2"
 
 [workspace.dependencies]
