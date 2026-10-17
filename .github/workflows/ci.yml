@@ -64,7 +64,7 @@ jobs:
     name: Clippy
     strategy:
       matrix:
-        toolchain: [stable, 1.89.0]
+        toolchain: [stable, 1.90.0]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
