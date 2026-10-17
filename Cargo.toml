@@ -36,15 +36,15 @@ criterion = { version = "0.8", features = ["async_tokio"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 derive-where = "1.6"
 derive_builder = "0.20"
-dirs = "6.0"
+dirs = "7.0"
 encoding_rs = "0.8"
 env_filter = "2.0"
 fastrand = "2.4"
 fern = "0.7"
 foldhash = "0.2"
 futures = "0.3"
-geo = "0.33"
-gix = "0.87"
+geo = "0.33.1"
+gix = "0.89"
 heck = "0.5"
 icu = "2"
 itertools = "0.15"
@@ -74,7 +74,7 @@ smallvec = "1.15"
 strum = "0.28"
 strum_macros = "0.28"
 syn = { version = "2", features = ["extra-traits"] }
-taffy = "0.12"
+taffy = "0.15"
 thiserror = "2"
 tikv-jemallocator = "0.7"
 tokio = { version = "1", features = [
@@ -92,10 +92,10 @@ tokio = { version = "1", features = [
 ] }
 tokio-util = { version = "0.7", features = ["full"] }
 toml = { version = "1.1", features = ["fast_hash"] }
-tree-sitter = "0.26"
+tree-sitter = "0.27"
 tree-sitter-c = "0.24"
 tree-sitter-html = "0.23"
-tree-sitter-loader = "0.26"
+tree-sitter-loader = "0.27"
 tree-sitter-md = "0.5"
 tree-sitter-rust = "0.24"
 tree-sitter-toml-ng = "0.7"
