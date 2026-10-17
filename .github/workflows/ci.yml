@@ -135,6 +135,8 @@ jobs:
             profile: --profile nightly
           - os: windows-2022
             profile: --release
+          - os: windows-2022
+            profile: --profile nightly
     runs-on: ${{ matrix.os }}
     steps:
       - uses: Swatinem/rust-cache@v2

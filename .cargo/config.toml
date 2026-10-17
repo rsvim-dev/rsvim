@@ -1,6 +1,17 @@
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+# MSVC `cl.exe` fails with D8050 ("failed to put command line into
+# debug record") when the `cc` crate compiles C code with `-Z7` (debug info)
+# inside cargo build scripts. Use clang-cl instead, which understands the same
+# MSVC flags and does not hit the bug.
+CC_aarch64-pc-windows-msvc = "clang-cl"
+CC_x86_64-pc-windows-msvc = "clang-cl"
+
 [target.'cfg(all(windows, debug_assertions))']
 rustflags = [
   "-C",

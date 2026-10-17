@@ -17,19 +17,9 @@ CARGO_MSRV = "cargo +1.90.0"
 WINDOWS = platform.system().startswith("Windows") or platform.system().startswith(
     "CYGWIN_NT"
 )
-MACOS = platform.system().startswith("Darwin")
-LINUX = platform.system().startswith("Linux")
-
-X86 = platform.machine().startswith("x86_64") or platform.machine().startswith("AMD64")
-ARM = platform.machine().startswith("aarch64") or platform.machine().startswith("arm64")
 
 SCCACHE = shutil.which("sccache")
 NO_CACHE = False
-
-CLANG = shutil.which("clang")
-MOLD = shutil.which("mold")
-WILD = shutil.which("wild")
-NO_LINKER = False
 
 
 def run(cmd):
@@ -53,30 +43,14 @@ def sccache():
     env("RUSTC_WRAPPER", SCCACHE)
 
 
-def _linker():
-    supported_platform = LINUX and (X86 or ARM)
-    if not supported_platform:
-        return None
-
-    if NO_LINKER:
-        logging.warning("mold/wild is disabled!")
-        return None
-
-    linker = WILD if WILD is not None else MOLD
-    if linker is None or CLANG is None:
-        logging.warning("mold/wild not found!")
-        return None
-
-    triple = "X86_64_UNKNOWN_LINUX_GNU" if X86 else "AARCH64_UNKNOWN_LINUX_GNU"
-    env(f"CARGO_TARGET_{triple}_LINKER", "clang")
-    return f"-Clink-arg=-fuse-ld={linker}"
-
-
 def rustflags():
     flags = ["-Dwarnings"]
-    linker_flags = _linker()
-    if linker_flags is not None:
-        flags.append(linker_flags)
+
+    if WINDOWS:
+        # `v8`'s prebuilt static libraries are built with the static CRT
+        # (`/MT`, `libcmt.lib`), so Rust must link the static CRT too. This
+        # mirrors `.cargo/config.toml`, which RUSTFLAGS would otherwise override.
+        flags.append("-Ctarget-feature=+crt-static")
 
     flags = " ".join(flags)
     env("RUSTFLAGS", flags)
@@ -84,9 +58,6 @@ def rustflags():
 
 def rustdocflags():
     flags = ["-Dwarnings"]
-    linker_flags = _linker()
-    if linker_flags is not None:
-        flags.append(linker_flags)
 
     flags = " ".join(flags)
     env("RUSTDOCFLAGS", flags)
@@ -511,11 +482,6 @@ if __name__ == "__main__":
         action="store_true",
         help="disable sccache",
     )
-    parser.add_argument(
-        "--no-linker",
-        action="store_true",
-        help="disable rust-lld",
-    )
 
     subparsers = parser.add_subparsers(dest="subcommand")
 
@@ -536,8 +502,6 @@ if __name__ == "__main__":
 
     if parsed_args.no_cache:
         NO_CACHE = True
-    if parsed_args.no_linker:
-        NO_LINKER = True
 
     for command in commands:
         sub = parsed_args.subcommand
