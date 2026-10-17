@@ -76,11 +76,6 @@ jobs:
           mv target/nightly/rsvim${{ env.BIN_EXT }} .
           tar -czvf rsvim-${{ matrix.target }}.tar.gz rsvim${{ env.BIN_EXT }}
           7z a rsvim-${{ matrix.target }}.zip rsvim${{ env.BIN_EXT }}
-          rm rsvim${{ env.BIN_EXT }}
-          cargo build --no-default-features --profile nightly
-          mv target/nightly/rsvim${{ env.BIN_EXT }} .
-          tar -czvf mini-rsvim-${{ matrix.target }}.tar.gz rsvim${{ env.BIN_EXT }}
-          7z a mini-rsvim-${{ matrix.target }}.zip rsvim${{ env.BIN_EXT }}
       - name: Create New Release
         uses: ncipollo/release-action@v1
         with:
@@ -96,5 +91,3 @@ jobs:
           artifacts: |
             rsvim-${{ matrix.target }}.tar.gz
             rsvim-${{ matrix.target }}.zip
-            mini-rsvim-${{ matrix.target }}.tar.gz
-            mini-rsvim-${{ matrix.target }}.zip

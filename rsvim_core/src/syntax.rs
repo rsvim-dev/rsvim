@@ -1188,7 +1188,7 @@ pub fn _query(
     );
     let mut nodes: SyntaxCaptureMap = FoldMap::new();
     while let Some(mat) = matches.next() {
-      for cap in mat.captures {
+      for cap in mat.captures() {
         let index = cap.index;
         let name = syn_highlight_query.capture_names()[index as usize];
         let range = cap.node.range();
