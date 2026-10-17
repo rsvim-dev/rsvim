@@ -95,9 +95,6 @@ jobs:
           submodules: recursive
       - name: Test
         run: cargo test --color=never --workspace
-      - name: Test (--no-default-features)
-        if: ${{ contains(matrix.os, 'ubuntu') }}
-        run: cargo test --no-default-features --color=never --workspace
   unit_test_coverage:
     name: Unit Test with Coverage
     strategy:
@@ -116,9 +113,6 @@ jobs:
           submodules: recursive
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: taiki-e/install-action@nextest
-      - name: Nextest (--no-default-features)
-        if: ${{ contains(matrix.os, 'ubuntu') }}
-        run: cargo nextest run --no-capture --no-default-features --color=never --workspace
       - name: Nextest with code coverage
         run: |
           cargo llvm-cov clean --workspace
@@ -149,7 +143,7 @@ jobs:
         with:
           components: clippy
       - uses: actions/checkout@v7
+      - name: Build (-F typescript,wasm,icudata,tzdata)
+        run: cargo build -F typescript,wasm,icudata,tzdata ${{ matrix.profile }}
       - name: Build
         run: cargo build ${{ matrix.profile }}
-      - name: Build (--no-default-features)
-        run: cargo build --no-default-features ${{ matrix.profile }}
