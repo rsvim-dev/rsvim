@@ -145,7 +145,7 @@ jobs:
         with:
           components: clippy
       - uses: actions/checkout@v7
-      - name: Build (-F typescript,wasm,icudata,tzdata)
-        run: cargo build -F typescript,wasm,icudata,tzdata ${{ matrix.profile }}
+      - name: Build (--no-default-features)
+        run: cargo build --no-default-features ${{ matrix.profile }}
       - name: Build
         run: cargo build ${{ matrix.profile }}

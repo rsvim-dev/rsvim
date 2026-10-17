@@ -20,7 +20,6 @@ icudata = ["rsvim_core/icudata"]
 jemalloc = ["dep:tikv-jemallocator"]
 mimalloc = ["dep:mimalloc"]
 typescript = ["rsvim_core/typescript"]
-tzdata = ["rsvim_core/tzdata"]
 wasm = ["rsvim_core/wasm"]
 
 [dependencies]
