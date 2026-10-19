@@ -107,7 +107,7 @@ pub fn init_v8_platform(snapshot: bool, user_v8_flags: Option<&[String]>) {
   V8_INIT.call_once(move || {
     #[cfg(feature = "icudata")]
     {
-      v8::icu::set_common_data_77(deno_core_icudata::ICU_DATA).unwrap();
+      v8::icu::set_common_data_78(deno_core_icudata::ICU_DATA).unwrap();
     }
 
     // Configuration flags for V8.
