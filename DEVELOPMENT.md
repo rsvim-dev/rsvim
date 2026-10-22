@@ -8,13 +8,7 @@ Please setup your development environment with:
   - For Linux, install [gcc](https://gcc.gnu.org/).
   - For macOS, install [Xcode Clang](https://developer.apple.com/xcode/).
   - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/), [LLVM](https://llvm.org/).
-- Install [rust](https://rust-lang.org/tools/install/) and [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), then run `cargo binstall -y cargo-nextest cargo-release git-cliff sccache taplo-cli typos-cli` to install below tools:
-  - [cargo-nextest](https://github.com/nextest-rs/nextest)
-  - [cargo-release](https://github.com/crate-ci/cargo-release)
-  - [git-cliff](https://github.com/orhun/git-cliff)
-  - [sccache](https://github.com/mozilla/sccache)
-  - [taplo-cli](https://github.com/tamasfe/taplo)
-  - [typos-cli](https://github.com/crate-ci/typos)
+- Install [rust](https://rust-lang.org/tools/install/), [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) and `cargo binstall -y cargo-nextest cargo-release git-cliff sccache taplo-cli typos-cli`.
 - Install [mise](https://github.com/jdx/mise), then run `mise i`.
 
 ## Repository
