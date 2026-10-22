@@ -1,7 +1,6 @@
 //! Fs (filesystem) module loader.
 
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::js::loader::AsyncModuleLoader;
 use crate::js::loader::ModuleLoader;
 use crate::js::module::ModulePath;
 use crate::js::module::ModuleSource;
@@ -10,7 +9,6 @@ use crate::js::transpiler::TypeScript;
 #[cfg(feature = "wasm")]
 use crate::js::transpiler::Wasm;
 use crate::prelude::*;
-use async_trait::async_trait;
 use oxc_resolver::ResolveOptions;
 use oxc_resolver::Resolver;
 
@@ -190,48 +188,6 @@ impl ModuleLoader for FsModuleLoader {
     // Load source.
     let path = Path::new(specifier);
     let maybe_source = sync_load::load_as_file(path);
-
-    let (path, source) = match maybe_source {
-      Ok((path, source)) => (path, source),
-      Err(e) => return Err(e),
-    };
-
-    let path_extension =
-      path.extension().unwrap().to_string_lossy().to_string();
-
-    // Use a preprocessor if necessary.
-    match path_extension.as_str() {
-      #[cfg(feature = "wasm")]
-      "wasm" => Ok(Wasm::parse(&source)),
-      #[cfg(feature = "typescript")]
-      "ts" => {
-        let fname = path.to_str();
-        TypeScript::compile(fname, &source)
-      }
-      // "jsx" => {
-      //   Jsx::compile(fname, &source).map_err(|e| JsRuntimeErr::Message(e.to_string()).into())
-      // }
-      // "tsx" => Jsx::compile(fname, &source)
-      //   .and_then(|output| TypeScript::compile(fname, &output))
-      //   .map_err(|e| JsRuntimeErr::Message(e.to_string()).into()),
-      _ => Ok(source),
-    }
-  }
-}
-
-#[derive(Default)]
-/// Async [`FsModuleLoader`].
-///
-/// NOTE: This is only allow to use in event loop, i.e. with tokio runtime, not
-/// in js runtime.
-pub struct AsyncFsModuleLoader;
-
-#[async_trait]
-impl AsyncModuleLoader for AsyncFsModuleLoader {
-  async fn load(&self, specifier: &str) -> TheResult<ModuleSource> {
-    // Load source.
-    let path = Path::new(specifier);
-    let maybe_source = async_load::async_load_as_file(path).await;
 
     let (path, source) = match maybe_source {
       Ok((path, source)) => (path, source),

@@ -229,16 +229,6 @@ pub fn fetch_module<'s>(
     None => load_import(filename, true).unwrap(),
   };
 
-  // if cfg!(debug_assertions) {
-  //   const MAX_SRC_LEN: usize = 100;
-  //   let src = if source.as_str().len() > MAX_SRC_LEN {
-  //     String::from(&source.as_str()[..MAX_SRC_LEN]) + "..."
-  //   } else {
-  //     String::from(source.as_str())
-  //   };
-  //   trace!("Fetch module, filename:{:?}, source:{:?}", filename, src);
-  // }
-
   let source = v8::String::new(scope, &source).unwrap();
   let mut source = v8::script_compiler::Source::new(source, Some(&origin));
 
