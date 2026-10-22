@@ -8,7 +8,6 @@ Please setup your development environment with:
   - For Linux, install [gcc](https://gcc.gnu.org/).
   - For macOS, install [Xcode Clang](https://developer.apple.com/xcode/).
   - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/), [LLVM](https://llvm.org/).
-- Install [rust](https://rust-lang.org/tools/install/), [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) and `cargo binstall -y cargo-nextest cargo-release git-cliff sccache taplo-cli typos-cli`.
 - Install [mise](https://github.com/jdx/mise), then run `mise i`.
 
 ## Repository
