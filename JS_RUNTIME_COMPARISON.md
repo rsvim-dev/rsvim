@@ -381,6 +381,9 @@ design.
 
 ### 3.3 The dynamic-import promise
 
+A callback-level, four-way trace of this mechanism (dune, rsvim, Ende, Node.js) — who allocates the
+promise, what drives progress, and where it settles — is in `JS_RUNTIME_DYNAMIC_IMPORT.md`.
+
 - **rsvim**: `host_import_module_dynamically_cb` (`js/hook.rs:181`) creates a
   `v8::PromiseResolver`, registers a `ModuleGraph` in `ModuleMap::pending`, and settles it later in
   `fast_forward_imports` (`js.rs:843-906`, resolve at `:903`). Duplicate concurrent imports are
