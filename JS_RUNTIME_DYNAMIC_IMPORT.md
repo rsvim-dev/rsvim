@@ -44,7 +44,7 @@ routes from that design: put the machine in the engine (Ende), or put it in Java
 V8's contract is deliberately thin, and everything in this document follows from it:
 
 - The embedder installs `Isolate::SetHostImportModuleDynamicallyCallback` once
-  (rsvim `js/hook.rs:181`, dune `src/hooks.rs:148`, Ende `libs/core/runtime/setup.rs:293`, Node
+  (rsvim `js.rs:149`, dune `src/runtime.rs:151`, Ende `libs/core/runtime/setup.rs:293`, Node
   `src/module_wrap.cc:1219`).
 - The callback is **synchronous** and must return `MaybeLocal<Promise>`. V8's dynamic-import runtime
   call returns that promise verbatim as the value of the `import()` expression
@@ -88,16 +88,16 @@ import("x")
       fast_forward_imports()                              src/runtime.rs:507
       event_loop.run(RunMode::Once)                       src/runtime.rs:430
       run_pending_futures()                               src/runtime.rs:479
-  → EsModuleFuture::run                                   src/modules.rs:292
+  → EsModuleFuture::run                                   src/modules.rs:294
       compile_module → ModuleMap::insert → for each ModuleRequest
           if unseen: handle.spawn(load_import(child))     src/modules.rs:412
   → a later tick: fast_forward propagates Ready up the tree (src/modules.rs:182)
-  → instantiate_module + evaluate → resolve the namespace (src/runtime.rs:598-608)
+  → instantiate_module + evaluate → resolve the namespace (src/runtime.rs:569-608)
 ```
 
 The interesting part is the substrate. `handle.spawn` belongs to dune's own loop (`crabuv`), which
 runs the work closure on a **rayon** thread pool (`crabuv/src/thread_pool.rs:33`) and invokes the
-completion callback back on the loop thread (`crabuv/src/event_loop.rs:732`). Because the callback
+completion callback back on the loop thread (`crabuv/src/event_loop.rs:357`). Because the callback
 runs where V8 lives, the fetched source travels as a plain Rust value — `ModuleSource = String`
 (`src/modules.rs:79`) boxed into `Box<dyn Any>` and downcast — with no serialization.
 
@@ -111,7 +111,7 @@ loading is not special. The module-specific part is only the bookkeeping:
 - **Coalescing**: concurrent imports of the same root share one graph through `same_origin`, a
   `LinkedList` of pending resolvers (`src/modules.rs:227`).
 - **Settlement**: after `instantiate_module` + `evaluate`, the namespace is resolved into the graph's
-  resolver and every `same_origin` resolver (`src/runtime.rs:598-608`).
+  resolver and every `same_origin` resolver (`src/runtime.rs:569-608`).
 - **Errors**: load/compile failures are stringified onto the tree node
   (`exception.replace(e.to_string())`, `src/modules.rs:283`). Static-import failures print and
   `exit(1)` (`src/modules.rs:288-289`).
@@ -128,11 +128,11 @@ branch order:
 | dune | rsvim |
 |---|---|
 | `src/modules.rs:82` `ModuleMap { main, by_path, by_id, seen, pending }` | `js/module/module_map.rs:147` |
-| `src/modules.rs:152/160` `ImportKind`, `ModuleStatus` | `js/module/module_map.rs:49`, `js/module/module.rs:64` |
+| `src/modules.rs:152/160` `ImportKind`, `ModuleStatus` | `js/module/module_map.rs:49`, `js/module.rs:64` |
 | `src/modules.rs:172/182` `EsModule`, `fast_forward` | `js/module/es_module.rs:21/86` |
 | `src/modules.rs:227` `ModuleGraph { kind, root_rc, same_origin }` | `js/module/module_map.rs:58` (same, `Vec` instead of `LinkedList`) |
 | `src/modules.rs:271` `EsModuleFuture` | `js/module/es_module.rs:162` |
-| `src/hooks.rs:148-243` dynamic-import callback | `js/hook.rs:181-300` |
+| `src/hooks.rs:148-243` dynamic-import callback | `js/hook.rs:181-295` |
 | `src/runtime.rs:427/479/507` tick, futures, fast-forward | `js.rs:610/648/776` |
 
 The structural change is *where the fetched bytes come from*; the rest of the delta is substrate
@@ -144,7 +144,7 @@ host_import_module_dynamically_cb                  rsvim_core/src/js/hook.rs:181
   pending::create_import_loader                    rsvim_core/src/js/pending.rs:45
       pending_import_loaders[task_id] = cb
       send_to_master(MasterMessage::LoadImportReq)
-→ EventLoop::handle                                 rsvim_core/src/evloop.rs:791
+→ EventLoop::process_master_message                   rsvim_core/src/evloop.rs:791
       detached_tracker.spawn(async { async_load_import(...) })
       async_load_import                             rsvim_core/src/js/module.rs:205
       send(JsMessage::LoadImportResp { postcard::to_allocvec(source) })
@@ -152,7 +152,7 @@ host_import_module_dynamically_cb                  rsvim_core/src/js/hook.rs:181
       jsrt_tx.send(msg); js_runtime.tick_event_loop()
 → run_pending_futures                               rsvim_core/src/js.rs:648
       LoadImportResp → loader_cb → pending_futures.push(EsModuleFuture)
-→ EsModuleFuture::run                               rsvim_core/src/js/es_module.rs:183
+→ EsModuleFuture::run                               rsvim_core/src/js/es_module.rs:185
       compile → insert → for each request: create_import_loader(child)
 ```
 
@@ -215,7 +215,7 @@ Two details distinguish this design from dune/rsvim:
 - **TLA is first class.** The evaluation promise is stored (`DynImportModEvaluate`,
   `dynamic.rs:30`), polled via `promise.state()`, and the user resolver settles only on
   `Fulfilled`; imports that arrive for a module already `Evaluated` but still running TLA are queued
-  in `pending_tla_waiters` (`dynamic.rs:332`).
+  in `pending_tla_waiters` (`dynamic.rs:89-97`).
 - **The promise V8 sees is a derived one.** `promise.catch(map_err)` (`bindings.rs:1317`) exists so
   resolution errors can be re-thrown with the stack of the `import()` site.
 
@@ -235,7 +235,7 @@ import("x")
       #getOrCreateModuleJobAfterResolve              loader.js:568
           loadCache.get(url, type)                   loader.js:588
           loadAndTranslate → #loadSync → defaultLoadSync → readFileSync   load.js:38
-          new ModuleJobSync                          loader.js:620   (main thread)
+          new ModuleJobSync                          loader.js:620-623   (main thread)
       moduleJob.run()                                module_job.js:643
           instantiateSync → evaluateSync             module_job.js:633/697
           or await module.evaluate() if hasAsyncGraph (TLA)   module_job.js:671
@@ -342,10 +342,10 @@ The costs follow from that choice, not from V8:
   price of re-entrant C++→JS calls, two or three promises per import, and — since #62530 — blocking
   file I/O on the main thread whenever hooks are not async.
 
-A useful tell: the three hosts that must let *other code* decide where module bytes come from
+A useful tell: the two hosts that must let *other code* decide where module bytes come from
 (Ende for Deno's loaders, Node for user hooks) both moved the machine out of the embedder's hot
-path; the two hosts that own the whole application (dune, an editor's script engine) kept it
-inline.
+path; the two hosts that own the whole application (dune, and rsvim, an editor's script engine) kept
+it inline.
 
 ---
 
@@ -396,7 +396,7 @@ These are code-level observations, not test results — the dynamic-import tests
   run**. Timing statements ("turns", "inline") are derived from control flow, not measurement.
 - dune's `crabuv` was read at the revision pinned by its `Cargo.lock` (`2fda099`); the thread pool it
   uses is rayon (`crabuv/src/thread_pool.rs:33`), and completion callbacks are delivered on the loop
-  thread (`crabuv/src/event_loop.rs:732`).
+  thread (`crabuv/src/event_loop.rs:357`).
 - V8-side citations for Node.js point into node's vendored `deps/v8` tree, so they describe the V8
   revision Node ships, not rsvim's `rusty_v8` 150.4.0. The V8 contract itself is stable across both.
 - Ende is a Deno fork; `libs/core` is `deno_core`. Line numbers there move quickly upstream, and the

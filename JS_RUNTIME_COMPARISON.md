@@ -65,7 +65,7 @@ The single most diagnostic fact about each:
 A note that matters for the rest of the document: **rsvim and dune are near-siblings.** Both carry
 the same Deno-style skeleton — `ModuleMap` / `ModuleGraph` / `EsModule` / `same_origin` /
 `JsFuture` / `pending_futures` / `ImportMap` — with the same `tick_event_loop` shape. Compare
-`rsvim_core/src/js.rs:611-618` with `dune/src/runtime.rs:427-432`: both do *nextTick → imports →
+`rsvim_core/src/js.rs:610-614` with `dune/src/runtime.rs:427-432`: both do *nextTick → imports →
 futures*, and both call `v8::Isolate::set_microtasks_policy(Explicit)`. The interesting difference
 is what each plugged in underneath: tokio (rsvim) versus a hand-written libuv clone (dune).
 
@@ -80,9 +80,9 @@ A standalone, deeper treatment of this section — including the audit trail —
 
 - **libuv** is a *handle table with callbacks*. Every pending thing is a ref-counted handle
   (`uv_timer_t`, `uv_tcp_t`, `uv_work_t`, `uv_idle_t`); `uv_run` blocks in the poll phase until an
-  fd, a timer or a wakeup fires; the loop is "alive" iff referenced handles remain. Time is a
-  first-class loop facility. The host calls `uv_run` and regains control only when callbacks ran or
-  the loop drained.
+  fd, a timer or a wakeup fires; the loop is "alive" iff referenced handles (or active requests)
+  remain. Time is a first-class loop facility. The host calls `uv_run` and regains control only when
+  callbacks ran or the loop drained.
 - **tokio** is a *future executor with a reactor*. Time and I/O expose futures; progress is driven
   by polling a task tree. There is no handle table to inspect, no `uv_loop_alive`, no notion of
   "callbacks for iteration N". The host awaits, and the executor decides what runs next.
@@ -106,7 +106,7 @@ self.js_runtime.tick_event_loop();
 ```
 
 There is no separate JS thread and no `uv_run` analogue. A tick is
-`checkpoint → fast_forward_imports → run_pending_futures` (`js.rs:611-618`).
+`checkpoint → fast_forward_imports → run_pending_futures` (`js.rs:610-614`).
 
 Async JS is an actor protocol. A native op posts a `MasterMessage` over an unbounded channel; the
 select arm spawns a tokio task on `detached_tracker` (`evloop.rs:816-835`); the task runs the real
@@ -284,7 +284,7 @@ it with two hand-written pumps.
 | | Policy | Checkpoints | Ordering consequence |
 |---|---|---|---|
 | rsvim | `Explicit` (`js.rs:144-146`) | **one**, at the top of a tick (`js.rs:1097-1131`) | promises resolved while draining futures have their continuations drained on the *next* tick |
-| dune | `Explicit` (`runtime.rs:142`) | after `nextTick` drain (`runtime.rs:718`), after imports (`:615`), after each future (`:500`), REPL dispatch (`:294`) | continuations run in the same tick that resolved them |
+| dune | `Explicit` (`runtime.rs:148`) | after `nextTick` drain (`runtime.rs:718`), after imports (`:615`), after each future (`:500`), REPL dispatch (`:294`) | continuations run in the same tick that resolved them |
 | LLRT | engine-managed | inside `poll_timers` before/after each callback; inside `idle()` | JS callbacks always run with a drained queue |
 | txiki.js | engine-managed (job queue) | after `uv_check`, after each callback routed through the helper, after every listener dispatch | per-callback granularity; pinned by `tests/test-async-task-sequence.js` |
 
@@ -371,7 +371,7 @@ reach into Node internals; user code is bundled by the user's own esbuild/rollup
 QuickJS' resolver is told to strip the `node:` scheme
 (`llrt_modules/src/module/resolver.rs:43`).
 
-**txiki.js** is the web purist: a single `JS_SetModuleLoaderFunc2` (`src/vm.c:553`).
+**txiki.js** is the web purist: a single `JS_SetModuleLoaderFunc2` (`src/vm.c:550`).
 `tjs:internal/core` and `tjs:internal/worker` are C-built modules (the rest of `tjs:internal/*` is
 bytecode), `tjs:*` deserializes precompiled bytecode (`src/builtins.c:78-103`), `http(s)://`
 **downloads and compiles at runtime** via libwebsockets, and everything else is a file, optionally

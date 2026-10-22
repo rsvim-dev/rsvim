@@ -102,7 +102,7 @@ Every claim below was read from source at the pinned commits. "Verified" means *
 ### 4.1 The V8 contract (the reason all four look similar)
 
 - The embedder installs `SetHostImportModuleDynamicallyCallback` once:
-  rsvim `rsvim_core/src/js/hook.rs:181`, dune `src/hooks.rs:148`, Ende
+  rsvim `rsvim_core/src/js.rs:149`, dune `src/runtime.rs:151`, Ende
   `libs/core/runtime/setup.rs:293`, Node `src/module_wrap.cc:1219`.
 - The callback is synchronous and must return `MaybeLocal<Promise>`; V8 returns it **verbatim** as the
   value of `import()` (`deps/v8/src/runtime/runtime-module.cc:28`, via
@@ -119,7 +119,7 @@ Every claim below was read from source at the pinned commits. "Verified" means *
   `:187` → `same_origin` merge `:200` → `ModuleGraph::dynamic_import` `:216` →
   `handle.spawn(task, Some(task_cb))` `:241`.
 - `handle.spawn` is crabuv's: work runs on a **rayon** pool (`crabuv/src/thread_pool.rs:33`),
-  completion callback runs on the **loop thread** (`crabuv/src/event_loop.rs:732`); the fetched
+  completion callback runs on the **loop thread** (`crabuv/src/event_loop.rs:357`); the fetched
   `ModuleSource = String` (`src/modules.rs:79`) crosses as `Box<dyn Any>` — no serialization.
 - Bookkeeping: `ModuleMap { main, by_path, by_id, seen, pending }` `src/modules.rs:82`;
   `EsModule` `:172`; `fast_forward` `:182`; `ModuleGraph { kind, root_rc, same_origin }` `:227`;
@@ -127,7 +127,7 @@ Every claim below was read from source at the pinned commits. "Verified" means *
 - Tick order: `src/runtime.rs:427-432` = nextTick → `fast_forward_imports` (`:507`) →
   `event_loop.run(RunMode::Once)` → `run_pending_futures` (`:479`).
 - Settlement: `instantiate_module` + `evaluate` then resolve the namespace into the graph resolver and
-  every `same_origin` resolver (`src/runtime.rs:598-608`).
+  every `same_origin` resolver (`src/runtime.rs:569-608`).
 - TLA is not awaited: `let _ = module.evaluate(...)` (`src/runtime.rs:579`); the error branch is
   guarded by `is_root_module` (`:580`), so dynamic roots never reject; errors are strings
   (`src/modules.rs:283`), and static-import failures `exit(1)` (`:288-289`).
@@ -138,9 +138,9 @@ Every claim below was read from source at the pinned commits. "Verified" means *
 ### 4.3 rsvim — dune's design over a message bus
 
 Port evidence (dune → rsvim): `modules.rs:82` → `js/module/module_map.rs:147`;
-`modules.rs:152/160` → `module_map.rs:49` / `js/module/module.rs:64`;
+`modules.rs:152/160` → `module_map.rs:49` / `js/module.rs:64`;
 `modules.rs:172/182` → `js/module/es_module.rs:21/86`; `modules.rs:227` → `module_map.rs:58`;
-`modules.rs:271` → `es_module.rs:162`; `hooks.rs:148-243` → `js/hook.rs:181-300`;
+`modules.rs:271` → `es_module.rs:162`; `hooks.rs:148-243` → `js/hook.rs:181-295`;
 `runtime.rs:427/479/507` → `js.rs:610/648/776`. Comments are copied too (namespace-object note,
 nextTick-checkpoint note).
 
@@ -150,7 +150,7 @@ Delta:
   (`js/pending.rs:45`) → `MasterMessage::LoadImportReq` → `EventLoop` spawns a tokio task
   (`evloop.rs:791`) → `async_load_import` (`js/module.rs:205`) → `postcard` bytes →
   `JsMessage::LoadImportResp` → `forward_js_message` calls `tick_event_loop` (`evloop.rs:1321`) →
-  `run_pending_futures` (`js.rs:648`) → `EsModuleFuture::run` (`es_module.rs:183`).
+  `run_pending_futures` (`js.rs:648`) → `EsModuleFuture::run` (`es_module.rs:185`).
 - Two channels (`jsrt_forwarder_tx` → select loop → `jsrt_tx`) exist only to wake `tokio::select!`
   (`evloop.rs:274-276` comment admits it).
 - Loader: `oxc_resolver` + fs loader + swc transpile; import map is a stub
@@ -171,7 +171,7 @@ Delta:
 - Progress: `poll_event_loop` (`jsruntime.rs:2385`) → `poll_progress` (`dynamic.rs:435`) →
   `drain_prepare` `:483` / `drain_loads` `:511` / `evaluate_dyn_imports` `:300` (polls
   `promise.state()`); `dynamic_import_module_evaluate` `:203` stores V8's evaluation promise;
-  resolve/reject `:394/:373`; TLA waiters `:332`.
+  resolve/reject `:394/:373`; TLA waiters `:89-97`.
 - `RecursiveModuleLoad` (`recursive_load.rs:76`) is a `Stream` over `FuturesUnordered` of
   `loader.load()` futures (`poll_next` at `:741`); `ModuleLoader` trait at
   `libs/core/modules/loaders.rs:61` with `ModuleLoadResponse::Sync|Async` (`:34`); Ende's loader
@@ -188,7 +188,7 @@ Delta:
 - `ModuleLoader.import` (`loader.js:682`) → `getOrCreateModuleJob` (`:647`) →
   `#getOrCreateModuleJobAfterResolve` (`:568`) → `loadCache.get(url, type)` (`:588`) →
   `loadAndTranslate` (`:538`) → `#loadSync` (`:869`) → `defaultLoadSync` → **`readFileSync`**
-  (`load.js:38`) → translator → `ModuleJobSync` selected at `loader.js:620` (class at `module_job.js:595`).
+  (`load.js:38`) → translator → `ModuleJobSync` selected at `loader.js:620-623` (class at `module_job.js:595`).
 - Link/evaluate: `syncLink` (`module_job.js:312`), `instantiateSync` (`:633`), `run` (`:643`),
   `evaluateSync` (`:697`); only `hasAsyncGraph` (TLA) goes async (`:671`).
 - Since PR #62530 (`c89ec290f0f`, 2026-10-06) the main-thread path is synchronous end to end; async
@@ -274,7 +274,7 @@ Delta:
 - **Line numbers drifted while writing.** First-draft citations were approximate; all were re-pinned.
   Examples of corrections: dune `hooks.rs:162→160`, `:174→168`, `:190→187`, `:207→200`, `:221→216`;
   Ende `dynamic.rs:50→46`, `:317→300`, `:419→435`, `:472→483`, `:518→511`;
-  rsvim `ModuleStatus` is `js/module/module.rs:64` (not `es_module.rs`). Re-verify before citing.
+  rsvim `ModuleStatus` is `js/module.rs:64` (not `es_module.rs`). Re-verify before citing.
 - **Node's sync loading is new.** `ModuleJobSync` and `readFileSync` on the main thread are the state
   of `main` at this commit; older Node versions used async `ModuleJob` for everything.
 
@@ -341,7 +341,7 @@ git -C ~/github/saghul/txiki.js submodule status deps/quickjs
 |---|---|---|
 | dune callback + graph | `dune/src/hooks.rs`, `dune/src/modules.rs` | 148-243 / 79-283, 344-412 |
 | dune tick + settle | `dune/src/runtime.rs` | 427-432, 479, 507, 566-608 |
-| rsvim callback | `rsvim_core/src/js/hook.rs` | 181-300 |
+| rsvim callback | `rsvim_core/src/js/hook.rs` | 181-295 |
 | rsvim graph/compile | `rsvim_core/src/js/module/es_module.rs`, `module_map.rs` | 86, 162-322 / 49-160 |
 | rsvim tick/settle | `rsvim_core/src/js.rs` | 610, 648, 713, 776, 836-905 |
 | rsvim bus | `rsvim_core/src/evloop.rs`, `js/pending.rs`, `js/module.rs` | 791, 1321 / 45 / 205 |

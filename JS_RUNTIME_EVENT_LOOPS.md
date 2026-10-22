@@ -38,8 +38,8 @@ This is the part that gets glossed over, and everything downstream follows from 
 
 **libuv is a handle table with callbacks.** Every pending thing is a ref-counted handle —
 `uv_timer_t`, `uv_tcp_t`, `uv_work_t`, `uv_idle_t`. `uv_run` runs one iteration: due timers,
-poll, check, close. The loop is "alive" iff referenced handles remain, and that ref count is a
-*public, inspectable* fact (`uv_ref`/`uv_unref`, `uv_loop_alive`). Time is a first-class loop
+poll, check, close. The loop is "alive" iff referenced handles (or active requests) remain, and that
+ref count is a *public, inspectable* fact (`uv_ref`/`uv_unref`, `uv_loop_alive`). Time is a first-class loop
 facility. A host calling `uv_run` regains control only when callbacks have run or the loop drained.
 
 **tokio is a future executor with a reactor.** Time and I/O are exposed as futures; progress is
@@ -81,7 +81,7 @@ async fn forward_js_message(&mut self, message: Option<JsMessage>) {
 }
 ```
 
-A tick is `checkpoint → fast_forward_imports → run_pending_futures` (`js.rs:611-618`). There is no
+A tick is `checkpoint → fast_forward_imports → run_pending_futures` (`js.rs:610-614`). There is no
 `uv_run` analogue anywhere: the editor loop *is* the runtime loop, and JS is a subroutine of it.
 
 Native async is an actor protocol. A binding posts a `MasterMessage`; the select arm spawns a tokio
@@ -308,7 +308,7 @@ message. LLRT sidesteps the question by borrowing `rquickjs`, then pays for it w
 | | Policy | Checkpoints | Consequence |
 |---|---|---|---|
 | rsvim | `Explicit` (`js.rs:144-146`) | **one**, at the top of a tick (`js.rs:1097-1131`) | continuations of futures resolved this tick run on the next tick |
-| dune | `Explicit` (`runtime.rs:142`) | after nextTick (`:718`), after imports (`:615`), after each future (`:500`), REPL (`:294`) | continuations run in the tick that resolved them |
+| dune | `Explicit` (`runtime.rs:148`) | after nextTick (`:718`), after imports (`:615`), after each future (`:500`), REPL (`:294`) | continuations run in the tick that resolved them |
 | LLRT | engine-managed | around timer callbacks; inside `idle()` | callbacks always observe a drained queue |
 | txiki.js | engine-managed (job queue) | after `uv_check`, after helper-routed callbacks, after each listener | per-callback granularity; pinned by `tests/test-async-task-sequence.js` |
 
