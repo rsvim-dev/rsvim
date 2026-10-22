@@ -1,5 +1,4 @@
 [tools]
-"cargo:cargo-binstall" = "latest"
 "cargo:cargo-nextest" = "latest"
 "cargo:cargo-release" = "latest"
 "cargo:git-cliff" = "latest"
