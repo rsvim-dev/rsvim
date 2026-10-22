@@ -47,10 +47,8 @@ use err::report_js_error;
 use exception::ExceptionState;
 use exception::PromiseRejectionEntry;
 use hook::module_resolve_cb;
-use module::ImportKind;
 use module::ImportMap;
 use module::ModuleMap;
-use module::ModuleStatus;
 use module::fetch_module;
 use module::fetch_module_tree;
 use module::resolve_import;
@@ -146,12 +144,14 @@ fn init_v8_isolate(isolate: &mut v8::OwnedIsolate) {
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 10);
   isolate.set_promise_reject_callback(hook::promise_reject_cb);
-  isolate.set_host_import_module_dynamically_callback(
-    hook::host_import_module_dynamically_cb,
-  );
   isolate.set_host_initialize_import_meta_object_callback(
     hook::host_initialize_import_meta_object_cb,
   );
+
+  // WARNING: dynamic import is not supported, at least for now.
+  // isolate.set_host_import_module_dynamically_callback(
+  //   hook::host_import_module_dynamically_cb,
+  // );
 }
 
 fn init_builtin_modules(scope: &mut v8::PinScope) {
@@ -357,8 +357,6 @@ pub mod boost {
     pub module_map: ModuleMap,
     /// Pending timers.
     pub pending_timers: FoldMap<TimerId, TimerCallback>,
-    /// Pending load import tasks.
-    pub pending_import_loaders: FoldMap<TaskId, TaskCallback>,
     /// Pending tasks.
     pub pending_tasks: FoldMap<TaskId, TaskCallback>,
     /// Holds JS pending futures scheduled by the event-loop.
@@ -469,7 +467,6 @@ pub mod boost {
         context,
         module_map: ModuleMap::new(),
         pending_timers: FoldMap::new(),
-        pending_import_loaders: FoldMap::new(),
         pending_tasks: FoldMap::new(),
         pending_futures: vec![],
         startup_moment,
@@ -549,7 +546,6 @@ pub mod boost {
         context,
         module_map: ModuleMap::new(),
         pending_timers: FoldMap::new(),
-        pending_import_loaders: FoldMap::new(),
         pending_tasks: FoldMap::new(),
         pending_futures: vec![],
         startup_moment,
@@ -609,26 +605,16 @@ pub mod boost {
     /// Runs a single tick of the event-loop.
     pub fn tick_event_loop(&mut self) {
       self.with_scope(run_next_tick_callbacks);
-      self.fast_forward_imports();
       // self.event_loop.tick();
       self.run_pending_futures();
 
       trace!(
-        "|JsRuntime::tick_event_loop| has_promise_rejections:{:?}, has_pending_background_tasks:{:?}, has_pending_imports:{:?}({:?}), has_pending_import_loaders:{:?}({:?}), has_unresolved_imports:{:?}({:?})",
+        "|JsRuntime::tick_event_loop| has_promise_rejections:{:?}, has_pending_background_tasks:{:?}",
         self.has_promise_rejections(),
         self.isolate.has_pending_background_tasks(),
-        self.has_pending_imports(),
-        self.pending_imports_count(),
-        self.has_pending_import_loaders(),
-        self.pending_import_loaders_count(),
-        self.has_unresolved_imports(),
-        self.unresolved_imports_count(),
       );
       if self.has_promise_rejections()
         || self.isolate.has_pending_background_tasks()
-        || (self.unresolved_imports_count()
-          > self.pending_import_loaders_count())
-        || (!self.has_unresolved_imports() && self.has_pending_imports())
       {
         chan::send_to_master(
           self.get_state().borrow().master_tx.clone(),
@@ -710,21 +696,6 @@ pub mod boost {
               report_js_error(&state, TheErr::CommandNotFound(req.payload));
             }
           }
-          JsMessage::LoadImportResp(resp) => {
-            trace!("Recv LoadImportResp:{:?}", resp.task_id);
-            debug_assert!(
-              state_rc
-                .borrow()
-                .pending_import_loaders
-                .contains_key(&resp.task_id)
-            );
-            let mut loader_cb = state_rc
-              .borrow_mut()
-              .pending_import_loaders
-              .remove(&resp.task_id)
-              .unwrap();
-            loader_cb(resp.maybe_source);
-          }
           JsMessage::TickAgainResp => trace!("Recv TickAgainResp"),
           JsMessage::FsOpenResp(resp) => process_message!(FsOpenResp, resp),
           JsMessage::FsReadResp(resp) => process_message!(FsReadResp, resp),
@@ -771,202 +742,12 @@ pub mod boost {
         run_next_tick_callbacks(scope);
       }
     }
-
-    /// Checks for imports (static/dynamic) ready for execution.
-    fn fast_forward_imports(&mut self) {
-      // Get a v8 handle-scope.
-      let context = self.context();
-      v8::scope_with_context!(scope, &mut self.isolate, context);
-      let state_rc = JsRuntime::state(scope);
-      let mut ready_imports = vec![];
-
-      {
-        let mut state = state_rc.borrow_mut();
-
-        // Note: The following is a trick to get multiple `mut` references in the same
-        // struct called splitting borrows (https://doc.rust-lang.org/nomicon/borrow-splitting.html).
-        let state_ref = &mut *state;
-        let seen_modules = &mut state_ref.module_map.seen;
-        let pending_graphs = &mut state_ref.module_map.pending;
-
-        pending_graphs.retain(|graph_rc| {
-          // Get a usable ref to graph's root module.
-          let graph = graph_rc.borrow();
-          let graph_root = graph.root_rc();
-          let mut graph_root = graph_root.borrow_mut();
-
-          // Check for exceptions in the graph (dynamic imports).
-          if let Some(message) = graph_root.exception_mut().take() {
-            // Create a v8 exception.
-            let exception = v8::String::new(scope, &message).unwrap();
-            let exception = v8::Exception::error(scope, exception);
-
-            // We need to resolve all identical dynamic imports.
-            match graph.kind().clone() {
-              ImportKind::Static => unreachable!(),
-              ImportKind::Dynamic(main_promise) => {
-                for promise in
-                  [main_promise].iter().chain(graph.same_origin().iter())
-                {
-                  promise.open(scope).reject(scope, exception);
-                }
-              }
-            }
-
-            trace!(
-              "|JsRuntime::fast_forward_imports| ModuleMap failed {:?}, error {:?}",
-              graph_root.path(), message
-            );
-            return false;
-          }
-
-          // If the graph is still loading, fast-forward the dependencies.
-          if graph_root.status() != ModuleStatus::Ready {
-            graph_root.fast_forward(seen_modules);
-            return true;
-          }
-
-          ready_imports.push(Rc::clone(graph_rc));
-          trace!(
-            "|JsRuntime::fast_forward_imports| ModuleMap resolved {:?}",
-            graph_root.path()
-          );
-          false
-        });
-
-        // Note: We have to drop the sate ref here to avoid borrow panics
-        // during the module instantiation/evaluation process.
-        // drop(state);
-      }
-
-      // Execute the root module from the graph.
-      for graph_rc in ready_imports {
-        // Create a tc scope.
-        v8::tc_scope!(let tc_scope, scope);
-
-        let graph = graph_rc.borrow();
-        let path = graph.root_rc().borrow().path().clone();
-
-        let module = state_rc.borrow().module_map.get(&path).unwrap();
-        let module = v8::Local::new(tc_scope, module);
-
-        if module
-          .instantiate_module(tc_scope, module_resolve_cb)
-          .is_none()
-        {
-          assert!(tc_scope.has_caught());
-          let exception = tc_scope.exception().unwrap();
-          let exception = JsError::from_v8_exception(tc_scope, exception, None);
-          let state = state_rc.borrow();
-          report_js_error(&state, TheErr::JsError(Box::new(exception)));
-          continue;
-        }
-
-        let _ = module.evaluate(tc_scope);
-        trace!(
-          "|JsRuntime::fast_forward_imports| ModuleMap evaluated {:?}, status: {:?}",
-          path,
-          module.get_status()
-        );
-
-        let is_root_module = !graph.root_rc().borrow().is_dynamic_import();
-
-        // Note: Due to the architecture, when a module errors, the `promise_reject_cb`
-        // v8 hook will also trigger, resulting in the same exception being registered
-        // as an unhandled promise rejection. Therefore, we need to manually remove it.
-        if module.get_status() == v8::ModuleStatus::Errored && is_root_module {
-          let exception = module.get_exception();
-          let exception = v8::Global::new(tc_scope, exception);
-
-          let mut state = state_rc.borrow_mut();
-
-          state.exceptions.capture_exception(exception.clone());
-          state.exceptions.remove_promise_rejection_entry(&exception);
-
-          drop(state);
-
-          if let Some(error) = check_exceptions(tc_scope) {
-            let state = state_rc.borrow();
-            report_js_error(&state, TheErr::JsError(Box::new(error)));
-            continue;
-          }
-        }
-
-        if let ImportKind::Dynamic(main_promise) = graph.kind().clone() {
-          // Note: Since this is a dynamic import will resolve the promise
-          // with the module's namespace object instead of it's evaluation result.
-          let namespace = module.get_module_namespace();
-
-          // We need to resolve all identical dynamic imports.
-          for promise in [main_promise].iter().chain(graph.same_origin().iter())
-          {
-            promise.open(tc_scope).resolve(tc_scope, namespace);
-          }
-        }
-      }
-
-      // Note: It's important to perform a nextTick checkpoint at this
-      // point to allow resources behind a promise to be scheduled correctly
-      // to the event-loop.
-      run_next_tick_callbacks(scope);
-    }
   }
 
   impl JsRuntime {
     /// Returns if unhandled promise rejections where caught.
     pub fn has_promise_rejections(&mut self) -> bool {
       self.get_state().borrow().exceptions.has_promise_rejection()
-    }
-
-    /// Returns if we have imports in pending state.
-    pub fn has_pending_imports(&mut self) -> bool {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      !state.module_map.pending.is_empty()
-    }
-
-    /// Returns pending imports count.
-    pub fn pending_imports_count(&mut self) -> usize {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      state.module_map.pending.len()
-    }
-
-    /// Returns unresolved imports count.
-    pub fn unresolved_imports_count(&mut self) -> usize {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      state
-        .module_map
-        .seen
-        .iter()
-        .filter(|(_, v)| **v != ModuleStatus::Ready)
-        .count()
-    }
-
-    /// Returns if we have unresolved imports.
-    pub fn has_unresolved_imports(&mut self) -> bool {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      state
-        .module_map
-        .seen
-        .iter()
-        .any(|(_, v)| *v != ModuleStatus::Ready)
-    }
-
-    /// Returns if we are waiting for more import loaders.
-    pub fn has_pending_import_loaders(&mut self) -> bool {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      !state.pending_import_loaders.is_empty()
-    }
-
-    /// Returns pending import loaders count.
-    pub fn pending_import_loaders_count(&mut self) -> usize {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      state.pending_import_loaders.len()
     }
 
     // /// Returns if we have scheduled any next-tick callbacks.

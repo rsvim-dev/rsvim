@@ -59,7 +59,6 @@ rsvim_macro = { workspace = true }
 
 arcstr = { workspace = true, features = ["std"] }
 ascii = { workspace = true }
-async-trait = { workspace = true }
 clap = { workspace = true, default-features = false, features = [
   "std",
   "help",

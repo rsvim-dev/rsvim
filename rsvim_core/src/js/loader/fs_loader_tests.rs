@@ -1,6 +1,5 @@
 use super::fs_loader::*;
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::js::loader::AsyncModuleLoader;
 use crate::js::loader::ModuleLoader;
 use crate::prelude::*;
 use crate::tests::evloop::*;
@@ -31,7 +30,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual =
     loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), &specifier);
@@ -49,10 +47,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -86,7 +80,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -103,10 +96,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -136,7 +125,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -153,10 +141,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -186,7 +170,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, &specifier);
   assert!(actual.is_ok());
@@ -203,10 +186,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[test]
@@ -261,7 +240,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual =
     loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -279,10 +257,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[test]
@@ -367,7 +341,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -384,10 +357,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -419,7 +388,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -436,10 +404,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -470,7 +434,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual =
     loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), &specifier);
@@ -488,10 +451,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -526,7 +485,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, &specifier);
   assert!(actual.is_ok());
@@ -543,10 +501,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[test]
@@ -680,7 +634,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -697,10 +650,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -732,7 +681,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  // let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   info!(
@@ -749,10 +697,6 @@ export function sayHello() {
   // let actual_module1 = loader.load(&actual);
   // assert!(actual_module1.is_ok());
   // assert_eq!(actual_module1.unwrap(), src);
-  //
-  // let actual_module2 = aloader.load(&actual).await;
-  // assert!(actual_module2.is_ok());
-  // assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -784,7 +728,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  // let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   info!(
@@ -801,10 +744,6 @@ export function sayHello() {
   // let actual_module1 = loader.load(&actual);
   // assert!(actual_module1.is_ok());
   // assert_eq!(actual_module1.unwrap(), src);
-  //
-  // let actual_module2 = aloader.load(&actual).await;
-  // assert!(actual_module2.is_ok());
-  // assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -834,7 +773,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual =
     loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -852,10 +790,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -893,7 +827,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual =
     loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -911,10 +844,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -957,7 +886,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -974,10 +902,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -1020,7 +944,6 @@ export function sayHello() {
 
   // Run tests.
   let loader = FsModuleLoader::new();
-  let aloader = AsyncFsModuleLoader {};
 
   let actual = loader.resolve(&base, specifier);
   assert!(actual.is_ok());
@@ -1037,10 +960,6 @@ export function sayHello() {
   let actual_module1 = loader.load(&actual);
   assert!(actual_module1.is_ok());
   assert_eq!(actual_module1.unwrap(), src);
-
-  let actual_module2 = aloader.load(&actual).await;
-  assert!(actual_module2.is_ok());
-  assert_eq!(actual_module2.unwrap(), src);
 }
 
 #[tokio::test]
@@ -1121,7 +1040,6 @@ export function sayHello() {
 
     // Run tests.
     let loader = FsModuleLoader::new();
-    let aloader = AsyncFsModuleLoader {};
 
     let actual =
       loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -1139,10 +1057,6 @@ export function sayHello() {
     let actual_module1 = loader.load(&actual);
     assert!(actual_module1.is_ok());
     assert_eq!(actual_module1.unwrap(), src);
-
-    let actual_module2 = aloader.load(&actual).await;
-    assert!(actual_module2.is_ok());
-    assert_eq!(actual_module2.unwrap(), src);
   }
 
   // fs
@@ -1153,7 +1067,6 @@ export function sayHello() {
 
     // Run tests.
     let loader = FsModuleLoader::new();
-    let aloader = AsyncFsModuleLoader {};
 
     let actual =
       loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -1171,10 +1084,6 @@ export function sayHello() {
     let actual_module1 = loader.load(&actual);
     assert!(actual_module1.is_ok());
     assert_eq!(actual_module1.unwrap(), src);
-
-    let actual_module2 = aloader.load(&actual).await;
-    assert!(actual_module2.is_ok());
-    assert_eq!(actual_module2.unwrap(), src);
   }
 
   // net
@@ -1185,7 +1094,6 @@ export function sayHello() {
 
     // Run tests.
     let loader = FsModuleLoader::new();
-    let aloader = AsyncFsModuleLoader {};
 
     let actual =
       loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -1203,10 +1111,6 @@ export function sayHello() {
     let actual_module1 = loader.load(&actual);
     assert!(actual_module1.is_ok());
     assert_eq!(actual_module1.unwrap(), src);
-
-    let actual_module2 = aloader.load(&actual).await;
-    assert!(actual_module2.is_ok());
-    assert_eq!(actual_module2.unwrap(), src);
   }
 
   // path
@@ -1217,7 +1121,6 @@ export function sayHello() {
 
     // Run tests.
     let loader = FsModuleLoader::new();
-    let aloader = AsyncFsModuleLoader {};
 
     let actual =
       loader.resolve(&PATH_CONFIG.config_home().to_string_lossy(), specifier);
@@ -1235,9 +1138,5 @@ export function sayHello() {
     let actual_module1 = loader.load(&actual);
     assert!(actual_module1.is_ok());
     assert_eq!(actual_module1.unwrap(), src);
-
-    let actual_module2 = aloader.load(&actual).await;
-    assert!(actual_module2.is_ok());
-    assert_eq!(actual_module2.unwrap(), src);
   }
 }

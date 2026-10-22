@@ -1,149 +1,33 @@
-//! Module map and module graph.
+//! Module map.
 //!
 //! # Terms
 //!
-//! - Module graph: it maintains the relationships between a module and its
-//!   dependencies tree.
 //! - Module map: it maintains all the dependencies loaded into the js runtime,
 //!   i.e. the rsvim editor.
 //!
 //! # Module
 //!
 //! In the most popular js runtime [node.js](https://nodejs.org), a module is loaded by the keyword
-//! `require` (Common JS) or `import` (ECMAScript Module). And there're two kinds of imports:
-//! static and dynamic. For example:
-//!
-//! Case-1: Static Import
+//! `require` (Common JS) or `import` (ECMAScript Module). Rsvim only supports the static import,
+//! for example:
 //!
 //! ```javascript
 //! // ES Module
-//! const _ = import "lodash";
+//! import _ from "lodash";
 //!
 //! // Common JS
 //! const _ = require("lodash");
 //! ```
 //!
-//! // Case-2: Dynamic Import
-//!
-//! ```javascript
-//! // Wait for import complete.
-//! const _ = await import("lodash");
-//!
-//! // Trigger callbacks on import complete.
-//! import("lodash")
-//!   .then((_) => {})
-//!   .catch((err) => {});
-//! ```
-//!
-//! Static import runs synchronizely, dynamic import runs asynchronizely.
+//! Static import runs synchronously.
 
 use crate::js::module::ModulePath;
-use crate::js::module::ModuleStatus;
-use crate::js::module::es_module::*;
 use crate::prelude::*;
 use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 
-#[derive(Clone)]
-/// Import kind.
-pub enum ImportKind {
-  // Loading static imports.
-  Static,
-  // Loading a dynamic import.
-  Dynamic(v8::Global<v8::PromiseResolver>),
-}
-
-#[derive(rsvim_macro::RcRefCellPtr)]
-/// Module graph.
-pub struct ModuleGraph {
-  kind: ImportKind,
-  root_rc: EsModuleRc,
-  same_origin: Vec<v8::Global<v8::PromiseResolver>>,
-}
-
-impl Debug for ModuleGraph {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("ModuleGraph")
-      .field(
-        "kind",
-        match self.kind {
-          ImportKind::Static => &"Static",
-          ImportKind::Dynamic(_) => &"Dynamic",
-        },
-      )
-      .field("root_rc", &self.root_rc)
-      .field(
-        "same_origin",
-        &format!("Vec<v8::PromiseResolver>({})", self.same_origin.len()),
-      )
-      .finish()
-  }
-}
-
-impl ModuleGraph {
-  pub fn kind(&self) -> &ImportKind {
-    &self.kind
-  }
-
-  pub fn root_rc(&self) -> EsModuleRc {
-    self.root_rc.clone()
-  }
-
-  pub fn same_origin(&self) -> &Vec<v8::Global<v8::PromiseResolver>> {
-    &self.same_origin
-  }
-
-  pub fn same_origin_mut(
-    &mut self,
-  ) -> &mut Vec<v8::Global<v8::PromiseResolver>> {
-    &mut self.same_origin
-  }
-}
-
-impl ModuleGraph {
-  // Initializes a new graph resolving a static import.
-  pub fn static_import(path: &str) -> ModuleGraph {
-    // Create an ES module instance.
-    let module = EsModule::to_rc(EsModule::new(
-      path.into(),
-      ModuleStatus::Fetching,
-      vec![],
-      None,
-      false,
-    ));
-
-    Self {
-      kind: ImportKind::Static,
-      root_rc: module,
-      same_origin: vec![],
-    }
-  }
-
-  // Initializes a new graph resolving a dynamic import.
-  pub fn dynamic_import(
-    path: &str,
-    promise: v8::Global<v8::PromiseResolver>,
-  ) -> ModuleGraph {
-    // Create an ES module instance.
-    let module = EsModule::to_rc(EsModule::new(
-      path.into(),
-      ModuleStatus::Fetching,
-      vec![],
-      None,
-      true,
-    ));
-
-    Self {
-      kind: ImportKind::Dynamic(promise),
-      root_rc: module,
-      same_origin: vec![],
-    }
-  }
-}
-
 /// Module map.
-/// It maintains all the modules inside js runtime, including already resolved and pending
-/// fetching.
+/// It maintains all the modules inside js runtime.
 pub struct ModuleMap {
   // Entry point of runtime execution, this is the `rsvim.{js,ts}`
   // configuration entry point for Rsvim.
@@ -154,12 +38,6 @@ pub struct ModuleMap {
 
   // Maps from "Module ID" to "v8 Module" and its path.
   by_id: FoldMap<i32, Vec<(ModulePath, v8::Global<v8::Module>)>>,
-
-  // Module status.
-  pub seen: FoldMap<ModulePath, ModuleStatus>,
-
-  // Pending modules.
-  pub pending: Vec<ModuleGraphRc>,
 }
 
 impl Debug for ModuleMap {
@@ -182,8 +60,6 @@ impl Debug for ModuleMap {
           .map(|(k, v)| (*k, v.iter().map(|e| e.0.clone()).collect()))
           .collect::<FoldMap<i32, Vec<String>>>(),
       )
-      .field("seen", &self.seen)
-      .field("pending", &self.pending)
       .finish()
   }
 }
@@ -195,8 +71,6 @@ impl ModuleMap {
       main: None,
       by_path: FoldMap::new(),
       by_id: FoldMap::new(),
-      seen: FoldMap::new(),
-      pending: vec![],
     }
   }
 
@@ -226,11 +100,6 @@ impl ModuleMap {
       }
     }
   }
-
-  // // Returns if there are still pending imports to be loaded.
-  // pub fn has_pending_imports(&self) -> bool {
-  //   !self.pending.is_empty()
-  // }
 
   /// Get v8 module by its path.
   pub fn get(&self, path: &str) -> Option<v8::Global<v8::Module>> {

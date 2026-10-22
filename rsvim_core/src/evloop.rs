@@ -32,7 +32,6 @@ use crate::js::binding::global_rsvim::fs::symlink::fs_symlink_s;
 use crate::js::binding::global_rsvim::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
 use crate::js::command::CommandManagerArc;
-use crate::js::module::async_load_import;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceTable;
 use crate::js::resource::ResourceTableArc;
@@ -784,24 +783,6 @@ impl EventLoop {
                 expire_at,
                 delay: req.delay,
                 repeated: req.repeated,
-              }))
-              .unwrap();
-          });
-        }
-        MasterMessage::LoadImportReq(req) => {
-          trace!("Recv LoadImportReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_source = async_load_import(&req.specifier, false).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::LoadImportResp(chan::LoadImportResp {
-                task_id: req.task_id,
-                maybe_source: match maybe_source {
-                  Ok(source) => {
-                    Some(Ok(postcard::to_allocvec(&source).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
               }))
               .unwrap();
           });

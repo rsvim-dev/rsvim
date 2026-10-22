@@ -60,41 +60,6 @@ mod sync_load {
   }
 }
 
-mod async_load {
-  use super::*;
-
-  pub async fn async_load_source(path: &Path) -> TheResult<ModuleSource> {
-    match tokio::fs::read_to_string(path).await {
-      Ok(source) => {
-        let source = if is_json_import(path) {
-          wrap_json(source.as_str())
-        } else {
-          source
-        };
-        Ok(source)
-      }
-      Err(e) => Err(TheErr::LoadModuleFailed(
-        path.to_string_lossy().to_string(),
-        e,
-      )),
-    }
-  }
-
-  pub async fn async_load_as_file(
-    path: &Path,
-  ) -> TheResult<(PathBuf, ModuleSource)> {
-    // If path is a file.
-    if path.is_file() {
-      return match async_load_source(path).await {
-        Ok(source) => Ok((path.to_path_buf(), source)),
-        Err(e) => Err(e),
-      };
-    }
-
-    Err(TheErr::ModuleNotFound(path.to_string_lossy().to_string()))
-  }
-}
-
 #[allow(dead_code)]
 #[derive(Default)]
 /// Fs (filesystem) module loader.
