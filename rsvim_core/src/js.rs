@@ -158,17 +158,11 @@ fn init_builtin_modules(scope: &mut v8::PinScope) {
   static BUILTIN_MODULES: [(/* filename */ &str, /* source */ &str); 2] = [
     (
       "00__web.js",
-      include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/js/runtime/00__web.min.js"
-      )),
+      include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/00__web.min.js")),
     ),
     (
       "01__rsvim.js",
-      include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/js/runtime/01__rsvim.min.js"
-      )),
+      include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/01__rsvim.min.js")),
     ),
   ];
 
