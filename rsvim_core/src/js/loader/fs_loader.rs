@@ -65,20 +65,8 @@ pub struct FsModuleLoader {
 
 fn create_resolve_opts() -> ResolveOptions {
   ResolveOptions {
-    extensions: vec![
-      ".js".into(),
-      ".ts".into(),
-      ".mjs".into(),
-      ".json".into(),
-      ".wasm".into(),
-    ],
-    extension_alias: vec![
-      (".js".into(), vec![".js".into()]),
-      (".mjs".into(), vec![".mjs".into()]),
-      (".ts".into(), vec![".ts".into()]),
-      (".json".into(), vec![".json".into()]),
-      (".wasm".into(), vec![".wasm".into()]),
-    ],
+    extensions: vec![".js".into()],
+    extension_alias: vec![(".js".into(), vec![".js".into()])],
     modules: vec![
       PATH_CONFIG.config_home().to_string_lossy().to_string(),
       PATH_CONFIG

@@ -27,7 +27,7 @@ use std::fmt::Debug;
 /// Module map.
 /// It maintains all the modules inside js runtime.
 pub struct ModuleMap {
-  // Entry point of runtime execution, this is the `rsvim.{js,ts}`
+  // Entry point of runtime execution, this is the `rsvim.js`
   // configuration entry point for Rsvim.
   main: Option<ModulePath>,
 
