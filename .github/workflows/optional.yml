@@ -34,7 +34,7 @@ jobs:
           prettier --version
           echo "show PWD=${PWD}"
           echo "prettier --check *.md ./rsvim_core/ts/*.ts"
-          prettier --check *.md ./runtime/*.ts
+          prettier --check *.md ./rsvim_core/ts/*.ts
   bloaty:
     name: Bloaty
     runs-on: ubuntu-latest
