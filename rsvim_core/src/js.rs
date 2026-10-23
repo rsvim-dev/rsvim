@@ -20,7 +20,6 @@ pub mod loader;
 pub mod module;
 pub mod pending;
 pub mod resource;
-pub mod transpiler;
 
 #[cfg(test)]
 mod command_tests;
@@ -99,39 +98,10 @@ impl SnapshotData {
   }
 }
 
-pub fn init_v8_platform(snapshot: bool, user_v8_flags: Option<&[String]>) {
+pub fn init_v8_platform() {
   static V8_INIT: Once = Once::new();
 
   V8_INIT.call_once(move || {
-    #[cfg(feature = "icudata")]
-    {
-      v8::icu::set_common_data_77(deno_core_icudata::ICU_DATA).unwrap();
-    }
-
-    // Configuration flags for V8.
-    // See: <https://github.com/denoland/deno_core/blob/3289dad2501818c838a76c203f73d0dd62ec6167/core/runtime/setup.rs#L72>.
-    let mut flags = String::from(concat!(
-      " --no-validate-asm",
-      " --turbo-fast-api-calls",
-      " --harmony-temporal",
-      " --js-float16array",
-      " --js-explicit-resource-management",
-    ));
-
-    if snapshot {
-      flags.push_str(" --predictable --random-seed=42");
-    }
-
-    if let Some(user_flags) = user_v8_flags
-      && !user_flags.is_empty()
-    {
-      let user_flags = user_flags.join(" ");
-      let user_flags = format!(" {user_flags}");
-      flags.push_str(user_flags.as_str());
-    }
-
-    v8::V8::set_flags_from_string(&flags);
-
     let platform = v8::new_default_platform(0, false).make_shared();
     v8::V8::initialize_platform(platform);
     v8::V8::initialize();
@@ -236,7 +206,7 @@ pub mod snapshot {
     /// Creates a new js runtime for snapshot.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-      init_v8_platform(true, None);
+      init_v8_platform();
 
       let mut isolate =
         v8::Isolate::snapshot_creator(None, Some(v8::CreateParams::default()));
@@ -334,12 +304,6 @@ pub mod boost {
     // pub num_threads: Option<usize>,
     // Indicates if we're running JavaScript tests.
     pub test_mode: bool,
-    // // Defines the inspector listening options.
-    // pub inspect: Option<(SocketAddrV4, bool)>,
-    // // Exposes v8's garbage collector.
-    // pub expose_gc: bool,
-    /// V8 flags.
-    pub v8_flags: Vec<String>,
   }
 
   #[derive(rsvim_macro::RcRefCellPtr)]
@@ -425,7 +389,7 @@ pub mod boost {
       resource_table: ResourceTableArc,
     ) -> Self {
       // Fire up the v8 engine.
-      init_v8_platform(false, Some(&options.v8_flags));
+      init_v8_platform();
 
       let mut isolate = {
         let create_params = v8::CreateParams::default();
@@ -520,7 +484,7 @@ pub mod boost {
       resource_table: ResourceTableArc,
     ) -> Self {
       // Fire up the v8 engine.
-      init_v8_platform(false, Some(&options.v8_flags));
+      init_v8_platform();
 
       let mut isolate = v8::Isolate::new(v8::CreateParams::default());
 

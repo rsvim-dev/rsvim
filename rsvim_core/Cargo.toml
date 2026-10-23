@@ -20,7 +20,6 @@ doctest = false
 [features]
 default = ["unicode", "simd"]
 simd = ["ropey/simd"]
-tzdata = ["jiff/tzdb-bundle-always"]
 unicode = ["ropey/unicode_lines"]
 
 [dependencies]

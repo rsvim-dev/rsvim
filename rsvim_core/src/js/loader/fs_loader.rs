@@ -4,10 +4,6 @@ use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::js::loader::ModuleLoader;
 use crate::js::module::ModulePath;
 use crate::js::module::ModuleSource;
-#[cfg(feature = "typescript")]
-use crate::js::transpiler::TypeScript;
-#[cfg(feature = "wasm")]
-use crate::js::transpiler::Wasm;
 use crate::prelude::*;
 use oxc_resolver::ResolveOptions;
 use oxc_resolver::Resolver;
@@ -152,32 +148,7 @@ impl ModuleLoader for FsModuleLoader {
   fn load(&self, specifier: &str) -> TheResult<ModuleSource> {
     // Load source.
     let path = Path::new(specifier);
-    let maybe_source = sync_load::load_as_file(path);
-
-    let (path, source) = match maybe_source {
-      Ok((path, source)) => (path, source),
-      Err(e) => return Err(e),
-    };
-
-    let path_extension =
-      path.extension().unwrap().to_string_lossy().to_string();
-
-    // Use a preprocessor if necessary.
-    match path_extension.as_str() {
-      #[cfg(feature = "wasm")]
-      "wasm" => Ok(Wasm::parse(&source)),
-      #[cfg(feature = "typescript")]
-      "ts" => {
-        let fname = path.to_str();
-        TypeScript::compile(fname, &source)
-      }
-      // "jsx" => {
-      //   Jsx::compile(fname, &source).map_err(|e| JsRuntimeErr::Message(e.to_string()).into())
-      // }
-      // "tsx" => Jsx::compile(fname, &source)
-      //   .and_then(|output| TypeScript::compile(fname, &output))
-      //   .map_err(|e| JsRuntimeErr::Message(e.to_string()).into()),
-      _ => Ok(source),
-    }
+    let maybe_source = sync_load::load_as_file(path)?;
+    Ok(maybe_source.1)
   }
 }

@@ -16,10 +16,8 @@ version.workspace = true
 
 [features]
 default = []
-icudata = ["rsvim_core/icudata"]
 jemalloc = ["dep:tikv-jemallocator"]
 mimalloc = ["dep:mimalloc"]
-tzdata = ["rsvim_core/tzdata"]
 
 [dependencies]
 rsvim_core = { workspace = true }
