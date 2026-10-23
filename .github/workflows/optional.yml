@@ -33,7 +33,7 @@ jobs:
           npm install -g prettier
           prettier --version
           echo "show PWD=${PWD}"
-          echo "prettier --check *.md ./runtime/*.ts"
+          echo "prettier --check *.md ./rsvim_core/ts/*.ts"
           prettier --check *.md ./runtime/*.ts
   bloaty:
     name: Bloaty
