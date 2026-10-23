@@ -5,18 +5,18 @@
   "keywords": [
     "rsvim"
   ],
-  "homepage": "https://github.com/rsvim/rsvim",
+  "homepage": "https://github.com/rsvim-dev/rsvim",
   "bugs": {
-    "url": "https://github.com/rsvim/rsvim/issues"
+    "url": "https://github.com/rsvim-dev/rsvim/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rsvim/rsvim.git"
+    "url": "git+https://github.com/rsvim-dev/rsvim.git"
   },
   "license": "Vim",
   "author": "rsvim",
   "type": "module",
-  "main": "./runtime/index.js",
+  "main": "./index.js",
   "types": "./types/index.d.ts",
   "scripts": {}
 }
