@@ -16,16 +16,12 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 use clap::Parser;
 use rsvim_core::cli::CliOptions;
 use rsvim_core::evloop::EventLoop;
-use rsvim_core::js::SnapshotData;
 use rsvim_core::log;
 use rsvim_core::prelude::*;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use tokio::time::Instant;
-
-const RSVIM_SNAPSHOT: &[u8] =
-  include_bytes!(concat!(env!("OUT_DIR"), "/RSVIM_SNAPSHOT.BIN"));
 
 static RSVIM_VERSION: LazyLock<String> = LazyLock::new(|| {
   let version_tags =
@@ -88,12 +84,8 @@ fn main() -> IoResult<()> {
   let rt = tokio::runtime::Runtime::new()?;
   rt.block_on(async {
     // Create event loop.
-    let mut event_loop = EventLoop::new(
-      startup_moment,
-      startup_unix_epoch,
-      cli_opts,
-      SnapshotData::new(RSVIM_SNAPSHOT),
-    )?;
+    let mut event_loop =
+      EventLoop::new(startup_moment, startup_unix_epoch, cli_opts)?;
 
     // Initialize.
     event_loop.initialize()?;

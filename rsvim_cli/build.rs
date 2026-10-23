@@ -1,11 +1,10 @@
-use rsvim_core::js::JsRuntimeForSnapshot;
 use rsvim_core::js::v8_version;
 use rsvim_core::prelude::*;
 
 // pub const LOG: &str = "[RSVIM]";
 pub const LOG: &str = "cargo:warning=[RSVIM]";
 
-fn version() {
+fn make_version_info() {
   let profile_env = std::env::var("PROFILE").unwrap_or("debug".to_string());
   let opt_level_env = std::env::var("OPT_LEVEL").unwrap_or("0".to_string());
   let debug_env = std::env::var("DEBUG").unwrap_or("0".to_string());
@@ -66,20 +65,6 @@ fn version() {
   std::fs::write(output_path.as_path(), resolved.as_bytes()).unwrap();
 }
 
-fn snapshot() {
-  let js_runtime = JsRuntimeForSnapshot::new();
-  let snapshot = js_runtime.create_snapshot();
-  let snapshot = Box::from(&snapshot);
-  let mut vec = Vec::with_capacity(snapshot.len());
-  vec.extend_from_slice(&snapshot);
-
-  let out_dir = std::env::var("OUT_DIR").unwrap();
-  let output_path = Path::new(&out_dir).join("RSVIM_SNAPSHOT.BIN");
-  println!("{LOG} Writing snapshot into {:?}...", output_path.as_path());
-  std::fs::write(output_path.as_path(), vec.into_boxed_slice()).unwrap();
-}
-
 fn main() {
-  version();
-  snapshot();
+  make_version_info();
 }

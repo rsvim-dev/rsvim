@@ -175,7 +175,7 @@ pub fn load_import(
 
 /// Resolves module imports without dependency.
 ///
-/// TODO: Support dependencies resolving for custom snapshot.
+/// TODO: Support dependencies resolving for builtin modules.
 pub fn fetch_module<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   filename: &str,

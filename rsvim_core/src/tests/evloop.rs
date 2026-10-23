@@ -90,8 +90,7 @@ pub fn make_event_loop(
   terminal_rows: u16,
   cli_opts: CliOptions,
 ) -> EventLoop {
-  EventLoop::mock_new_without_snapshot(terminal_cols, terminal_rows, cli_opts)
-    .unwrap()
+  EventLoop::mock_new(terminal_cols, terminal_rows, cli_opts).unwrap()
 }
 
 // const INTERVAL: Duration = Duration::from_micros(1);

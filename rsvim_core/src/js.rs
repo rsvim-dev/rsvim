@@ -5,9 +5,6 @@
 //! - Roll your own JavaScript runtime: <https://deno.com/blog/roll-your-own-javascript-runtime>.
 //! - Learning V8 Tutorial: <https://github.com/danbev/learning-v8>.
 //! - A hobby runtime for javascript/typescript: <https://github.com/aalykiot/dune>.
-//! - Snapshot related PR:
-//!   - <https://github.com/denoland/deno/commit/8e84dc0139055db8c84ad28723114d343982a8f7>.
-//!   - <https://github.com/denoland/deno_core/commit/b9b65142c74d88e9245dde2230727e537256d685>.
 //! - V8 API Reference: <https://v8docs.nodesource.com/node-24.1/index.html>.
 
 pub mod binding;
@@ -54,8 +51,6 @@ use module::resolve_import;
 use pending::TaskCallback;
 use pending::TimerCallback;
 use resource::ResourceTableArc;
-pub use snapshot::*;
-use std::rc::Rc;
 use std::sync::Once;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
@@ -86,17 +81,6 @@ pub struct TimerId(#[start_from(1)] i32);
   Copy, Clone, rsvim_macro::IncrementalId, serde::Serialize, serde::Deserialize,
 )]
 pub struct TaskId(#[start_from(1)] usize);
-
-/// Snapshot data.
-pub struct SnapshotData {
-  pub value: &'static [u8],
-}
-
-impl SnapshotData {
-  pub fn new(value: &'static [u8]) -> Self {
-    SnapshotData { value }
-  }
-}
 
 pub fn init_v8_platform() {
   static V8_INIT: Once = Once::new();
@@ -165,128 +149,7 @@ fn init_builtin_modules(scope: &mut v8::PinScope) {
   }
 }
 
-/// Snapshot builder version js runtime.
-///
-/// NOTE: This runtime is for creating snapshot for builtin Runtime APIs to
-/// achieve much better performance.
-pub mod snapshot {
-  use super::*;
-
-  #[derive(rsvim_macro::RcRefCellPtr)]
-  /// The state for js runtime of snapshot.
-  pub struct JsRuntimeStateForSnapshot {
-    pub context: Option<v8::Global<v8::Context>>,
-  }
-
-  /// The js runtime for snapshot.
-  ///
-  /// WARNING: When creating snapshot, do remember that the `__InternalRsvimGlobalObject` bindings
-  /// are not available, because most of the functions are related with outside of js runtime, i.e.
-  /// the UI tree, the event loop, the tokio channels, etc. We cannot really make snapshot for them.
-  /// So when creating snapshot, we are mainly serialize those built-in modules, i.e. compile the
-  /// scripts into `v8::Module`.
-  pub struct JsRuntimeForSnapshot {
-    /// V8 isolate.
-    /// This is an `Option<v8::OwnedIsolate>` instead of just `v8::OwnedIsolate` is to workaround the
-    /// safety issue with snapshot_creator.
-    /// See: <https://github.com/denoland/deno/blob/d0efd040c79021958a1e83caa56572c0401ca1f2/core/runtime.rs?plain=1#L93>.
-    pub isolate: Option<v8::OwnedIsolate>,
-
-    /// State.
-    pub state: JsRuntimeStateForSnapshotRc,
-  }
-
-  impl Drop for JsRuntimeForSnapshot {
-    fn drop(&mut self) {
-      debug_assert_eq!(Rc::strong_count(&self.state), 1);
-    }
-  }
-
-  impl JsRuntimeForSnapshot {
-    /// Creates a new js runtime for snapshot.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-      init_v8_platform();
-
-      let mut isolate =
-        v8::Isolate::snapshot_creator(None, Some(v8::CreateParams::default()));
-
-      // NOTE: For snapshot runtime, it cannot call the
-      // `init_v8_isolate(&mut isolate)` API because it doesn't have many
-      // components such as "ModuleMap".
-
-      let context: v8::Global<v8::Context> = {
-        v8::scope!(scope, &mut *isolate);
-        let context = v8::Context::new(scope, Default::default());
-        v8::Global::new(scope, context)
-      };
-
-      let state = {
-        v8::scope_with_context!(scope, &mut *isolate, context.clone());
-        // Load, compile and evaluate all built-in modules.
-        init_builtin_modules(scope);
-        JsRuntimeStateForSnapshot::to_rc(JsRuntimeStateForSnapshot {
-          context: Some(context),
-        })
-      };
-
-      isolate.set_slot(state.clone());
-
-      JsRuntimeForSnapshot {
-        isolate: Some(isolate),
-        state,
-      }
-    }
-
-    pub fn create_snapshot(mut self) -> v8::StartupData {
-      // Set default context
-      {
-        let context = self.context();
-        v8::scope_with_context!(
-          scope,
-          self.isolate.as_mut().unwrap(),
-          context.clone()
-        );
-        let context = v8::Local::new(scope, context);
-        scope.set_default_context(context);
-      }
-
-      // Drop state (and the global context inside)
-      {
-        let state_rc = self.get_state();
-        state_rc.borrow_mut().context.take();
-      }
-
-      let snapshot_creator = self.isolate.take().unwrap();
-      snapshot_creator
-        .create_blob(v8::FunctionCodeHandling::Keep)
-        .unwrap()
-    }
-  }
-
-  impl JsRuntimeForSnapshot {
-    pub fn context(&self) -> v8::Global<v8::Context> {
-      self.get_state().borrow().context.as_ref().unwrap().clone()
-    }
-
-    pub fn state(isolate: &v8::Isolate) -> JsRuntimeStateForSnapshotRc {
-      isolate
-        .get_slot::<JsRuntimeStateForSnapshotRc>()
-        .unwrap()
-        .clone()
-    }
-
-    pub fn get_state(&self) -> JsRuntimeStateForSnapshotRc {
-      Self::state(self.isolate.as_ref().unwrap())
-    }
-  }
-}
-
-/// Snapshot boosted version js runtime
-///
-/// NOTE: This runtime is the real js runtime used by editor, it directly
-/// initialize from the snapshot built by the "snapshot" versioned runtime,
-/// thus has the best startup performance.
+/// Javascript runtime.
 pub mod boost {
   use super::*;
 
@@ -371,110 +234,14 @@ pub mod boost {
   }
 
   impl JsRuntime {
-    /// Creates a new JsRuntime with snapshot.
+    /// Creates a new JsRuntime.
     pub fn new(
       options: JsRuntimeOptions,
-      snapshot: SnapshotData,
       startup_moment: Instant,
       time_origin: u128,
       master_tx: UnboundedSender<MasterMessage>,
       jsrt_rx: UnboundedReceiver<JsMessage>,
       cli_opts: CliOptions,
-      tree: TreeArc,
-      buffer_manager: BufferManagerArc,
-      cmdline_text: CmdlineTextArc,
-      syntax_manager: SyntaxManagerArc,
-      colorscheme_manager: ColorSchemeManagerArc,
-      command_manager: CommandManagerArc,
-      resource_table: ResourceTableArc,
-    ) -> Self {
-      // Fire up the v8 engine.
-      init_v8_platform();
-
-      let mut isolate = {
-        let create_params = v8::CreateParams::default();
-        let create_params = create_params.snapshot_blob(snapshot.value.into());
-        v8::Isolate::new(create_params)
-      };
-
-      init_v8_isolate(&mut isolate);
-
-      // Initialize the v8 inspector.
-      // let address = options.inspect.map(|(address, _)| (address));
-      // let inspector = options.inspect.map(|(_, waiting_for_session)| {
-      //   JsRuntimeInspector::new(
-      //     &mut isolate,
-      //     context.clone(),
-      //     event_loop.interrupt_handle(),
-      //     waiting_for_session,
-      //     options.root.clone(),
-      //   )
-      // });
-
-      let context: v8::Global<v8::Context> = {
-        v8::scope!(scope, &mut *isolate);
-        let context = binding::create_new_context(scope);
-
-        // let module_handles = get_context_data(scope, context);
-        v8::Global::new(scope, context)
-      };
-
-      // Store state inside the v8 isolate slot.
-      // https://v8docs.nodesource.com/node-4.8/d5/dda/classv8_1_1_isolate.html#a7acadfe7965997e9c386a05f098fbe36
-      let state = JsRuntimeState::to_rc(JsRuntimeState {
-        context,
-        module_map: ModuleMap::new(),
-        pending_timers: FoldMap::new(),
-        pending_tasks: FoldMap::new(),
-        pending_futures: vec![],
-        startup_moment,
-        time_origin,
-        // next_tick_queue: Vec::new(),
-        exceptions: ExceptionState::new(),
-        options,
-        // wake_event_queued: false,
-        master_tx,
-        jsrt_rx,
-        cli_opts,
-        tree,
-        buffer_manager,
-        cmdline_text,
-        syntax_manager,
-        colorscheme_manager,
-        command_manager,
-        resource_table,
-      });
-
-      isolate.set_slot(state.clone());
-
-      JsRuntime {
-        isolate,
-        // event_loop,
-        state,
-        // inspector,
-      }
-
-      // With snapshot, we no longer need to initialize builtin runtime modules any more.
-      // runtime.init_environment(module_handles);
-
-      // // Start inspector agent is requested.
-      // if let Some(inspector) = runtime.inspector().as_mut() {
-      //   let address = address.unwrap();
-      //   inspector.borrow_mut().start_agent(address);
-      // }
-
-      // runtime
-    }
-
-    /// Creates a new JsRuntime from scratch, i.e. without snapshot, usually for
-    /// testing purpose.
-    pub fn new_without_snapshot(
-      options: JsRuntimeOptions,
-      startup_moment: Instant,
-      time_origin: u128,
-      master_tx: UnboundedSender<MasterMessage>,
-      jsrt_rx: UnboundedReceiver<JsMessage>,
-      cli_opt: CliOptions,
       tree: TreeArc,
       buffer_manager: BufferManagerArc,
       cmdline_text: CmdlineTextArc,
@@ -514,7 +281,7 @@ pub mod boost {
         // wake_event_queued: false,
         master_tx,
         jsrt_rx,
-        cli_opts: cli_opt,
+        cli_opts,
         tree,
         buffer_manager,
         cmdline_text,
@@ -533,14 +300,8 @@ pub mod boost {
         // inspector,
       };
 
-      // When without snapshot, we need to initialize builtin js modules.
+      // Load, compile and evaluate all built-in modules.
       runtime.with_scope(init_builtin_modules);
-
-      // // Start inspector agent is requested.
-      // if let Some(inspector) = runtime.inspector().as_mut() {
-      //   let address = address.unwrap();
-      //   inspector.borrow_mut().start_agent(address);
-      // }
 
       runtime
     }
