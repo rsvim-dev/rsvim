@@ -2,14 +2,12 @@
 //!
 //! # Terms
 //!
-//! - Module map: it maintains all the dependencies loaded into the js runtime,
-//!   i.e. the rsvim editor.
+//! - Module map: it maintains all the dependencies loaded into the js runtime.
 //!
 //! # Module
 //!
-//! In the most popular js runtime [node.js](https://nodejs.org), a module is loaded by the keyword
-//! `require` (Common JS) or `import` (ECMAScript Module). Rsvim only supports the static import,
-//! for example:
+//! In node.js, a module is loaded by keyword `require` (Common JS) or `import`
+//! (ECMAScript Module). Rsvim only supports the static import, for example:
 //!
 //! ```javascript
 //! // ES Module
