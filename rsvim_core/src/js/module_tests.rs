@@ -1,5 +1,4 @@
 use super::module::*;
-use crate::js::JsRuntime;
 use crate::prelude::*;
 use crate::tests::evloop::*;
 use crate::tests::js::make_js_runtime;
