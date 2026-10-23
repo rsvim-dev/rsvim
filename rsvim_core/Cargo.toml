@@ -19,40 +19,9 @@ doctest = false
 
 [features]
 default = ["unicode", "simd"]
-icudata = ["dep:deno_core_icudata", "icu/compiled_data"]
 simd = ["ropey/simd"]
-typescript = [
-  "dep:swc_atoms",
-  "dep:swc_bundler",
-  "dep:swc_common",
-  "dep:swc_config",
-  "dep:swc_config_macro",
-  "dep:swc_ecma_ast",
-  "dep:swc_ecma_codegen",
-  "dep:swc_ecma_codegen_macros",
-  "dep:swc_ecma_lexer",
-  "dep:swc_ecma_loader",
-  "dep:swc_ecma_parser",
-  "dep:swc_ecma_transforms_base",
-  "dep:swc_ecma_transforms_classes",
-  "dep:swc_ecma_transforms_compat",
-  "dep:swc_ecma_transforms_macros",
-  "dep:swc_ecma_transforms_optimization",
-  "dep:swc_ecma_transforms_proposal",
-  "dep:swc_ecma_transforms_react",
-  "dep:swc_ecma_transforms_typescript",
-  "dep:swc_ecma_utils",
-  "dep:swc_ecma_visit",
-  "dep:swc_eq_ignore_macros",
-  "dep:swc_graph_analyzer",
-  "dep:swc_macros_common",
-  "dep:swc_sourcemap",
-  "dep:swc_trace_macro",
-  "dep:swc_visit",
-]
 tzdata = ["jiff/tzdb-bundle-always"]
 unicode = ["ropey/unicode_lines"]
-wasm = []
 
 [dependencies]
 rsvim_macro = { workspace = true }
@@ -76,7 +45,7 @@ fern = { workspace = true }
 foldhash = { workspace = true }
 futures = { workspace = true }
 geo = { workspace = true }
-icu = { workspace = true }
+icu = { workspace = true, features = ["compiled_data"] }
 itertools = { workspace = true }
 jiff = { workspace = true }
 junction = { workspace = true }
@@ -121,45 +90,11 @@ toml = { workspace = true, features = ["fast_hash"] }
 tree-sitter = { workspace = true }
 tree-sitter-loader = { workspace = true }
 
-# NOTE: Javascript dependencies {
-
-swc_atoms = { workspace = true, optional = true }
-swc_bundler = { workspace = true, optional = true }
-swc_common = { workspace = true, optional = true }
-swc_config = { workspace = true, optional = true }
-swc_config_macro = { workspace = true, optional = true }
-swc_ecma_ast = { workspace = true, optional = true }
-swc_ecma_codegen = { workspace = true, optional = true }
-swc_ecma_codegen_macros = { workspace = true, optional = true }
-swc_ecma_lexer = { workspace = true, optional = true }
-swc_ecma_loader = { workspace = true, optional = true }
-swc_ecma_parser = { workspace = true, optional = true }
-swc_ecma_transforms_base = { workspace = true, optional = true, features = [
-  "inline-helpers",
-] }
-swc_ecma_transforms_classes = { workspace = true, optional = true }
-swc_ecma_transforms_compat = { workspace = true, optional = true }
-swc_ecma_transforms_macros = { workspace = true, optional = true }
-swc_ecma_transforms_optimization = { workspace = true, optional = true }
-swc_ecma_transforms_proposal = { workspace = true, optional = true }
-swc_ecma_transforms_react = { workspace = true, optional = true }
-swc_ecma_transforms_typescript = { workspace = true, optional = true }
-swc_ecma_utils = { workspace = true, optional = true }
-swc_ecma_visit = { workspace = true, optional = true }
-swc_eq_ignore_macros = { workspace = true, optional = true }
-swc_graph_analyzer = { workspace = true, optional = true }
-swc_macros_common = { workspace = true, optional = true }
-swc_sourcemap = { workspace = true, optional = true }
-swc_trace_macro = { workspace = true, optional = true }
-swc_visit = { workspace = true, optional = true }
-
-deno_core_icudata = { workspace = true, optional = true }
+# js engine
 v8 = { workspace = true, default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
-
-# NOTE: Javascript dependencies }
 
 [dev-dependencies]
 assert_fs = { workspace = true }

@@ -45,7 +45,7 @@ futures = "0.3"
 geo = "0.33.1"
 gix = "0.89"
 heck = "0.5"
-icu = "2"
+icu = { version = "2", features = ["compiled_data"] }
 itertools = "0.15"
 jiff = "0.2"
 junction = "2"
@@ -100,49 +100,11 @@ tree-sitter-rust = "0.24"
 tree-sitter-toml-ng = "0.7"
 unicode-width = "0.2"
 
-# NOTE: Javascript dependencies always keep the same with `deno` {
-
-# deno: https://github.com/denoland/deno/blob/main/Cargo.toml
-# deno_ast: https://github.com/denoland/deno_ast/blob/main/Cargo.toml
-
-swc_atoms = "=10.0.0"
-swc_bundler = "=57.0.0"
-swc_common = "=26.0.0"
-swc_config = "=6.0.1"
-swc_config_macro = "=1.0.1"
-swc_core = "=82.0.2"
-swc_ecma_ast = "=29.0.2"
-swc_ecma_codegen = "=32.0.3"
-swc_ecma_codegen_macros = "=2.0.2"
-swc_ecma_lexer = "=45.0.0"
-swc_ecma_loader = "=27.0.0"
-swc_ecma_parser = "=46.0.0"
-swc_ecma_transforms_base = { version = "=50.0.0", features = [
-  "inline-helpers",
-] }
-swc_ecma_transforms_classes = "=50.0.0"
-swc_ecma_transforms_compat = "=58.0.0"
-swc_ecma_transforms_macros = "=1.0.1"
-swc_ecma_transforms_optimization = "=53.0.0"
-swc_ecma_transforms_proposal = "=50.0.0"
-swc_ecma_transforms_react = "=56.0.0"
-swc_ecma_transforms_typescript = "=56.0.0"
-swc_ecma_utils = "=35.0.3"
-swc_ecma_visit = "=29.0.0"
-swc_eq_ignore_macros = "=1.0.1"
-swc_graph_analyzer = "=14.0.2"
-swc_macros_common = "=1.0.1"
-swc_sourcemap = "=10.0.2"
-swc_trace_macro = "=2.0.2"
-swc_visit = "=2.0.2"
-
-deno_core_icudata = "0.77"
+# js engine
 v8 = { version = "=150.4.0", default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
-
-# NOTE: Javascript dependencies always keep the same with `deno` }
 
 [workspace.lints.clippy]
 collapsible_else_if = "allow"

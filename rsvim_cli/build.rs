@@ -44,30 +44,11 @@ fn version() {
     }
   };
 
-  // swc core
-  let swc_core = match std::fs::read_to_string(workspace_dir.join("Cargo.toml"))
-  {
-    Ok(manifest) => match manifest.parse::<toml::Table>() {
-      Ok(parsed_manifest) => {
-        let deps = &parsed_manifest["workspace"]["dependencies"];
-        let core = deps["swc_core"].as_str();
-        Some(core.unwrap().trim_start_matches("=").to_string())
-      }
-      Err(e) => {
-        println!("{LOG} Failed to parse swc_core version:{:?}", e);
-        None
-      }
-    },
-    Err(e) => {
-      println!("{LOG} Failed to parse swc_core version:{:?}", e);
-      None
-    }
-  };
   let v8_version = v8_version();
 
   println!(
-    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, v8={:?}, swc_core={:?}",
-    profile, host, version, git_commit, v8_version, swc_core
+    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, v8={:?}",
+    profile, host, version, git_commit, v8_version
   );
 
   let mut resolved = format!(
@@ -76,9 +57,6 @@ fn version() {
   );
   if let Some(git_commit) = git_commit {
     resolved = format!("{}git_commit={}\n", resolved, git_commit);
-  }
-  if let Some(swc_core) = swc_core {
-    resolved = format!("{}swc_core={}\n", resolved, swc_core);
   }
 
   let out_dir = std::env::var("OUT_DIR").unwrap();
