@@ -55,14 +55,15 @@ static RSVIM_VERSION: LazyLock<String> = LazyLock::new(|| {
     version_tags["profile"],
     version_tags["host"]
   );
-  let features = format!(
-    "features: {}tzdata {}jemalloc {}mimalloc",
-    if cfg!(feature = "tzdata") { "+" } else { "-" },
-    if cfg!(feature = "jemalloc") { "+" } else { "-" },
-    if cfg!(feature = "mimalloc") { "+" } else { "-" },
-  );
+  let features = if cfg!(feature = "jemalloc") {
+    "features: +jemalloc\n"
+  } else if cfg!(feature = "mimalloc") {
+    "features: +mimalloc\n"
+  } else {
+    ""
+  };
   let v8_version = format!("v8 {}", version_tags["v8"]);
-  format!("{}\n{}\n{}", binary_version, features, v8_version)
+  format!("{}\n{}{}", binary_version, features, v8_version)
 });
 
 fn main() -> IoResult<()> {
