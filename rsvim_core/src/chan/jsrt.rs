@@ -18,9 +18,6 @@ pub enum JsMessage {
   /// Event loop send ex command to js runtime to run.
   ExCommandReq(ExCommandReq),
 
-  /// Master send js runtime the result of load import
-  LoadImportResp(LoadImportResp),
-
   /// Master send js runtime the result of tick again
   TickAgainResp,
 
@@ -80,14 +77,6 @@ pub struct ExCommandReq {
   pub payload: CompactString,
   pub current_buf_id: BufferId,
   pub current_win_id: NodeId,
-}
-
-#[derive(Debug)]
-pub struct LoadImportResp {
-  pub task_id: TaskId,
-
-  // type: `ModuleSource`
-  pub maybe_source: Option<TheResult<Vec<u8>>>,
 }
 
 #[derive(Debug)]

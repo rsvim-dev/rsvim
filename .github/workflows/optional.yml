@@ -33,89 +33,89 @@ jobs:
           npm install -g prettier
           prettier --version
           echo "show PWD=${PWD}"
-          echo "prettier --check *.md ./runtime/*.ts"
-          prettier --check *.md ./runtime/*.ts
-  bloaty:
-    name: Bloaty
-    runs-on: ubuntu-latest
-    if: ${{ github.event.pull_request }}
-    steps:
-      - uses: Swatinem/rust-cache@v2
-      - uses: davidlattimore/wild-action@latest
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rust-src,clippy
-      - name: Check out 'current' branch
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: "0"
-      - name: Build 'current' branch
-        run: |
-          cargo build --release
-      - name: Save 'current' branch binary
-        run: cp ./target/release/rsvim ./target/release/original.elf
-      - name: Run Bloaty on 'current' branch
-        uses: carlosperate/bloaty-action@v1
-        id: bloaty-step
-        with:
-          bloaty-args: ./target/release/rsvim
-          output-to-summary: true
-      - name: Checkout 'main' branch
-        run: git checkout ${{ github.event.pull_request.base.sha }}
-      - name: Rebuild 'main' branch
-        run: |
-          cargo build --release
-      - name: Run Bloaty to compare both output files
-        id: bloaty-comparison
-        uses: carlosperate/bloaty-action@v1
-        with:
-          bloaty-args: ./target/release/original.elf -- ./target/release/rsvim
-          output-to-summary: true
-          # - name: Add a PR comment with summary and diff
-          #   continue-on-error: true
-          #   uses: actions/github-script@v6
-          #   with:
-          #     script: |
-          #       github.rest.issues.createComment({
-          #         issue_number: context.issue.number,
-          #         owner: context.repo.owner,
-          #         repo: context.repo.repo,
-          #         body: '## Bloaty output\n```\n${{ steps.bloaty-step.outputs.bloaty-output-encoded }}```\n## PR build size diff\n```\n${{ steps.bloaty-comparison.outputs.bloaty-output-encoded }}```\n'
-          #       })
-          #
-  bloaty-min:
-    name: Bloaty Minimize
-    runs-on: ubuntu-latest
-    if: ${{ github.event.pull_request }}
-    steps:
-      - uses: Swatinem/rust-cache@v2
-      - uses: davidlattimore/wild-action@latest
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rust-src,clippy
-      - name: Check out 'current' branch
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: "0"
-      - name: Build 'current' branch
-        run: |
-          cargo build --release
-      - name: Save 'current' branch binary
-        run: cp ./target/release/rsvim ./target/release/original.elf
-      - name: Run Bloaty on 'current' branch
-        uses: carlosperate/bloaty-action@v1
-        id: bloaty-step
-        with:
-          bloaty-args: ./target/release/rsvim
-          output-to-summary: true
-      - name: Checkout 'main' branch
-        run: git checkout ${{ github.event.pull_request.base.sha }}
-      - name: Rebuild 'main' branch
-        run: |
-          cargo build --release
-      - name: Run Bloaty to compare both output files
-        id: bloaty-comparison
-        uses: carlosperate/bloaty-action@v1
-        with:
-          bloaty-args: ./target/release/original.elf -- ./target/release/rsvim
-          output-to-summary: true
+          echo "prettier --check *.md ./rsvim_core/ts/*.ts"
+          prettier --check *.md ./rsvim_core/ts/*.ts
+  # bloaty:
+  #   name: Bloaty
+  #   runs-on: ubuntu-latest
+  #   if: ${{ github.event.pull_request }}
+  #   steps:
+  #     - uses: Swatinem/rust-cache@v2
+  #     - uses: davidlattimore/wild-action@latest
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         components: rust-src,clippy
+  #     - name: Check out 'current' branch
+  #       uses: actions/checkout@v7
+  #       with:
+  #         fetch-depth: "0"
+  #     - name: Build 'current' branch
+  #       run: |
+  #         cargo build --release
+  #     - name: Save 'current' branch binary
+  #       run: cp ./target/release/rsvim ./target/release/original.elf
+  #     - name: Run Bloaty on 'current' branch
+  #       uses: carlosperate/bloaty-action@v1
+  #       id: bloaty-step
+  #       with:
+  #         bloaty-args: ./target/release/rsvim
+  #         output-to-summary: true
+  #     - name: Checkout 'main' branch
+  #       run: git checkout ${{ github.event.pull_request.base.sha }}
+  #     - name: Rebuild 'main' branch
+  #       run: |
+  #         cargo build --release
+  #     - name: Run Bloaty to compare both output files
+  #       id: bloaty-comparison
+  #       uses: carlosperate/bloaty-action@v1
+  #       with:
+  #         bloaty-args: ./target/release/original.elf -- ./target/release/rsvim
+  #         output-to-summary: true
+  #         # - name: Add a PR comment with summary and diff
+  #         #   continue-on-error: true
+  #         #   uses: actions/github-script@v6
+  #         #   with:
+  #         #     script: |
+  #         #       github.rest.issues.createComment({
+  #         #         issue_number: context.issue.number,
+  #         #         owner: context.repo.owner,
+  #         #         repo: context.repo.repo,
+  #         #         body: '## Bloaty output\n```\n${{ steps.bloaty-step.outputs.bloaty-output-encoded }}```\n## PR build size diff\n```\n${{ steps.bloaty-comparison.outputs.bloaty-output-encoded }}```\n'
+  #         #       })
+  #         #
+  # bloaty-min:
+  #   name: Bloaty Minimize
+  #   runs-on: ubuntu-latest
+  #   if: ${{ github.event.pull_request }}
+  #   steps:
+  #     - uses: Swatinem/rust-cache@v2
+  #     - uses: davidlattimore/wild-action@latest
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         components: rust-src,clippy
+  #     - name: Check out 'current' branch
+  #       uses: actions/checkout@v7
+  #       with:
+  #         fetch-depth: "0"
+  #     - name: Build 'current' branch
+  #       run: |
+  #         cargo build --release
+  #     - name: Save 'current' branch binary
+  #       run: cp ./target/release/rsvim ./target/release/original.elf
+  #     - name: Run Bloaty on 'current' branch
+  #       uses: carlosperate/bloaty-action@v1
+  #       id: bloaty-step
+  #       with:
+  #         bloaty-args: ./target/release/rsvim
+  #         output-to-summary: true
+  #     - name: Checkout 'main' branch
+  #       run: git checkout ${{ github.event.pull_request.base.sha }}
+  #     - name: Rebuild 'main' branch
+  #       run: |
+  #         cargo build --release
+  #     - name: Run Bloaty to compare both output files
+  #       id: bloaty-comparison
+  #       uses: carlosperate/bloaty-action@v1
+  #       with:
+  #         bloaty-args: ./target/release/original.elf -- ./target/release/rsvim
+  #         output-to-summary: true

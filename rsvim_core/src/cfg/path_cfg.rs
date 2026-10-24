@@ -37,11 +37,11 @@ fn _home_dir(home_dir: &Path) -> PathBuf {
   home_dir.join(".rsvim")
 }
 
-/// Find the config home directory. This method look for config entry (`rsvim.{js,ts}`) in below
-/// locations:
+/// Find the config home directory. This method look for config entry (`rsvim.js`)
+/// in below locations:
 /// 1. `$XDG_CONFIG_HOME/rsvim`
-/// 2. `$HOME/.rsvim`, additionally, `$HOME/.rsvim.{js,ts}` will be recognized as config entry as
-///    well.
+/// 2. `$HOME/.rsvim`, additionally, `$HOME/.rsvim.js` will be recognized as
+///    config entry as well.
 ///
 /// It returns `(Home, Entry)`.
 fn find_config_home_and_entry(
@@ -52,26 +52,16 @@ fn find_config_home_and_entry(
   /* config_entry */ Option<PathBuf>,
 ) {
   for config_dir in [_xdg_config_dir(config_dir), _home_dir(home_dir)].iter() {
-    let ts_config = config_dir.join("rsvim.ts");
-    if ts_config.as_path().exists() {
-      return (config_dir.to_path_buf(), Some(ts_config));
-    }
     let js_config = config_dir.join("rsvim.js");
     if js_config.as_path().exists() {
       return (config_dir.to_path_buf(), Some(js_config));
     }
   }
 
-  // `$HOME/.rsvim.js` or `$HOME/.rsvim.ts`
-  for config_entry in [
-    home_dir.join(".rsvim.ts").to_path_buf(),
-    home_dir.join(".rsvim.js").to_path_buf(),
-  ]
-  .iter()
-  {
-    if config_entry.exists() {
-      return (_home_dir(home_dir), Some(config_entry.clone()));
-    }
+  // `$HOME/.rsvim.js`
+  let config_entry = home_dir.join(".rsvim.js");
+  if config_entry.exists() {
+    return (_home_dir(home_dir), Some(config_entry));
   }
 
   // Config home fallback to `$HOME/.rsvim` even it doesn't exist, config entry
@@ -149,14 +139,13 @@ impl PathConfig {
   #[cfg(not(test))]
   /// User config entry path, it can be either one of following files:
   ///
-  /// 1. `$XDG_CONFIG_HOME/rsvim/rsvim.{ts,js}`
-  /// 2. `$HOME/.rsvim/rsvim.{ts.js}`
-  /// 3. `$HOME/.rsvim.{ts.js}`
+  /// 1. `$XDG_CONFIG_HOME/rsvim/rsvim.js`
+  /// 2. `$HOME/.rsvim/rsvim.js`
+  /// 3. `$HOME/.rsvim.js`
   ///
   /// NOTE:
-  /// 1. Typescript file is preferred over javascript, if both exist.
-  /// 2. The detect priority is from higher to lower: 1st > 2nd > 3rd.
-  /// 3. The 1st config home is `$XDG_CONFIG_HOME/rsvim`, the 2nd and 3rd config home is
+  /// 1. The detect priority is from higher to lower: 1st > 2nd > 3rd.
+  /// 2. The 1st config home is `$XDG_CONFIG_HOME/rsvim`, the 2nd and 3rd config home is
   ///    `$HOME/.rsvim`.
   pub fn config_entry(&self) -> &Option<PathBuf> {
     &self.config_entry

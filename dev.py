@@ -343,7 +343,7 @@ class Format(Cmd):
     def others(self):
         typos = "typos"
         taplo = "taplo fmt"
-        prettier = "prettier --write *.md ./runtime/*.ts"
+        prettier = "prettier --write *.md ./rsvim_core/ts/*.ts"
         for cmd in [typos, taplo, prettier]:
             run(cmd)
 
@@ -357,21 +357,24 @@ class Format(Cmd):
         # Compile .ts files into .js files
         run(cmd)
 
+        target_dir = "./rsvim_core/js/"
         # Minify .js files into .min.js files
         for file in ["00__web", "01__rsvim"]:
-            src_file = f"./rsvim_core/src/js/runtime/{file}.js"
-            dest_file = f"./rsvim_core/src/js/runtime/{file}.min.js"
+            src_file = f"{target_dir}{file}.js"
+            dest_file = f"{target_dir}{file}.min.js"
             cmd = f"terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
             run(cmd)
 
         # Post-process .d.ts files to avoid boring lint warnings
         for file in ["00__web.d.ts", "01__rsvim.d.ts"]:
-            src_file = f"types/{file}"
+            src_file = f"./types/{file}"
             dest_file = f".{file}"
             with open(src_file, "r") as sfp:
                 with open(dest_file, "w") as dfp:
                     dfp.write("// @ts-nocheck\n")
-                    for line in sfp.readlines():
+                    for i, line in enumerate(sfp.readlines()):
+                        if i == 0 and line.strip() == "// @ts-nocheck":
+                            continue
                         dfp.write(line)
             cmd = f"mv {dest_file} {src_file}"
             run(cmd)

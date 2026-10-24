@@ -17,7 +17,6 @@ use crate::hl::ColorSchemeManager;
 use crate::hl::ColorSchemeManagerArc;
 use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
-use crate::js::SnapshotData;
 use crate::js::binding::global_rsvim::fs::link::fs_link_a;
 use crate::js::binding::global_rsvim::fs::mkdir::fs_mkdir_s;
 use crate::js::binding::global_rsvim::fs::open::fs_open_a;
@@ -32,7 +31,6 @@ use crate::js::binding::global_rsvim::fs::symlink::fs_symlink_s;
 use crate::js::binding::global_rsvim::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
 use crate::js::command::CommandManagerArc;
-use crate::js::module::async_load_import;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceTable;
 use crate::js::resource::ResourceTableArc;
@@ -306,7 +304,6 @@ impl EventLoop {
     startup_moment: Instant,
     startup_unix_epoch: u128,
     cli_opts: CliOptions,
-    snapshot: SnapshotData,
   ) -> IoResult<Self> {
     let (cols, rows) = crossterm::terminal::size()?;
     let (
@@ -333,7 +330,6 @@ impl EventLoop {
     // Js Runtime
     let js_runtime = JsRuntime::new(
       JsRuntimeOptions::default(),
-      snapshot,
       startup_moment,
       startup_unix_epoch,
       master_tx.clone(),
@@ -377,91 +373,10 @@ impl EventLoop {
 
   #[cfg(test)]
   /// Make new event loop for testing.
-  pub fn mock_new_without_snapshot(
+  pub fn mock_new(
     terminal_columns: u16,
     terminal_rows: u16,
     cli_opts: CliOptions,
-  ) -> IoResult<Self> {
-    use std::time::SystemTime;
-    use std::time::UNIX_EPOCH;
-
-    let (
-      canvas,
-      tree,
-      state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
-      cancellation_token,
-      detached_tracker,
-      blocked_tracker,
-      exit_code,
-      (master_tx, master_rx),
-      (jsrt_forwarder_tx, jsrt_forwarder_rx),
-      (jsrt_tx, jsrt_rx),
-    ) = Self::_internal_new(terminal_columns, terminal_rows)?;
-
-    let startup_moment = Instant::now();
-    let startup_unix_epoch = SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis();
-    let writer = StdoutWriterValue::dev_null();
-
-    // Js Runtime
-    let js_runtime = JsRuntime::new_without_snapshot(
-      JsRuntimeOptions::default(),
-      startup_moment,
-      startup_unix_epoch,
-      master_tx.clone(),
-      jsrt_rx,
-      cli_opts.clone(),
-      tree.clone(),
-      buffer_manager.clone(),
-      cmdline_text.clone(),
-      syntax_manager.clone(),
-      colorscheme_manager.clone(),
-      command_manager.clone(),
-      resource_table.clone(),
-    );
-
-    Ok(EventLoop {
-      startup_moment,
-      startup_unix_epoch,
-      cli_opts,
-      canvas,
-      tree,
-      state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
-      writer,
-      cancellation_token,
-      detached_tracker,
-      blocked_tracker,
-      exit_code,
-      js_runtime,
-      master_tx,
-      master_rx,
-      jsrt_forwarder_tx,
-      jsrt_forwarder_rx,
-      jsrt_tx,
-    })
-  }
-
-  #[cfg(test)]
-  /// Make new event loop for testing.
-  pub fn mock_new_with_snapshot(
-    terminal_columns: u16,
-    terminal_rows: u16,
-    cli_opts: CliOptions,
-    snapshot: SnapshotData,
   ) -> IoResult<Self> {
     use std::time::SystemTime;
     use std::time::UNIX_EPOCH;
@@ -495,7 +410,6 @@ impl EventLoop {
     // Js Runtime
     let js_runtime = JsRuntime::new(
       JsRuntimeOptions::default(),
-      snapshot,
       startup_moment,
       startup_unix_epoch,
       master_tx.clone(),
@@ -784,24 +698,6 @@ impl EventLoop {
                 expire_at,
                 delay: req.delay,
                 repeated: req.repeated,
-              }))
-              .unwrap();
-          });
-        }
-        MasterMessage::LoadImportReq(req) => {
-          trace!("Recv LoadImportReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_source = async_load_import(&req.specifier, false).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::LoadImportResp(chan::LoadImportResp {
-                task_id: req.task_id,
-                maybe_source: match maybe_source {
-                  Ok(source) => {
-                    Some(Ok(postcard::to_allocvec(&source).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
               }))
               .unwrap();
           });

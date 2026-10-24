@@ -42,22 +42,6 @@ pub fn remove_timer(
   state.pending_timers.remove(&timer_id).map(|_| timer_id)
 }
 
-pub fn create_import_loader(
-  state: &mut JsRuntimeState,
-  task_id: TaskId,
-  specifier: &str,
-  cb: TaskCallback,
-) {
-  state.pending_import_loaders.insert(task_id, cb);
-  chan::send_to_master(
-    state.master_tx.clone(),
-    MasterMessage::LoadImportReq(chan::LoadImportReq {
-      task_id,
-      specifier: specifier.to_string(),
-    }),
-  );
-}
-
 pub fn create_fs_open(
   state: &mut JsRuntimeState,
   task_id: TaskId,

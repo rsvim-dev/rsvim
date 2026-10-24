@@ -21,9 +21,6 @@ pub enum MasterMessage {
   /// Js runtime ask master to exit
   ExitReq(ExitReq),
 
-  /// Js runtime ask master to load import
-  LoadImportReq(LoadImportReq),
-
   /// Js runtime ask master to tick loop again.
   TickAgainReq,
 
@@ -87,12 +84,6 @@ pub struct TimeoutReq {
   pub start_at: Instant,
   pub delay: u32,
   pub repeated: bool,
-}
-
-#[derive(Debug)]
-pub struct LoadImportReq {
-  pub task_id: TaskId,
-  pub specifier: String,
 }
 
 #[derive(Debug)]
