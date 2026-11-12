@@ -370,20 +370,6 @@ class Bundle(Cmd):
         cmd = "npx tsc"
         run(cmd)
 
-        # # Post-process .d.ts files to avoid boring lint warnings
-        # for file in ["00__web.d.ts", "01__rsvim.d.ts"]:
-        #     src_file = f"./types/{file}"
-        #     tmp_file = f"./build/.{file}"
-        #     with open(src_file, "r") as sfp:
-        #         with open(tmp_file, "w") as dfp:
-        #             dfp.write("// @ts-nocheck\n")
-        #             for i, line in enumerate(sfp.readlines()):
-        #                 if i == 0 and line.strip() == "// @ts-nocheck":
-        #                     continue
-        #                 dfp.write(line)
-        #     cmd = f"mv {tmp_file} {src_file}"
-        #     run(cmd)
-
         target_dir = "./build/"
         # Bundle .js files with rollup, it tree-shakes unused code. Keep the "es"
         # format, since the js runtime loads them as v8 modules.
@@ -397,9 +383,7 @@ class Bundle(Cmd):
         for file in ["00__web", "01__rsvim"]:
             src_file = f"{target_dir}{file}.bundle.js"
             tmp_file = f"./rsvim_core/js/{file}.min.js"
-            cmd = (
-                f"npx terser {src_file} --keep-classnames --keep-fnames -o {tmp_file}"
-            )
+            cmd = f"npx terser {src_file} --keep-classnames --keep-fnames -o {tmp_file}"
             run(cmd)
 
 
