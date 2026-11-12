@@ -22,6 +22,7 @@
   "devDependencies": {
     "browser-sync": "^3.0.4",
     "prettier": "^3.10.0",
+    "rollup": "^4.68.2",
     "terser": "^5.51.2",
     "typescript": "^7.0.2"
   }
