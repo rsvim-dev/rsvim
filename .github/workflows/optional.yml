@@ -33,8 +33,8 @@ jobs:
           npm install
           npx prettier --version
           echo "show PWD=${PWD}"
-          echo "npx prettier --check *.md ./rsvim_core/ts/*.ts"
-          npx prettier --check *.md ./rsvim_core/ts/*.ts
+          echo "npx prettier --check *.md ./src/*.ts"
+          npx prettier --check *.md ./src/*.ts
   # bloaty:
   #   name: Bloaty
   #   runs-on: ubuntu-latest

@@ -319,7 +319,6 @@ class Format(Cmd):
             help="code formattors",
         )
         self.fmt_parser.add_argument("-r", "--rust", action="store_true")
-        self.fmt_parser.add_argument("-t", "--tsc", action="store_true")
 
     def name(self) -> str:
         return self._name
@@ -328,41 +327,58 @@ class Format(Cmd):
         return self._alias
 
     def run(self, args) -> None:
-        if args.tsc:
-            self.tsc()
-        elif args.rust:
-            self.rustfmt()
+        if args.rust:
+            self.rust()
         else:
             for cmd in [
                 self.others,
-                self.rustfmt,
-                self.tsc,
+                self.rust,
             ]:
                 cmd()
 
     def others(self):
         typos = "typos"
         taplo = "taplo fmt"
-        prettier = "npx prettier --write *.md ./rsvim_core/ts/*.ts"
+        prettier = "npx prettier --write *.md ./src/*.ts"
         for cmd in [typos, taplo, prettier]:
             run(cmd)
 
-    def rustfmt(self):
+    def rust(self):
         cmd = "cargo +nightly fmt"
         run(cmd)
 
-    def tsc(self):
+
+# bundle
+class Bundle(Cmd):
+    def __init__(self, subparsers) -> None:
+        self._name = "bundle"
+
+        self.bundle_parser = subparsers.add_parser(
+            self._name,
+            help="compile typescript and bundle javascript runtime",
+        )
+
+    def name(self) -> str:
+        return self._name
+
+    def alias(self) -> Optional[str]:
+        return None
+
+    def run(self, args) -> None:
         cmd = "npx tsc"
 
-        # Compile .ts files into .js files
+        # Compile .ts files into .js files (in ./build/) and .d.ts files (in
+        # ./types/), see tsconfig.json
         run(cmd)
 
-        target_dir = "./rsvim_core/js/"
+        target_dir = "./build/"
         # Minify .js files into .min.js files
         for file in ["00__web", "01__rsvim"]:
             src_file = f"{target_dir}{file}.js"
-            dest_file = f"{target_dir}{file}.min.js"
-            cmd = f"npx terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
+            dest_file = f"./rsvim_core/js/{file}.min.js"
+            cmd = (
+                f"npx terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
+            )
             run(cmd)
 
         # Post-process .d.ts files to avoid boring lint warnings
@@ -491,6 +507,7 @@ if __name__ == "__main__":
     commands = [
         Bench(subparsers),
         Build(subparsers),
+        Bundle(subparsers),
         Clippy(subparsers),
         Document(subparsers),
         Format(subparsers),

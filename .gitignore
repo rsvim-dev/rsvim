@@ -18,6 +18,9 @@ target/
 # Node/Deno
 node_modules
 
+# TS intermediate build output (tsc -> terser)
+build/
+
 # Generated Typedoc
 generated-typedocs
 

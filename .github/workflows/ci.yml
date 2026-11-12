@@ -25,13 +25,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
-      - name: Tsc
+      - name: Bundle
         run: |
           npm install
           npx tsc --version
           echo "show PWD=${PWD}"
-          echo "./dev.py fmt --tsc"
-          python3 ./dev.py fmt --tsc
+          echo "./dev.py bundle"
+          python3 ./dev.py bundle
           git diff --exit-code HEAD
       - name: Taplo
         env:
