@@ -343,7 +343,7 @@ class Format(Cmd):
     def others(self):
         typos = "typos"
         taplo = "taplo fmt"
-        prettier = "prettier --write *.md ./rsvim_core/ts/*.ts"
+        prettier = "npx prettier --write *.md ./rsvim_core/ts/*.ts"
         for cmd in [typos, taplo, prettier]:
             run(cmd)
 
@@ -352,7 +352,7 @@ class Format(Cmd):
         run(cmd)
 
     def tsc(self):
-        cmd = "tsc"
+        cmd = "npx tsc"
 
         # Compile .ts files into .js files
         run(cmd)
@@ -362,7 +362,7 @@ class Format(Cmd):
         for file in ["00__web", "01__rsvim"]:
             src_file = f"{target_dir}{file}.js"
             dest_file = f"{target_dir}{file}.min.js"
-            cmd = f"terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
+            cmd = f"npx terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
             run(cmd)
 
         # Post-process .d.ts files to avoid boring lint warnings
@@ -398,7 +398,7 @@ class Document(Cmd):
 
     def run(self, args) -> None:
         rustdocflags()
-        cmd = "cargo doc && browser-sync start --ss target/doc -s target/doc --directory --startPath rsvim_core --no-open"
+        cmd = "cargo doc && npx browser-sync start --ss target/doc -s target/doc --directory --startPath rsvim_core --no-open"
         run(cmd)
 
 

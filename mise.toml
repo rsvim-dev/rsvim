@@ -6,10 +6,5 @@
 "cargo:taplo-cli" = "latest"
 "cargo:typos-cli" = "latest"
 node = "latest"
-"npm:browser-sync" = "latest"
-"npm:markdownlint" = "latest"
-"npm:prettier" = "latest"
-"npm:terser" = "latest"
-"npm:typescript" = "latest"
 python = "latest"
 rust = { version = "latest", components = ["rust-src", "rust-analyzer"] }

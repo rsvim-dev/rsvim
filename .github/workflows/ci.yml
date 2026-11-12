@@ -27,9 +27,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Tsc
         run: |
-          npm install -g typescript
-          npm install -g terser
-          tsc --version
+          npm install
+          npx tsc --version
           echo "show PWD=${PWD}"
           echo "./dev.py fmt --tsc"
           python3 ./dev.py fmt --tsc

@@ -18,5 +18,11 @@
   "type": "module",
   "main": "./index.js",
   "types": "./types/index.d.ts",
-  "scripts": {}
+  "scripts": {},
+  "devDependencies": {
+    "browser-sync": "^3.0.4",
+    "prettier": "^3.10.0",
+    "terser": "^5.51.2",
+    "typescript": "^7.0.2"
+  }
 }
