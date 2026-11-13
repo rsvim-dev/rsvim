@@ -11,135 +11,20 @@
  * @packageDocumentation
  */
 
-/** @hidden */
-function isNull(arg: any): boolean {
-  return arg === undefined || arg === null;
-}
-
-/** @hidden */
-function isString(arg: any): boolean {
-  return typeof arg === "string";
-}
-
-/** @hidden */
-function checkNotNull(arg: any, msg: string) {
-  if (isNull(arg)) {
-    throw new TypeError(`${msg} cannot be undefined or null`);
-  }
-}
-
-/** @hidden */
-function checkIsNumber(arg: any, msg: string) {
-  if (typeof arg !== "number") {
-    throw new TypeError(`${msg} must be a number, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsInteger(arg: any, msg: string) {
-  checkIsNumber(arg, msg);
-  if (!Number.isInteger(arg)) {
-    throw new TypeError(`${msg} must be an integer, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsBoolean(arg: any, msg: string) {
-  if (typeof arg !== "boolean") {
-    throw new TypeError(`${msg} must be a boolean, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsString(arg: any, msg: string) {
-  if (!isString(arg)) {
-    throw new TypeError(`${msg} must be a string, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsFunction(arg: any, msg: string) {
-  if (typeof arg !== "function") {
-    throw new TypeError(`${msg} must be a function, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsObject(arg: any, msg: string) {
-  if (typeof arg !== "object") {
-    throw new TypeError(`${msg} must be an object, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsUint8Array(arg: any, msg: string) {
-  if (!(arg instanceof Uint8Array)) {
-    throw new TypeError(`${msg} must be a Uint8Array, buf found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function isTypedArray(arg: any): boolean {
-  return (
-    arg instanceof Int8Array ||
-    arg instanceof Uint8Array ||
-    arg instanceof Uint8ClampedArray ||
-    arg instanceof Int16Array ||
-    arg instanceof Uint16Array ||
-    arg instanceof Int32Array ||
-    arg instanceof Uint32Array ||
-    arg instanceof Float32Array ||
-    arg instanceof Float64Array ||
-    arg instanceof BigInt64Array ||
-    arg instanceof BigUint64Array
-  );
-}
-
-/** @hidden */
-function isArrayBuffer(arg: any): boolean {
-  return arg instanceof ArrayBuffer;
-}
-
-/** @hidden */
-function isDataView(arg: any): boolean {
-  return arg instanceof DataView;
-}
-
-/** @hidden */
-function checkIsArrayBufferFamily(arg: any, msg: string) {
-  if (!(isArrayBuffer(arg) || isDataView(arg) || isTypedArray(arg))) {
-    throw new TypeError(
-      `${msg} must be either ArrayBuffer/DataView/TypedArray, buf found ${typeof arg}`,
-    );
-  }
-}
-
-/** @hidden */
-function checkIsOptions(arg: any, options: any[], msg: string) {
-  if (!options.includes(arg)) {
-    throw new RangeError(`${msg} is an invalid option: ${arg}`);
-  }
-}
-
-/** @hidden */
-function boundByIntegers(arg: any, bound: [number, number]) {
-  if (arg < bound[0]) {
-    return bound[0];
-  }
-  if (arg > bound[1]) {
-    return bound[1];
-  }
-  return arg;
-}
-
-/** @hidden */
-function setDefaultFields(arg: object, defaults: object) {
-  for (const [key, val] of Object.entries(defaults)) {
-    if (!Object.hasOwn(arg, key)) {
-      Object.defineProperty(arg, key, { value: val, writable: true });
-    }
-  }
-}
+import {
+  checkIsNumber,
+  checkIsInteger,
+  checkIsBoolean,
+  checkIsString,
+  checkIsFunction,
+  checkIsObject,
+  checkIsUint8Array,
+  isTypedArray,
+  isDataView,
+  checkIsArrayBufferFamily,
+  boundByIntegers,
+  setDefaultFields,
+} from "./_internal";
 
 /**
  * Encode string text into bytes, it only supports "utf-8" encoding.

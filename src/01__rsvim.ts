@@ -20,135 +20,23 @@
  * These APIs are general for common javascript-based runtime, similar to [Deno APIs](https://docs.deno.com/api/deno/).
  */
 
-/** @hidden */
-function assertTrue(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-/** @hidden */
-function assertFalse(condition: boolean, message: string) {
-  if (!!condition) {
-    throw new Error(message);
-  }
-}
-
-/** @hidden */
-function isNull(arg: any): boolean {
-  return arg === undefined || arg === null;
-}
-
-/** @hidden */
-function isString(arg: any): boolean {
-  return typeof arg === "string";
-}
-
-/** @hidden */
-function checkNotNull(arg: any, msg: string) {
-  if (isNull(arg)) {
-    throw new TypeError(`${msg} cannot be undefined or null`);
-  }
-}
-
-/** @hidden */
-function checkIsNumber(arg: any, msg: string) {
-  if (typeof arg !== "number") {
-    throw new TypeError(`${msg} must be a number, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsInteger(arg: any, msg: string) {
-  checkIsNumber(arg, msg);
-  if (!Number.isInteger(arg)) {
-    throw new TypeError(`${msg} must be an integer, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsBoolean(arg: any, msg: string) {
-  if (typeof arg !== "boolean") {
-    throw new TypeError(`${msg} must be a boolean, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsString(arg: any, msg: string) {
-  if (!isString(arg)) {
-    throw new TypeError(`${msg} must be a string, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkOptionalString(arg: any, msg: string) {
-  if (!(isString(arg) || isNull(arg))) {
-    throw new TypeError(`${msg} must be a string?, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkMatchPattern(arg: any, pat: RegExp, msg: string) {
-  checkIsString(arg, msg);
-  if (!pat.test(arg)) {
-    throw new Error(`${msg} is invalid pattern: ${arg}"`);
-  }
-}
-
-/** @hidden */
-function checkIsFunction(arg: any, msg: string) {
-  if (typeof arg !== "function") {
-    throw new TypeError(`${msg} must be a function, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsArray(arg: any, msg: string) {
-  if (!Array.isArray(arg)) {
-    throw new TypeError(`${msg} must be an array, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsObject(arg: any, msg: string) {
-  if (typeof arg !== "object") {
-    throw new TypeError(`${msg} must be an object, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsUint8Array(arg: any, msg: string) {
-  if (!(arg instanceof Uint8Array)) {
-    throw new TypeError(`${msg} must be a Uint8Array, buf found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsOptions(arg: any, options: any[], msg: string) {
-  if (!options.includes(arg)) {
-    throw new RangeError(`${msg} is an invalid option: ${arg}`);
-  }
-}
-
-/** @hidden */
-function boundByIntegers(arg: any, bound: [number, number]) {
-  if (arg < bound[0]) {
-    return bound[0];
-  }
-  if (arg > bound[1]) {
-    return bound[1];
-  }
-  return arg;
-}
-
-/** @hidden */
-function setDefaultFields(arg: object, defaults: object) {
-  for (const [key, val] of Object.entries(defaults)) {
-    if (!Object.hasOwn(arg, key)) {
-      Object.defineProperty(arg, key, { value: val, writable: true });
-    }
-  }
-}
+import {
+  assertFalse,
+  isNull,
+  checkNotNull,
+  checkIsInteger,
+  checkIsBoolean,
+  checkIsString,
+  checkOptionalString,
+  checkMatchPattern,
+  checkIsFunction,
+  checkIsArray,
+  checkIsObject,
+  checkIsUint8Array,
+  checkIsOptions,
+  boundByIntegers,
+  setDefaultFields,
+} from "./_internal";
 
 /**
  * The `Rsvim.buf` global object for Vim buffers.
