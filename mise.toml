@@ -1,10 +1,12 @@
 [tools]
+cargo-binstall = "latest"
+cargo-release = "latest"
 "cargo:cargo-nextest" = "latest"
-"cargo:cargo-release" = "latest"
-"cargo:git-cliff" = "latest"
-"cargo:sccache" = "latest"
-"cargo:taplo-cli" = "latest"
-"cargo:typos-cli" = "latest"
+git-cliff = "latest"
+just = "latest"
 node = "latest"
 python = "latest"
 rust = { version = "latest", components = ["rust-src", "rust-analyzer"] }
+sccache = "latest"
+taplo = "latest"
+typos = "latest"

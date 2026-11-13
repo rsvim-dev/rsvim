@@ -16,7 +16,7 @@
   "license": "Vim",
   "author": "rsvim",
   "type": "module",
-  "main": "./index.js",
+  "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "scripts": {},
   "devDependencies": {
@@ -24,6 +24,6 @@
     "prettier": "^3.10.0",
     "rollup": "^4.68.2",
     "terser": "^5.51.2",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   }
 }

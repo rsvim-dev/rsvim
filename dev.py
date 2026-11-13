@@ -370,20 +370,19 @@ class Bundle(Cmd):
         cmd = "npx tsc"
         run(cmd)
 
-        target_dir = "./build/"
         # Bundle .js files with rollup, it tree-shakes unused code. Keep the "es"
-        # format, since the js runtime loads them as v8 modules.
-        for file in ["00__web", "01__rsvim"]:
-            src_file = f"{target_dir}{file}.js"
-            tmp_file = f"{target_dir}{file}.bundle.js"
-            cmd = f"npx rollup {src_file} --format es --file {tmp_file}"
-            run(cmd)
+        # format, since the js runtime loads them as v8 modules. See
+        # ./rollup.config.js for the input/output files.
+        cmd = "npx rollup -c"
+        run(cmd)
 
-        # Minify .js files into .min.js files
+        # Minify .js files into .min.js files, see ./terser.config.json for the
+        # minify options.
+        config_file = "terser.config.json"
         for file in ["00__web", "01__rsvim"]:
-            src_file = f"{target_dir}{file}.bundle.js"
+            src_file = f"./build/{file}.bundle.js"
             tmp_file = f"./rsvim_core/js/{file}.min.js"
-            cmd = f"npx terser {src_file} --keep-classnames --keep-fnames -o {tmp_file}"
+            cmd = f"npx terser {src_file} --config-file {config_file} -o {tmp_file}"
             run(cmd)
 
 

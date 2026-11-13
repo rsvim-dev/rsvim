@@ -19,7 +19,7 @@
     "noUnusedParameters": false,
     "noUncheckedIndexedAccess": false,
     "outDir": "./build/",
-    "removeComments": false,
+    "removeComments": true,
     "rootDir": "./src/",
     "strict": true,
     "strictBindCallApply": true,
