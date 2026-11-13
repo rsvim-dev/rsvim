@@ -31,7 +31,7 @@ export type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array
 export declare function clearInterval(id: number): void;
 export declare function setInterval(callback: (...args: any[]) => void, delay?: number, ...args: any[]): number;
 export declare function clearTimeout(id: number): void;
-export declare function setTimeout(callback: (...args: any[]) => void, delay: number, ...args: any[]): number;
+export declare function setTimeout(callback: (...args: any[]) => void, delay?: number, ...args: any[]): number;
 export declare function queueMicrotask(callback: () => void): void;
 export declare function reportError(error: any): void;
 declare global {
@@ -40,7 +40,7 @@ declare global {
     function clearInterval(id: number): void;
     function setInterval(callback: (...args: any[]) => void, delay?: number, ...args: any[]): number;
     function clearTimeout(id: number): void;
-    function setTimeout(callback: (...args: any[]) => void, delay: number, ...args: any[]): number;
+    function setTimeout(callback: (...args: any[]) => void, delay?: number, ...args: any[]): number;
     function queueMicrotask(callback: () => void): void;
     function reportError(error: any): void;
 }

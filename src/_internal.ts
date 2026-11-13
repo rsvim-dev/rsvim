@@ -156,15 +156,29 @@ export function checkIsOptions(arg: any, options: any[], msg: string) {
   }
 }
 
-/** @hidden */
-export function boundByIntegers(arg: any, bound: [number, number]) {
-  if (arg < bound[0]) {
+/**
+ * @hidden
+ *
+ * Bound a number into the integer range of `[bound[0], bound[1]]`.
+ *
+ * The value is truncated to an integer first, e.g. `1.5` becomes `1`. A `NaN`
+ * falls back to the lower bound, which matches the web standard behavior of
+ * `setTimeout`/`setInterval`: a `NaN` delay is treated as `0`, then clamped up
+ * to the minimum.
+ */
+export function boundByIntegers(arg: number, bound: [number, number]): number {
+  if (Number.isNaN(arg)) {
     return bound[0];
   }
-  if (arg > bound[1]) {
+
+  const integer = Math.trunc(arg);
+  if (integer < bound[0]) {
+    return bound[0];
+  }
+  if (integer > bound[1]) {
     return bound[1];
   }
-  return arg;
+  return integer;
 }
 
 /** @hidden */
