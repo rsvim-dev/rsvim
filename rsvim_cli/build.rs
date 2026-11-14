@@ -1,11 +1,10 @@
-use rsvim_core::js::JsRuntimeForSnapshot;
 use rsvim_core::js::v8_version;
 use rsvim_core::prelude::*;
 
 // pub const LOG: &str = "[RSVIM]";
 pub const LOG: &str = "cargo:warning=[RSVIM]";
 
-fn version() {
+fn make_version_info() {
   let profile_env = std::env::var("PROFILE").unwrap_or("debug".to_string());
   let opt_level_env = std::env::var("OPT_LEVEL").unwrap_or("0".to_string());
   let debug_env = std::env::var("DEBUG").unwrap_or("0".to_string());
@@ -44,30 +43,11 @@ fn version() {
     }
   };
 
-  // swc core
-  let swc_core = match std::fs::read_to_string(workspace_dir.join("Cargo.toml"))
-  {
-    Ok(manifest) => match manifest.parse::<toml::Table>() {
-      Ok(parsed_manifest) => {
-        let deps = &parsed_manifest["workspace"]["dependencies"];
-        let core = deps["swc_core"].as_str();
-        Some(core.unwrap().trim_start_matches("=").to_string())
-      }
-      Err(e) => {
-        println!("{LOG} Failed to parse swc_core version:{:?}", e);
-        None
-      }
-    },
-    Err(e) => {
-      println!("{LOG} Failed to parse swc_core version:{:?}", e);
-      None
-    }
-  };
   let v8_version = v8_version();
 
   println!(
-    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, v8={:?}, swc_core={:?}",
-    profile, host, version, git_commit, v8_version, swc_core
+    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, v8={:?}",
+    profile, host, version, git_commit, v8_version
   );
 
   let mut resolved = format!(
@@ -77,9 +57,6 @@ fn version() {
   if let Some(git_commit) = git_commit {
     resolved = format!("{}git_commit={}\n", resolved, git_commit);
   }
-  if let Some(swc_core) = swc_core {
-    resolved = format!("{}swc_core={}\n", resolved, swc_core);
-  }
 
   let out_dir = std::env::var("OUT_DIR").unwrap();
   let output_path = Path::new(&out_dir).join("RSVIM_VERSION.TXT");
@@ -88,20 +65,6 @@ fn version() {
   std::fs::write(output_path.as_path(), resolved.as_bytes()).unwrap();
 }
 
-fn snapshot() {
-  let js_runtime = JsRuntimeForSnapshot::new();
-  let snapshot = js_runtime.create_snapshot();
-  let snapshot = Box::from(&snapshot);
-  let mut vec = Vec::with_capacity(snapshot.len());
-  vec.extend_from_slice(&snapshot);
-
-  let out_dir = std::env::var("OUT_DIR").unwrap();
-  let output_path = Path::new(&out_dir).join("RSVIM_SNAPSHOT.BIN");
-  println!("{LOG} Writing snapshot into {:?}...", output_path.as_path());
-  std::fs::write(output_path.as_path(), vec.into_boxed_slice()).unwrap();
-}
-
 fn main() {
-  version();
-  snapshot();
+  make_version_info();
 }

@@ -6,6 +6,9 @@ rsvim_core
 rsvim_macro
 target
 tests_and_benchmarks
+build
+.00__web.d.ts
+.01__rsvim.d.ts
 .editorconfig
 .gitignore
 .markdownlint.jsonc

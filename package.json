@@ -5,18 +5,27 @@
   "keywords": [
     "rsvim"
   ],
-  "homepage": "https://github.com/rsvim/rsvim",
+  "homepage": "https://github.com/rsvim-dev/rsvim",
   "bugs": {
-    "url": "https://github.com/rsvim/rsvim/issues"
+    "url": "https://github.com/rsvim-dev/rsvim/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rsvim/rsvim.git"
+    "url": "git+https://github.com/rsvim-dev/rsvim.git"
   },
   "license": "Vim",
   "author": "rsvim",
   "type": "module",
-  "main": "./runtime/index.js",
+  "main": "./src/index.js",
   "types": "./types/index.d.ts",
-  "scripts": {}
+  "scripts": {},
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "browser-sync": "^3.0.4",
+    "es-toolkit": "^1.53.2",
+    "prettier": "^3.10.0",
+    "rollup": "^4.68.2",
+    "terser": "^5.51.2",
+    "typescript": "^6.0.3"
+  }
 }

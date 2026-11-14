@@ -319,7 +319,6 @@ class Format(Cmd):
             help="code formattors",
         )
         self.fmt_parser.add_argument("-r", "--rust", action="store_true")
-        self.fmt_parser.add_argument("-t", "--tsc", action="store_true")
 
     def name(self) -> str:
         return self._name
@@ -328,52 +327,62 @@ class Format(Cmd):
         return self._alias
 
     def run(self, args) -> None:
-        if args.tsc:
-            self.tsc()
-        elif args.rust:
-            self.rustfmt()
+        if args.rust:
+            self.rust()
         else:
             for cmd in [
                 self.others,
-                self.rustfmt,
-                self.tsc,
+                self.rust,
             ]:
                 cmd()
 
     def others(self):
         typos = "typos"
         taplo = "taplo fmt"
-        prettier = "prettier --write *.md ./runtime/*.ts"
+        prettier = "npx prettier --write *.md ./src/*.ts"
         for cmd in [typos, taplo, prettier]:
             run(cmd)
 
-    def rustfmt(self):
+    def rust(self):
         cmd = "cargo +nightly fmt"
         run(cmd)
 
-    def tsc(self):
-        cmd = "tsc"
 
-        # Compile .ts files into .js files
+# bundle
+class Bundle(Cmd):
+    def __init__(self, subparsers) -> None:
+        self._name = "bundle"
+
+        self.bundle_parser = subparsers.add_parser(
+            self._name,
+            help="compile typescript and bundle javascript runtime",
+        )
+
+    def name(self) -> str:
+        return self._name
+
+    def alias(self) -> Optional[str]:
+        return None
+
+    def run(self, args) -> None:
+        # Compile .ts files into .js files (in ./build/) and .d.ts files (in
+        # ./types/), see tsconfig.json
+        cmd = "npx tsc"
         run(cmd)
 
-        # Minify .js files into .min.js files
-        for file in ["00__web", "01__rsvim"]:
-            src_file = f"./rsvim_core/src/js/runtime/{file}.js"
-            dest_file = f"./rsvim_core/src/js/runtime/{file}.min.js"
-            cmd = f"terser {src_file} --keep-classnames --keep-fnames -o {dest_file}"
-            run(cmd)
+        # Bundle .js files with rollup, it tree-shakes unused code. Keep the "es"
+        # format, since the js runtime loads them as v8 modules. See
+        # ./rollup.config.js for the input/output files.
+        cmd = "npx rollup -c"
+        run(cmd)
 
-        # Post-process .d.ts files to avoid boring lint warnings
-        for file in ["00__web.d.ts", "01__rsvim.d.ts"]:
-            src_file = f"types/{file}"
-            dest_file = f".{file}"
-            with open(src_file, "r") as sfp:
-                with open(dest_file, "w") as dfp:
-                    dfp.write("// @ts-nocheck\n")
-                    for line in sfp.readlines():
-                        dfp.write(line)
-            cmd = f"mv {dest_file} {src_file}"
+        # Minify .js files into .min.js files, see ./terser.config.json for the
+        # minify options.
+        config_file = "terser.config.json"
+        for file in ["00__web", "01__rsvim"]:
+            src_file = f"./build/{file}.bundle.js"
+            tmp_file = f"./rsvim_core/js/{file}.min.js"
+            cmd = f"npx terser {src_file} --config-file {config_file} -o {tmp_file}"
             run(cmd)
 
 
@@ -395,7 +404,7 @@ class Document(Cmd):
 
     def run(self, args) -> None:
         rustdocflags()
-        cmd = "cargo doc && browser-sync start --ss target/doc -s target/doc --directory --startPath rsvim_core --no-open"
+        cmd = "cargo doc && npx browser-sync start --ss target/doc -s target/doc --directory --startPath rsvim_core --no-open"
         run(cmd)
 
 
@@ -488,6 +497,7 @@ if __name__ == "__main__":
     commands = [
         Bench(subparsers),
         Build(subparsers),
+        Bundle(subparsers),
         Clippy(subparsers),
         Document(subparsers),
         Format(subparsers),

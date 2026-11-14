@@ -18,6 +18,13 @@ target/
 # Node/Deno
 node_modules
 
+# TS intermediate build output (tsc -> rollup -> terser)
+build/
+
+# Temp files created while post-processing .d.ts, see "dev.py bundle"
+.00__web.d.ts
+.01__rsvim.d.ts
+
 # Generated Typedoc
 generated-typedocs
 

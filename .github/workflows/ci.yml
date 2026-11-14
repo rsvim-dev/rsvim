@@ -18,6 +18,9 @@ env:
   RUSTDOCFLAGS: "-Dwarnings"
   RSVIM_LOG: "trace"
   RUST_BACKTRACE: "full"
+  # The justfile enables sccache by default, but CI uses rust-cache instead of
+  # sccache. Cargo treats an empty RUSTC_WRAPPER as unset.
+  RUSTC_WRAPPER: ""
   # RUSTC_LOG: "rustc_codegen_ssa::back::link=info"
 jobs:
   check:
@@ -25,24 +28,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
-      - name: Tsc
+      - uses: extractions/setup-just@v4
+      - name: Bundle
         run: |
-          npm install -g typescript
-          npm install -g terser
-          tsc --version
+          npm install
+          npx tsc --version
           echo "show PWD=${PWD}"
-          echo "./dev.py fmt --tsc"
-          python3 ./dev.py fmt --tsc
+          just bundle
           git diff --exit-code HEAD
-      - name: Taplo
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -x
-          curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-linux-x86_64.gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
-          taplo --version
-          taplo check
-          taplo fmt --check
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -56,10 +49,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
-      - name: Rustfmt
-        run: cargo +nightly fmt --check
-      - name: Docs
-        run: cargo doc --workspace
+      - name: Install Taplo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -x
+          curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-linux-x86_64.gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
+          taplo --version
+      - name: Fmt Check
+        run: just fmt-check
+      - name: Doc Check
+        run: just doc-check
   clippy:
     name: Clippy
     strategy:
@@ -71,12 +71,14 @@ jobs:
         with:
           submodules: recursive
       - uses: davidlattimore/wild-action@latest
+      - uses: extractions/setup-just@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
       - name: Clippy
-        run: cargo clippy --all-targets
+        # disable sccache
+        run: just RUSTC_WRAPPER="" clippy
   unit_test:
     name: Unit Test
     strategy:

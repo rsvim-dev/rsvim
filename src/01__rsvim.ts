@@ -20,128 +20,32 @@
  * These APIs are general for common javascript-based runtime, similar to [Deno APIs](https://docs.deno.com/api/deno/).
  */
 
-/** @hidden */
-function assertTrue(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(message);
-  }
+import { isBoolean } from "es-toolkit/predicate/isBoolean";
+import { isFunction } from "es-toolkit/predicate/isFunction";
+import { isNumber } from "es-toolkit/predicate/isNumber";
+import { isNil } from "es-toolkit/predicate/isNil";
+import { isString } from "es-toolkit/predicate/isString";
+import { assert } from "es-toolkit/util";
+
+// Utilities {
+//
+// Argument validators are the `assert` from `es-toolkit`, called inline at each
+// API below. A few helpers are local to this module (i.e. not exported) so that
+// the calls stay in the same scope.
+
+/**
+ * Check if the argument is one of the given options.
+ *
+ * The options are a list of literals, while the argument comes from the
+ * javascript side so it could be any value, thus typed as `unknown` here.
+ */
+function isOneOf<T extends string | number>(
+  arg: unknown,
+  options: readonly T[],
+): arg is T {
+  return (options as readonly unknown[]).includes(arg);
 }
 
-/** @hidden */
-function assertFalse(condition: boolean, message: string) {
-  if (!!condition) {
-    throw new Error(message);
-  }
-}
-
-/** @hidden */
-function isNull(arg: any): boolean {
-  return arg === undefined || arg === null;
-}
-
-/** @hidden */
-function isString(arg: any): boolean {
-  return typeof arg === "string";
-}
-
-/** @hidden */
-function checkNotNull(arg: any, msg: string) {
-  if (isNull(arg)) {
-    throw new TypeError(`${msg} cannot be undefined or null`);
-  }
-}
-
-/** @hidden */
-function checkIsNumber(arg: any, msg: string) {
-  if (typeof arg !== "number") {
-    throw new TypeError(`${msg} must be a number, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsInteger(arg: any, msg: string) {
-  checkIsNumber(arg, msg);
-  if (!Number.isInteger(arg)) {
-    throw new TypeError(`${msg} must be an integer, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsBoolean(arg: any, msg: string) {
-  if (typeof arg !== "boolean") {
-    throw new TypeError(`${msg} must be a boolean, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsString(arg: any, msg: string) {
-  if (!isString(arg)) {
-    throw new TypeError(`${msg} must be a string, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkOptionalString(arg: any, msg: string) {
-  if (!(isString(arg) || isNull(arg))) {
-    throw new TypeError(`${msg} must be a string?, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkMatchPattern(arg: any, pat: RegExp, msg: string) {
-  checkIsString(arg, msg);
-  if (!pat.test(arg)) {
-    throw new Error(`${msg} is invalid pattern: ${arg}"`);
-  }
-}
-
-/** @hidden */
-function checkIsFunction(arg: any, msg: string) {
-  if (typeof arg !== "function") {
-    throw new TypeError(`${msg} must be a function, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsArray(arg: any, msg: string) {
-  if (!Array.isArray(arg)) {
-    throw new TypeError(`${msg} must be an array, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsObject(arg: any, msg: string) {
-  if (typeof arg !== "object") {
-    throw new TypeError(`${msg} must be an object, but found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsUint8Array(arg: any, msg: string) {
-  if (!(arg instanceof Uint8Array)) {
-    throw new TypeError(`${msg} must be a Uint8Array, buf found ${typeof arg}`);
-  }
-}
-
-/** @hidden */
-function checkIsOptions(arg: any, options: any[], msg: string) {
-  if (!options.includes(arg)) {
-    throw new RangeError(`${msg} is an invalid option: ${arg}`);
-  }
-}
-
-/** @hidden */
-function boundByIntegers(arg: any, bound: [number, number]) {
-  if (arg < bound[0]) {
-    return bound[0];
-  }
-  if (arg > bound[1]) {
-    return bound[1];
-  }
-  return arg;
-}
-
-/** @hidden */
 function setDefaultFields(arg: object, defaults: object) {
   for (const [key, val] of Object.entries(defaults)) {
     if (!Object.hasOwn(arg, key)) {
@@ -149,6 +53,8 @@ function setDefaultFields(arg: object, defaults: object) {
     }
   }
 }
+
+// Utilities }
 
 /**
  * The `Rsvim.buf` global object for Vim buffers.
@@ -219,7 +125,7 @@ export namespace RsvimBuf {
    * @returns {number} It returns a positive integer to indicate how many bytes
    * have been written to the file, if written successfully.
    *
-   * @throws Throws {@link !TypeError} if the parameter is invalid, or {@link !Error} if failed to write buffer to file system.
+   * @throws Throws {@link !Error} if the parameter is invalid, or failed to write buffer to the file system.
    *
    * @example
    * ```javascript
@@ -233,7 +139,14 @@ export namespace RsvimBuf {
    * ```
    */
   export function writeSync(bufId: number): number {
-    checkIsInteger(bufId, `"Rsvim.buf.writeSync" bufId`);
+    assert(
+      isNumber(bufId),
+      `Rsvim.buf.writeSync: bufId must be a number, got ${typeof bufId}`,
+    );
+    assert(
+      Number.isInteger(bufId),
+      `Rsvim.buf.writeSync: bufId must be an integer, got ${typeof bufId}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.buf_write_sync(bufId);
@@ -265,7 +178,7 @@ export namespace RsvimCmd {
    * @param {RsvimCmd.CommandOptions} options - (Optional) Options that control how the command is created, by default is `{force:true}`.
    * @returns {(RsvimCmd.CommandDefinition | undefined)} It returns `undefined` is the command is newly created. Or it returns a command definition that was defined previously.
    *
-   * @throws Throws {@link !TypeError} if any parameters are invalid. Or throws {@link Error} if command name or alias already exists, but `force` option is not set to override existing command forcibly.
+   * @throws Throws {@link !Error} if any parameters are invalid, or the command name or alias already exists and the `force` option is not set to override it forcibly.
    *
    * @example
    * ```javascript
@@ -293,28 +206,48 @@ export namespace RsvimCmd {
     attributes?: RsvimCmd.CommandAttributes,
     options?: RsvimCmd.CommandOptions,
   ): RsvimCmd.CommandDefinition | undefined {
-    checkMatchPattern(
-      name,
-      /^[A-Za-z_!][A-Za-z0-9_!]*$/,
-      `"Rsvim.cmd.create" name`,
+    assert(
+      isString(name),
+      `Rsvim.cmd.create: name must be a string, got ${typeof name}`,
     );
-    checkIsFunction(callback, `"Rsvim.cmd.create" callback`);
+    assert(
+      /^[A-Za-z_!][A-Za-z0-9_!]*$/.test(name),
+      `Rsvim.cmd.create: name is invalid: ${name}`,
+    );
+    assert(
+      isFunction(callback),
+      `Rsvim.cmd.create: callback must be a function, got ${typeof callback}`,
+    );
 
     attributes = attributes ?? { bang: false, nargs: "0" };
-    checkIsObject(attributes, `"Rsvim.cmd.create" attributes`);
+    assert(
+      typeof attributes === "object",
+      `Rsvim.cmd.create: attributes must be an object, got ${typeof attributes}`,
+    );
     setDefaultFields(attributes, { bang: false, nargs: "0" });
-    checkIsBoolean(attributes.bang, `"Rsvim.cmd.create" bang attribute`);
-    checkIsOptions(
-      attributes.nargs,
-      ["0", "1", "?", "+", "*"],
-      `"Rsvim.cmd.create" nargs attribute`,
+    assert(
+      isBoolean(attributes.bang),
+      `Rsvim.cmd.create: bang attribute must be a boolean, got ${typeof attributes.bang}`,
+    );
+    assert(
+      isOneOf(attributes.nargs, ["0", "1", "?", "+", "*"]),
+      `Rsvim.cmd.create: nargs attribute is invalid: ${attributes.nargs}`,
     );
 
     options = options ?? { force: true };
-    checkIsObject(options, `"Rsvim.cmd.create" options`);
+    assert(
+      typeof options === "object",
+      `Rsvim.cmd.create: options must be an object, got ${typeof options}`,
+    );
     setDefaultFields(options, { force: true });
-    checkIsBoolean(options.force, `"Rsvim.cmd.create" force option`);
-    checkOptionalString(options.alias, `"Rsvim.cmd.create" alias option`);
+    assert(
+      isBoolean(options.force),
+      `Rsvim.cmd.create: force option must be a boolean, got ${typeof options.force}`,
+    );
+    assert(
+      isString(options.alias) || isNil(options.alias),
+      `Rsvim.cmd.create: alias option must be a string or nil, got ${typeof options.alias}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.cmd_create(
@@ -330,7 +263,7 @@ export namespace RsvimCmd {
    *
    * @param {any} message - It accepts string and other primitive types, except `null` and `undefined`.
    *
-   * @throws Throws {@link !TypeError} if the parameter is `null` or `undefined` or no parameter provided.
+   * @throws Throws {@link !Error} if the parameter is `null` or `undefined` or no parameter provided.
    *
    * @example
    * ```javascript
@@ -338,7 +271,7 @@ export namespace RsvimCmd {
    * ```
    */
   export function echo(message: any): void {
-    checkNotNull(message, `"Rsvim.cmd.echo" message`);
+    assert(!isNil(message), `Rsvim.cmd.echo: message is required`);
 
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.cmd_echo(message);
@@ -381,7 +314,10 @@ export namespace RsvimCmd {
    * ```
    */
   export function get(name: string): RsvimCmd.CommandDefinition | undefined {
-    checkIsString(name, `"Rsvim.cmd.get" name`);
+    assert(
+      isString(name),
+      `Rsvim.cmd.get: name must be a string, got ${typeof name}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.cmd_get(name);
@@ -397,7 +333,7 @@ export namespace RsvimCmd {
    * @param {string} name - The command name to be removed.
    * @returns {(RsvimCmd.CommandDefinition | undefined)} Returns the removed {@link RsvimCmd.CommandDefinition}, or `undefined` if no command is been removed.
    *
-   * @throws Throws {@link !TypeError} if name is not a string.
+   * @throws Throws {@link !Error} if name is not a string.
    *
    * @example
    * ```javascript
@@ -408,7 +344,10 @@ export namespace RsvimCmd {
    * ```
    */
   export function remove(name: string): RsvimCmd.CommandDefinition | undefined {
-    checkIsString(name, `"Rsvim.cmd.remove" name`);
+    assert(
+      isString(name),
+      `Rsvim.cmd.remove: name must be a string, got ${typeof name}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.cmd_remove(name);
@@ -534,7 +473,7 @@ export namespace RsvimFs {
    * @param {RsvimFs.OpenOptions} options - (Optional) Open options, by default is `{read: true}`. See {@link RsvimFs.OpenOptions}.
    * @returns {Promise<RsvimFs.File>} It resolves to an instance of {@link RsvimFs.File}.
    *
-   * @throws Throws {@link !TypeError} if any parameters are invalid. Or throws {@link Error} if failed to open/create the file.
+   * @throws Throws {@link !Error} if any parameters are invalid, or failed to open/create the file.
    *
    * @example
    * ```javascript
@@ -545,10 +484,16 @@ export namespace RsvimFs {
     path: string,
     options?: RsvimFs.OpenOptions,
   ): Promise<RsvimFs.File> {
-    checkIsString(path, `"Rsvim.fs.open" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.open: path must be a string, got ${typeof path}`,
+    );
 
     options = options ?? { read: true };
-    checkIsObject(options, `"Rsvim.fs.open" options`);
+    assert(
+      typeof options === "object",
+      `Rsvim.fs.open: options must be an object, got ${typeof options}`,
+    );
     setDefaultFields(options, {
       append: false,
       create: false,
@@ -557,12 +502,30 @@ export namespace RsvimFs {
       truncate: false,
       write: false,
     });
-    checkIsBoolean(options.append, `"Rsvim.fs.open" append option`);
-    checkIsBoolean(options.create, `"Rsvim.fs.open" create option`);
-    checkIsBoolean(options.createNew, `"Rsvim.fs.open" createNew option`);
-    checkIsBoolean(options.read, `"Rsvim.fs.open" read option`);
-    checkIsBoolean(options.truncate, `"Rsvim.fs.open" truncate option`);
-    checkIsBoolean(options.write, `"Rsvim.fs.open" write option`);
+    assert(
+      isBoolean(options.append),
+      `Rsvim.fs.open: append option must be a boolean, got ${typeof options.append}`,
+    );
+    assert(
+      isBoolean(options.create),
+      `Rsvim.fs.open: create option must be a boolean, got ${typeof options.create}`,
+    );
+    assert(
+      isBoolean(options.createNew),
+      `Rsvim.fs.open: createNew option must be a boolean, got ${typeof options.createNew}`,
+    );
+    assert(
+      isBoolean(options.read),
+      `Rsvim.fs.open: read option must be a boolean, got ${typeof options.read}`,
+    );
+    assert(
+      isBoolean(options.truncate),
+      `Rsvim.fs.open: truncate option must be a boolean, got ${typeof options.truncate}`,
+    );
+    assert(
+      isBoolean(options.write),
+      `Rsvim.fs.open: write option must be a boolean, got ${typeof options.write}`,
+    );
 
     // @ts-ignore Ignore warning
     const handle = await __InternalRsvimGlobalObject.fs_open(path, options);
@@ -581,10 +544,16 @@ export namespace RsvimFs {
     path: string,
     options?: RsvimFs.OpenOptions,
   ): RsvimFs.File {
-    checkIsString(path, `"Rsvim.fs.openSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.openSync: path must be a string, got ${typeof path}`,
+    );
 
     options = options ?? { read: true };
-    checkIsObject(options, `"Rsvim.fs.open" options`);
+    assert(
+      typeof options === "object",
+      `Rsvim.fs.openSync: options must be an object, got ${typeof options}`,
+    );
     setDefaultFields(options, {
       append: false,
       create: false,
@@ -593,12 +562,30 @@ export namespace RsvimFs {
       truncate: false,
       write: false,
     });
-    checkIsBoolean(options.append, `"Rsvim.fs.open" append option`);
-    checkIsBoolean(options.create, `"Rsvim.fs.open" create option`);
-    checkIsBoolean(options.createNew, `"Rsvim.fs.open" createNew option`);
-    checkIsBoolean(options.read, `"Rsvim.fs.open" read option`);
-    checkIsBoolean(options.truncate, `"Rsvim.fs.open" truncate option`);
-    checkIsBoolean(options.write, `"Rsvim.fs.open" write option`);
+    assert(
+      isBoolean(options.append),
+      `Rsvim.fs.openSync: append option must be a boolean, got ${typeof options.append}`,
+    );
+    assert(
+      isBoolean(options.create),
+      `Rsvim.fs.openSync: create option must be a boolean, got ${typeof options.create}`,
+    );
+    assert(
+      isBoolean(options.createNew),
+      `Rsvim.fs.openSync: createNew option must be a boolean, got ${typeof options.createNew}`,
+    );
+    assert(
+      isBoolean(options.read),
+      `Rsvim.fs.openSync: read option must be a boolean, got ${typeof options.read}`,
+    );
+    assert(
+      isBoolean(options.truncate),
+      `Rsvim.fs.openSync: truncate option must be a boolean, got ${typeof options.truncate}`,
+    );
+    assert(
+      isBoolean(options.write),
+      `Rsvim.fs.openSync: write option must be a boolean, got ${typeof options.write}`,
+    );
 
     // @ts-ignore Ignore warning
     const handle = __InternalRsvimGlobalObject.fs_open_sync(path, options);
@@ -611,7 +598,7 @@ export namespace RsvimFs {
    * @param {string} path - Directory path to read.
    * @returns {AsyncIterable<RsvimFs.DirEntry>} Async iterator.
    *
-   * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+   * @throws Throws {@link !Error} if the path is invalid, or failed to read the directory.
    *
    * @example
    * ```javascript
@@ -623,7 +610,10 @@ export namespace RsvimFs {
   export async function* readDir(
     path: string,
   ): AsyncIterable<RsvimFs.DirEntry> {
-    checkIsString(path, `"Rsvim.fs.readDir" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readDir: path must be a string, got ${typeof path}`,
+    );
 
     let rid: number | undefined | null;
 
@@ -655,7 +645,7 @@ export namespace RsvimFs {
    * @param {string} path - Directory path to read.
    * @returns {Iterable<RsvimFs.DirEntry>} Iterator.
    *
-   * @throws Throws {@link !TypeError} if the path is invalid. Or throws {@link Error} if failed to read the directory.
+   * @throws Throws {@link !Error} if the path is invalid, or failed to read the directory.
    *
    * @example
    * ```javascript
@@ -665,7 +655,10 @@ export namespace RsvimFs {
    * ```
    */
   export function* readDirSync(path: string): Iterable<RsvimFs.DirEntry> {
-    checkIsString(path, `"Rsvim.fs.readDirSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readDirSync: path must be a string, got ${typeof path}`,
+    );
 
     let rid: number | undefined | null;
 
@@ -696,7 +689,7 @@ export namespace RsvimFs {
    * @param {string} path - File path to read.
    * @returns {Promise<Uint8Array>} It resolves to {@link !Uint8Array} that contains all the file contents as bytes array.
    *
-   * @throws Throws {@link !TypeError} if the file name is invalid. Or throws {@link Error} if failed to read the file.
+   * @throws Throws {@link !Error} if the file name is invalid, or failed to read the file.
    *
    * @example
    * ```javascript
@@ -704,7 +697,10 @@ export namespace RsvimFs {
    * ```
    */
   export async function readFile(path: string): Promise<Uint8Array> {
-    checkIsString(path, `"Rsvim.fs.readFile" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readFile: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_read_file(path);
@@ -719,7 +715,10 @@ export namespace RsvimFs {
    * ```
    */
   export function readFileSync(path: string): Uint8Array {
-    checkIsString(path, `"Rsvim.fs.readFileSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readFileSync: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.fs_read_file_sync(path);
@@ -731,7 +730,7 @@ export namespace RsvimFs {
    * @param {string} path - File path to read.
    * @returns {Promise<string>} It resolves to text string that contains all the file contents.
    *
-   * @throws Throws {@link !TypeError} if the file name is invalid. Or throws {@link Error} if failed to read the file.
+   * @throws Throws {@link !Error} if the file name is invalid, or failed to read the file.
    *
    * @example
    * ```javascript
@@ -739,7 +738,10 @@ export namespace RsvimFs {
    * ```
    */
   export async function readTextFile(path: string): Promise<string> {
-    checkIsString(path, `"Rsvim.fs.readTextFile" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readTextFile: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_read_text_file(path);
@@ -754,7 +756,10 @@ export namespace RsvimFs {
    * ```
    */
   export function readTextFileSync(path: string): string {
-    checkIsString(path, `"Rsvim.fs.readTextFileSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.readTextFileSync: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.fs_read_text_file_sync(path);
@@ -772,7 +777,7 @@ export namespace RsvimFs {
    * @param {string} path - File path.
    * @returns {Promise<RsvimFs.FileInfo>} It resolves to the file status.
    *
-   * @throws Throws {@link !TypeError} if the file name is invalid. Or throws {@link Error} if failed to get file status.
+   * @throws Throws {@link !Error} if the file name is invalid, or failed to get file status.
    *
    * @example
    * ```javascript
@@ -780,7 +785,10 @@ export namespace RsvimFs {
    * ```
    */
   export async function lstat(path: string): Promise<RsvimFs.FileInfo> {
-    checkIsString(path, `"Rsvim.fs.lstat" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.lstat: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_lstat(path);
@@ -795,7 +803,10 @@ export namespace RsvimFs {
    * ```
    */
   export function lstatSync(path: string): RsvimFs.FileInfo {
-    checkIsString(path, `"Rsvim.fs.lstatSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.lstatSync: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.fs_lstat_sync(path);
@@ -813,7 +824,7 @@ export namespace RsvimFs {
    * @param {string} path - File path.
    * @returns {Promise<RsvimFs.FileInfo>} It resolves to the file status.
    *
-   * @throws Throws {@link !TypeError} if the file name is invalid. Or throws {@link Error} if failed to get file status.
+   * @throws Throws {@link !Error} if the file name is invalid, or failed to get file status.
    *
    * @example
    * ```javascript
@@ -821,7 +832,10 @@ export namespace RsvimFs {
    * ```
    */
   export async function stat(path: string): Promise<RsvimFs.FileInfo> {
-    checkIsString(path, `"Rsvim.fs.stat" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.stat: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_stat(path);
@@ -836,7 +850,10 @@ export namespace RsvimFs {
    * ```
    */
   export function statSync(path: string): RsvimFs.FileInfo {
-    checkIsString(path, `"Rsvim.fs.statSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.statSync: path must be a string, got ${typeof path}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.fs_stat_sync(path);
@@ -855,7 +872,7 @@ export namespace RsvimFs {
    * @param {RsvimFs.SymlinkOptions} options - (Optional) Only used on Windows platforms, will be ignored on Unix platforms. By default is `"junction"`.
    * @returns {Promise<void>} It resolves to nothing.
    *
-   * @throws Throws {@link !TypeError} if any parameter is invalid. Or throws {@link Error} if failed to create symbolic link from the file.
+   * @throws Throws {@link !Error} if any parameter is invalid, or failed to create symbolic link from the file.
    *
    * @example
    * ```javascript
@@ -875,15 +892,20 @@ export namespace RsvimFs {
     newpath: string,
     options?: RsvimFs.SymlinkOptions,
   ): Promise<void> {
-    checkIsString(oldpath, `"Rsvim.fs.symlink" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.symlink" newpath`);
+    assert(
+      isString(oldpath),
+      `Rsvim.fs.symlink: oldpath must be a string, got ${typeof oldpath}`,
+    );
+    assert(
+      isString(newpath),
+      `Rsvim.fs.symlink: newpath must be a string, got ${typeof newpath}`,
+    );
 
     options = options ?? "junction";
-    if (!isNull(options)) {
-      checkIsOptions(
-        options,
-        ["file", "dir", "junction"],
-        `"Rsvim.fs.symlink" options`,
+    if (!isNil(options)) {
+      assert(
+        isOneOf(options, ["file", "dir", "junction"]),
+        `Rsvim.fs.symlink: options is invalid: ${options}`,
       );
     }
 
@@ -916,15 +938,20 @@ export namespace RsvimFs {
     newpath: string,
     options?: RsvimFs.SymlinkOptions,
   ): void {
-    checkIsString(oldpath, `"Rsvim.fs.symlink" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.symlink" newpath`);
+    assert(
+      isString(oldpath),
+      `Rsvim.fs.symlink: oldpath must be a string, got ${typeof oldpath}`,
+    );
+    assert(
+      isString(newpath),
+      `Rsvim.fs.symlink: newpath must be a string, got ${typeof newpath}`,
+    );
 
     options = options ?? "junction";
-    if (!isNull(options)) {
-      checkIsOptions(
-        options,
-        ["file", "dir", "junction"],
-        `"Rsvim.fs.symlink" options`,
+    if (!isNil(options)) {
+      assert(
+        isOneOf(options, ["file", "dir", "junction"]),
+        `Rsvim.fs.symlink: options is invalid: ${options}`,
       );
     }
 
@@ -939,7 +966,7 @@ export namespace RsvimFs {
    * @param {string} newpath - New symbolic link that pointing to the original file.
    * @returns {Promise<void>} It resolves to nothing.
    *
-   * @throws Throws {@link !TypeError} if any parameter is invalid. Or throws {@link Error} if failed to create hard link from the file.
+   * @throws Throws {@link !Error} if any parameter is invalid, or failed to create hard link from the file.
    *
    * @example
    * ```javascript
@@ -952,8 +979,14 @@ export namespace RsvimFs {
    * ```
    */
   export async function link(oldpath: string, newpath: string): Promise<void> {
-    checkIsString(oldpath, `"Rsvim.fs.link" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.link" newpath`);
+    assert(
+      isString(oldpath),
+      `Rsvim.fs.link: oldpath must be a string, got ${typeof oldpath}`,
+    );
+    assert(
+      isString(newpath),
+      `Rsvim.fs.link: newpath must be a string, got ${typeof newpath}`,
+    );
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_link(oldpath, newpath);
@@ -973,8 +1006,14 @@ export namespace RsvimFs {
    * ```
    */
   export function linkSync(oldpath: string, newpath: string): void {
-    checkIsString(oldpath, `"Rsvim.fs.link" oldpath`);
-    checkIsString(newpath, `"Rsvim.fs.link" newpath`);
+    assert(
+      isString(oldpath),
+      `Rsvim.fs.link: oldpath must be a string, got ${typeof oldpath}`,
+    );
+    assert(
+      isString(newpath),
+      `Rsvim.fs.link: newpath must be a string, got ${typeof newpath}`,
+    );
 
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.fs_link_sync(oldpath, newpath);
@@ -987,7 +1026,7 @@ export namespace RsvimFs {
    * @param {RsvimFs.MkdirOptions} options - (Optional) Options when create directory, by default is `{recursive: false, mode: 0o777}`, the `mode` option only works on Unix platform, and is ignored on Windows platform.
    * @returns {Promise<void>} It resolves to nothing.
    *
-   * @throws Throws {@link !TypeError} if any parameter is invalid. Or throws {@link Error} if failed to create hard mkdir from the file.
+   * @throws Throws {@link !Error} if any parameter is invalid, or failed to create hard mkdir from the file.
    *
    * @example
    * ```javascript
@@ -1003,13 +1042,19 @@ export namespace RsvimFs {
     path: string,
     options?: RsvimFs.MkdirOptions,
   ): Promise<void> {
-    checkIsString(path, `"Rsvim.fs.mkdir" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.mkdir: path must be a string, got ${typeof path}`,
+    );
 
     options = options ?? {
       recursive: false,
       mode: 0o777,
     };
-    checkIsObject(options, `"Rsvim.fs.mkdir" options`);
+    assert(
+      typeof options === "object",
+      `Rsvim.fs.mkdir: options must be an object, got ${typeof options}`,
+    );
     setDefaultFields(options, {
       recursive: false,
       mode: 0o777,
@@ -1036,13 +1081,19 @@ export namespace RsvimFs {
     path: string,
     options?: RsvimFs.MkdirOptions,
   ): void {
-    checkIsString(path, `"Rsvim.fs.mkdirSync" path`);
+    assert(
+      isString(path),
+      `Rsvim.fs.mkdirSync: path must be a string, got ${typeof path}`,
+    );
 
     options = options ?? {
       recursive: false,
       mode: 0o777,
     };
-    checkIsObject(options, `"Rsvim.fs.mkdirSync" options`);
+    assert(
+      typeof options === "object",
+      `Rsvim.fs.mkdirSync: options must be an object, got ${typeof options}`,
+    );
     setDefaultFields(options, {
       recursive: false,
       mode: 0o777,
@@ -1142,7 +1193,7 @@ export namespace RsvimFs {
      * ```
      */
     close(): void {
-      assertFalse(isNull(this.#rid), "RsvimFs.File is already closed!");
+      assert(!isNil(this.#rid), "RsvimFs.File is already closed!");
       // @ts-ignore Ignore warning
       __InternalRsvimGlobalObject.fs_close(this.#rid);
       this.#rid = null;
@@ -1175,7 +1226,7 @@ export namespace RsvimFs {
      * ```
      */
     get isDisposed(): boolean {
-      return isNull(this.#rid);
+      return isNil(this.#rid);
     }
 
     /**
@@ -1188,7 +1239,7 @@ export namespace RsvimFs {
      * @param {Uint8Array} buf - Read bytes into buffer.
      * @returns {Promise<number>} It resolves to either the number of bytes read during the operation or `0`(EOF) if there was no more to read.
      *
-     * @throws Throws {@link !TypeError} if buf is not a Uint8Array.
+     * @throws Throws {@link !Error} if buf is not a Uint8Array.
      *
      * @example
      * ```javascript
@@ -1199,7 +1250,10 @@ export namespace RsvimFs {
      * ```
      */
     async read(buf: Uint8Array): Promise<number> {
-      checkIsUint8Array(buf, `"RsvimFs.File.read" buf`);
+      assert(
+        buf instanceof Uint8Array,
+        `RsvimFs.File.read: buf must be a Uint8Array, got ${typeof buf}`,
+      );
 
       // @ts-ignore Ignore warning
       const n = await __InternalRsvimGlobalObject.fs_read(
@@ -1221,7 +1275,10 @@ export namespace RsvimFs {
      * ```
      */
     readSync(buf: Uint8Array): number {
-      checkIsUint8Array(buf, `"RsvimFs.File.readSync" buf`);
+      assert(
+        buf instanceof Uint8Array,
+        `RsvimFs.File.readSync: buf must be a Uint8Array, got ${typeof buf}`,
+      );
 
       // @ts-ignore Ignore warning
       return __InternalRsvimGlobalObject.fs_read_sync(this.#rid, buf.buffer);
@@ -1237,7 +1294,7 @@ export namespace RsvimFs {
      * @param {Uint8Array} buf - Read bytes into buffer.
      * @returns {Promise<number>} It resolves to either the number of bytes written during the operation or `0` if there was nothing to write.
      *
-     * @throws Throws {@link !TypeError} if buf is not a Uint8Array.
+     * @throws Throws {@link !Error} if buf is not a Uint8Array.
      *
      * @example
      * ```javascript
@@ -1247,7 +1304,10 @@ export namespace RsvimFs {
      * ```
      */
     async write(buf: Uint8Array): Promise<number> {
-      checkIsUint8Array(buf, `"RsvimFs.File.write" buf`);
+      assert(
+        buf instanceof Uint8Array,
+        `RsvimFs.File.write: buf must be a Uint8Array, got ${typeof buf}`,
+      );
 
       // @ts-ignore Ignore warning
       const n = await __InternalRsvimGlobalObject.fs_write(
@@ -1268,7 +1328,10 @@ export namespace RsvimFs {
      * ```
      */
     writeSync(buf: Uint8Array): number {
-      checkIsUint8Array(buf, `"RsvimFs.File.writeSync" buf`);
+      assert(
+        buf instanceof Uint8Array,
+        `RsvimFs.File.writeSync: buf must be a Uint8Array, got ${typeof buf}`,
+      );
 
       // @ts-ignore Ignore warning
       return __InternalRsvimGlobalObject.fs_write_sync(this.#rid, buf.buffer);
@@ -1629,7 +1692,7 @@ export class RsvimOpt {
    * Set the _expand-tab_ option.
    *
    * @param {boolean} value - The _expand-tab_ option.
-   * @throws Throws {@link !TypeError} if value is not a boolean.
+   * @throws Throws {@link !Error} if value is not a boolean.
    *
    * @example
    * ```javascript
@@ -1638,7 +1701,10 @@ export class RsvimOpt {
    * ```
    */
   set expandTab(value: boolean) {
-    checkIsBoolean(value, `"Rsvim.opt.expandTab" value`);
+    assert(
+      isBoolean(value),
+      `Rsvim.opt.expandTab: value must be a boolean, got ${typeof value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_expand_tab(value);
   }
@@ -1672,7 +1738,7 @@ export class RsvimOpt {
    * Set the _file-encoding_ option.
    *
    * @param {RsvimOpt.FileEncodingOption} value - The _file-encoding_ option.
-   * @throws Throws {@link !RangeError} if value is an invalid option.
+   * @throws Throws {@link !Error} if value is an invalid option.
    *
    * @example
    * ```javascript
@@ -1681,7 +1747,10 @@ export class RsvimOpt {
    * ```
    */
   set fileEncoding(value: RsvimOpt.FileEncodingOption) {
-    checkIsOptions(value, ["utf-8"], `"Rsvim.opt.fileEncoding" value`);
+    assert(
+      isOneOf(value, ["utf-8"]),
+      `Rsvim.opt.fileEncoding: value is invalid: ${value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_file_encoding(value);
   }
@@ -1722,7 +1791,7 @@ export class RsvimOpt {
    * Set the _file-format_ option.
    *
    * @param {RsvimOpt.FileFormatOption} value - The _file-format_ option.
-   * @throws Throws {@link !RangeError} if value is an invalid option.
+   * @throws Throws {@link !Error} if value is an invalid option.
    *
    * @example
    * ```javascript
@@ -1731,10 +1800,9 @@ export class RsvimOpt {
    * ```
    */
   set fileFormat(value: RsvimOpt.FileFormatOption) {
-    checkIsOptions(
-      value,
-      ["dos", "unix", "mac"],
-      `"Rsvim.opt.fileFormat" value`,
+    assert(
+      isOneOf(value, ["dos", "unix", "mac"]),
+      `Rsvim.opt.fileFormat: value is invalid: ${value}`,
     );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_file_format(value);
@@ -1766,7 +1834,7 @@ export class RsvimOpt {
    * Set the _fix-end-of-line_ option.
    *
    * @param {boolean} value - The _fix-end-of-line_ option.
-   * @throws Throws {@link !RangeError} if value is not a boolean.
+   * @throws Throws {@link !Error} if value is not a boolean.
    *
    * @example
    * ```javascript
@@ -1775,7 +1843,10 @@ export class RsvimOpt {
    * ```
    */
   set fixEndOfLine(value: boolean) {
-    checkIsBoolean(value, `"Rsvim.opt.fixEndOfLine" value`);
+    assert(
+      isBoolean(value),
+      `Rsvim.opt.fixEndOfLine: value must be a boolean, got ${typeof value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_fix_end_of_line(value);
   }
@@ -1808,7 +1879,7 @@ export class RsvimOpt {
    * Set the _line-break_ option.
    *
    * @param {boolean} value - The _line-break_ option.
-   * @throws Throws {@link !TypeError} if value is not a boolean.
+   * @throws Throws {@link !Error} if value is not a boolean.
    *
    * @example
    * ```javascript
@@ -1817,7 +1888,10 @@ export class RsvimOpt {
    * ```
    */
   set lineBreak(value: boolean) {
-    checkIsBoolean(value, `"Rsvim.opt.lineBreak" value`);
+    assert(
+      isBoolean(value),
+      `Rsvim.opt.lineBreak: value must be a boolean, got ${typeof value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_line_break(value);
   }
@@ -1851,7 +1925,7 @@ export class RsvimOpt {
    *
    *
    * @param {number} value - The _shift-width_ option.
-   * @throws Throws {@link !TypeError} if value is not an integer.
+   * @throws Throws {@link !Error} if value is not an integer.
    *
    * @example
    * ```javascript
@@ -1860,8 +1934,23 @@ export class RsvimOpt {
    * ```
    */
   set shiftWidth(value: number) {
-    checkIsInteger(value, `"Rsvim.opt.shiftWidth" value`);
-    value = boundByIntegers(value, [1, 255]);
+    assert(
+      isNumber(value),
+      `Rsvim.opt.shiftWidth: value must be a number, got ${typeof value}`,
+    );
+    assert(
+      Number.isInteger(value),
+      `Rsvim.opt.shiftWidth: value must be an integer, got ${typeof value}`,
+    );
+
+    // Bound the value into the range of `[1, 255]`.
+    if (value < 1) {
+      value = 1;
+    }
+    if (value > 255) {
+      value = 255;
+    }
+
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_shift_width(value);
   }
@@ -1892,7 +1981,7 @@ export class RsvimOpt {
    * Set the _syntax-parser-lib-path_ option. It only accepts a string which represents the file path on your local machine, which is used to save all compiled tree-sitter parser dynamic libraries.
    *
    * @param {string} value - The _syntax-parser-lib-path_ option.
-   * @throws Throws {@link !TypeError} if value is not an string.
+   * @throws Throws {@link !Error} if value is not a string.
    *
    * @example
    * ```javascript
@@ -1901,7 +1990,10 @@ export class RsvimOpt {
    * ```
    */
   set syntaxParserLibPath(value: string) {
-    checkIsString(value, `"Rsvim.opt.syntaxParserLibPath" value`);
+    assert(
+      isString(value),
+      `Rsvim.opt.syntaxParserLibPath: value must be a string, got ${typeof value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_syntax_parser_lib_path(value);
   }
@@ -1936,7 +2028,7 @@ export class RsvimOpt {
    * Set the _tab-stop_ option. It only accepts an integer between `[1,255]`, if the value is out of range, it will be bound to this range.
    *
    * @param {number} value - The _tab-stop_ option.
-   * @throws Throws {@link !TypeError} if value is not an integer.
+   * @throws Throws {@link !Error} if value is not an integer.
    *
    * @example
    * ```javascript
@@ -1945,8 +2037,23 @@ export class RsvimOpt {
    * ```
    */
   set tabStop(value: number) {
-    checkIsInteger(value, `"Rsvim.opt.tabStop" value`);
-    value = boundByIntegers(value, [1, 255]);
+    assert(
+      isNumber(value),
+      `Rsvim.opt.tabStop: value must be a number, got ${typeof value}`,
+    );
+    assert(
+      Number.isInteger(value),
+      `Rsvim.opt.tabStop: value must be an integer, got ${typeof value}`,
+    );
+
+    // Bound the value into the range of `[1, 255]`.
+    if (value < 1) {
+      value = 1;
+    }
+    if (value > 255) {
+      value = 255;
+    }
+
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_tab_stop(value);
   }
@@ -1984,7 +2091,7 @@ export class RsvimOpt {
    * Set the _wrap_ option.
    *
    * @param {boolean} value - The _wrap_ option.
-   * @throws Throws {@link !TypeError} if value is not a boolean.
+   * @throws Throws {@link !Error} if value is not a boolean.
    *
    * @example
    * ```javascript
@@ -1993,7 +2100,10 @@ export class RsvimOpt {
    * ```
    */
   set wrap(value: boolean) {
-    checkIsBoolean(value, `"Rsvim.opt.wrap" value`);
+    assert(
+      isBoolean(value),
+      `Rsvim.opt.wrap: value must be a boolean, got ${typeof value}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_wrap(value);
   }
@@ -2021,7 +2131,10 @@ export namespace RsvimProc {
     #options: RsvimProc.CommandOptions;
 
     constructor(execPath: string, options?: RsvimProc.CommandOptions) {
-      checkIsString(execPath, `"Rsvim.proc.Command" execPath`);
+      assert(
+        isString(execPath),
+        `Rsvim.proc.Command: execPath must be a string, got ${typeof execPath}`,
+      );
 
       options = options ?? {
         args: [],
@@ -2032,7 +2145,10 @@ export namespace RsvimProc {
         stdout: "piped",
         stderr: "piped",
       };
-      checkIsObject(options, `"Rsvim.proc.Command" options`);
+      assert(
+        typeof options === "object",
+        `Rsvim.proc.Command: options must be an object, got ${typeof options}`,
+      );
       setDefaultFields(options, {
         args: [],
         clearEnv: false,
@@ -2042,24 +2158,33 @@ export namespace RsvimProc {
         stdout: "piped",
         stderr: "piped",
       });
-      checkIsArray(options.args, `"Rsvim.proc.Command" args option`);
-      checkIsBoolean(options.clearEnv, `"Rsvim.proc.Command" clearEnv option`);
-      checkIsBoolean(options.detached, `"Rsvim.proc.Command" detached option`);
-      checkIsObject(options.env, `"Rsvim.proc.Command" env option`);
-      checkIsOptions(
-        options.stdin,
-        ["null", "piped", "inherit"],
-        `"Rsvim.proc.Command" stdin option`,
+      assert(
+        Array.isArray(options.args),
+        `Rsvim.proc.Command: args option must be an array, got ${typeof options.args}`,
       );
-      checkIsOptions(
-        options.stdout,
-        ["null", "piped", "inherit"],
-        `"Rsvim.proc.Command" stdout option`,
+      assert(
+        isBoolean(options.clearEnv),
+        `Rsvim.proc.Command: clearEnv option must be a boolean, got ${typeof options.clearEnv}`,
       );
-      checkIsOptions(
-        options.stderr,
-        ["null", "piped", "inherit"],
-        `"Rsvim.proc.Command" stderr option`,
+      assert(
+        isBoolean(options.detached),
+        `Rsvim.proc.Command: detached option must be a boolean, got ${typeof options.detached}`,
+      );
+      assert(
+        typeof options.env === "object",
+        `Rsvim.proc.Command: env option must be an object, got ${typeof options.env}`,
+      );
+      assert(
+        isOneOf(options.stdin, ["null", "piped", "inherit"]),
+        `Rsvim.proc.Command: stdin option is invalid: ${options.stdin}`,
+      );
+      assert(
+        isOneOf(options.stdout, ["null", "piped", "inherit"]),
+        `Rsvim.proc.Command: stdout option is invalid: ${options.stdout}`,
+      );
+      assert(
+        isOneOf(options.stderr, ["null", "piped", "inherit"]),
+        `Rsvim.proc.Command: stderr option is invalid: ${options.stderr}`,
       );
 
       this.#execPath = execPath;
@@ -2187,7 +2312,7 @@ export namespace RsvimProc {
      * ```
      */
     get isDisposed(): boolean {
-      return isNull(this.#rid);
+      return isNil(this.#rid);
     }
 
     /**
@@ -2219,10 +2344,7 @@ export namespace RsvimProc {
      * ```
      */
     async wait(): Promise<RsvimProc.ChildProcessExitStatus> {
-      assertFalse(
-        isNull(this.#rid),
-        "RsvimProc.ChildProcess is already finished!",
-      );
+      assert(!isNil(this.#rid), "RsvimProc.ChildProcess is already finished!");
       this.#exitStatus =
         // @ts-ignore Ignore warning
         (await __InternalRsvimGlobalObject.proc_wait_child(
@@ -2396,7 +2518,7 @@ export namespace RsvimRt {
    *
    * @param {number} exitCode - (Optional) The editor process exit with this exit code, by default with code `0`.
    *
-   * @throws Throws {@link !TypeError} if `exitCode` is neither an integer nor `undefined`.
+   * @throws Throws {@link !Error} if `exitCode` is neither an integer nor `undefined`.
    *
    * @example
    * ```javascript
@@ -2409,7 +2531,14 @@ export namespace RsvimRt {
    */
   export function exit(exitCode?: number): void {
     exitCode = exitCode ?? 0;
-    checkIsInteger(exitCode, `"Rsvim.rt.exit" code`);
+    assert(
+      isNumber(exitCode),
+      `Rsvim.rt.exit: code must be a number, got ${typeof exitCode}`,
+    );
+    assert(
+      Number.isInteger(exitCode),
+      `Rsvim.rt.exit: code must be an integer, got ${typeof exitCode}`,
+    );
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.rt_exit(exitCode);
   }
@@ -2436,7 +2565,7 @@ export namespace RsvimSyn {
    *
    * @returns {string[]} It returns all the loaded parser names.
    *
-   * @throws Throws {@link !TypeError} if `options` is an invalid option, throws {@link !Error} if failed to load.
+   * @throws Throws {@link !Error} if `options` is an invalid option, or failed to load.
    *
    * @example
    * ```javascript
@@ -2448,10 +2577,13 @@ export namespace RsvimSyn {
   export async function loadParser(
     options: RsvimSyn.LoadParserOptions,
   ): Promise<string[]> {
-    checkIsObject(options, `"Rsvim.syn.loadParser" options`);
-    checkIsString(
-      options.grammarPath,
-      `"Rsvim.syn.loadParser" grammarPath option`,
+    assert(
+      typeof options === "object",
+      `Rsvim.syn.loadParser: options must be an object, got ${typeof options}`,
+    );
+    assert(
+      isString(options.grammarPath),
+      `Rsvim.syn.loadParser: grammarPath option must be a string, got ${typeof options.grammarPath}`,
     );
     const parserNames =
       // @ts-ignore Ignore warning
@@ -2468,7 +2600,7 @@ export namespace RsvimSyn {
    *
    * @returns {string[]} It returns all the loaded parser names.
    *
-   * @throws Throws {@link !TypeError} if `options` is an invalid option, throws {@link !Error} if failed to load.
+   * @throws Throws {@link !Error} if `options` is an invalid option, or failed to load.
    *
    * @example
    * ```javascript
@@ -2480,10 +2612,13 @@ export namespace RsvimSyn {
   export function loadParserSync(
     options: RsvimSyn.LoadParserOptions,
   ): string[] {
-    checkIsObject(options, `"Rsvim.syn.loadParserSync" options`);
-    checkIsString(
-      options.grammarPath,
-      `"Rsvim.syn.loadParserSync" grammarPath option`,
+    assert(
+      typeof options === "object",
+      `Rsvim.syn.loadParserSync: options must be an object, got ${typeof options}`,
+    );
+    assert(
+      isString(options.grammarPath),
+      `Rsvim.syn.loadParserSync: grammarPath option must be a string, got ${typeof options.grammarPath}`,
     );
     const parserNames =
       // @ts-ignore Ignore warning
@@ -2525,7 +2660,10 @@ export namespace RsvimSyn {
   export function getParserMetadata(
     name: string,
   ): RsvimSyn.ParserMetadata | undefined {
-    checkIsString(name, `"Rsvim.syn.getParserMetadata" name`);
+    assert(
+      isString(name),
+      `Rsvim.syn.getParserMetadata: name must be a string, got ${typeof name}`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.syn_get_parser_metadata(name);

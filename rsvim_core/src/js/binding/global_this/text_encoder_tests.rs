@@ -450,7 +450,7 @@ async fn test_decode_failed1() -> IoResult<()> {
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
     info!("actual:{:?}", actual);
-    assert!(actual.contains("encoding is unknown: FooEncoding"));
+    assert!(actual.contains("unknown encoding FooEncoding"));
   }
 
   Ok(())

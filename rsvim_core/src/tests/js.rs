@@ -48,7 +48,7 @@ pub fn make_js_runtime() -> JsRuntime {
     .unwrap()
     .as_millis();
 
-  JsRuntime::new_without_snapshot(
+  JsRuntime::new(
     JsRuntimeOptions::default(),
     startup_moment,
     startup_unix_epoch,

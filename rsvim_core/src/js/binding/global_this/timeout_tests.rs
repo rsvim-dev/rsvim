@@ -436,3 +436,58 @@ async fn test_interval3() -> IoResult<()> {
 
   Ok(())
 }
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_timeout6() -> IoResult<()> {
+  test_log_init();
+
+  let terminal_cols = 10_u16;
+  let terminal_rows = 10_u16;
+
+  let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
+  let src: &str = r#"
+  // A fractional delay must be truncated into an integer, otherwise the rust
+  // side hits a `debug_assert!(is_v8_int!(...))` and panics in debug builds.
+  setTimeout(() => {
+    Rsvim.cmd.echo("fractional");
+  }, 1.5);
+
+  // A `NaN` delay falls back to the lower bound, i.e. 1.
+  setTimeout(() => {
+    Rsvim.cmd.echo("nan");
+  }, NaN);
+
+  // An out-of-range delay is clamped into `[1, 2^31 - 1]`.
+  setTimeout(() => {
+    Rsvim.cmd.echo("huge");
+  }, 1e10);
+"#;
+
+  // Prepare $RSVIM_CONFIG/rsvim.js
+  let _tp = make_configs(vec![(Path::new("rsvim.js"), src)]);
+
+  let mut event_loop =
+    make_event_loop(terminal_cols, terminal_rows, CliOptions::empty());
+
+  event_loop.initialize()?;
+  event_loop
+    .run_with_mock_events(MockEventReader::new(mocked_events))
+    .await?;
+  event_loop.shutdown()?;
+
+  {
+    let mut contents = lock!(event_loop.cmdline_text);
+    // The `1e10` delay is clamped to `2^31 - 1` millis, which is far beyond the
+    // mocked sleep, so only the first two timers fire.
+    assert_eq!(2, contents.message_history().len());
+    let actual1 = contents.message_history_mut().pop();
+    assert!(actual1.is_some());
+    assert_eq!(actual1.unwrap(), "fractional");
+    let actual2 = contents.message_history_mut().pop();
+    assert!(actual2.is_some());
+    assert_eq!(actual2.unwrap(), "nan");
+  }
+
+  Ok(())
+}

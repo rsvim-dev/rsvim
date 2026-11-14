@@ -197,9 +197,10 @@ mod tests_tab_stop {
       assert!(actual.is_some());
       let actual = actual.unwrap();
       info!("actual:{:?}", actual);
-      assert!(actual.contains(
-        r####""Rsvim.opt.tabStop" value must be a number, but found"####
-      ));
+      assert!(
+        actual
+          .contains(r####"Rsvim.opt.tabStop: value must be a number, got"####)
+      );
     }
 
     Ok(())
@@ -306,8 +307,7 @@ mod tests_file_encoding {
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
-      let expect =
-        r####""Rsvim.opt.fileEncoding" value is an invalid option"####;
+      let expect = r####"Rsvim.opt.fileEncoding: value is invalid:"####;
       assert!(actual.contains(expect));
     }
 
@@ -412,7 +412,7 @@ mod tests_file_format {
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
-      let expect = r####""Rsvim.opt.fileFormat" value is an invalid option"####;
+      let expect = r####"Rsvim.opt.fileFormat: value is invalid:"####;
       assert!(actual.contains(expect));
     }
 
@@ -513,7 +513,7 @@ mod tests_fix_end_of_line {
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
-      let expect = r####""Rsvim.opt.fixEndOfLine" value must be a boolean"####;
+      let expect = r####"Rsvim.opt.fixEndOfLine: value must be a boolean"####;
       assert!(actual.contains(expect));
     }
 
@@ -614,8 +614,7 @@ mod tests_expand_tab {
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
-      let expect =
-        r####""Rsvim.opt.expandTab" value must be a boolean, but found"####;
+      let expect = r####"Rsvim.opt.expandTab: value must be a boolean, got"####;
       assert!(actual.contains(expect));
     }
 
@@ -765,7 +764,7 @@ mod tests_shift_width {
       assert!(actual.is_some());
       let actual = actual.unwrap();
       assert!(actual.contains(
-        r####""Rsvim.opt.shiftWidth" value must be an integer, but found"####
+        r####"Rsvim.opt.shiftWidth: value must be an integer, got"####
       ));
     }
 
@@ -874,7 +873,7 @@ mod tests_syntax_parser_lib_path {
       assert!(actual.is_some());
       let actual = actual.unwrap();
       assert!(actual.contains(
-        r####""Rsvim.opt.syntaxParserLibPath" value must be a string, but found"####
+        r####"Rsvim.opt.syntaxParserLibPath: value must be a string, got"####
       ));
     }
 
