@@ -46,29 +46,6 @@ function isOneOf<T extends string | number>(
   return (options as readonly unknown[]).includes(arg);
 }
 
-/**
- * Bound a number into the integer range of `[bound[0], bound[1]]`.
- *
- * The value is truncated to an integer first, e.g. `1.5` becomes `1`. A `NaN`
- * falls back to the lower bound, which matches the web standard behavior of
- * `setTimeout`/`setInterval`: a `NaN` delay is treated as `0`, then clamped up
- * to the minimum.
- */
-function boundByIntegers(arg: number, bound: [number, number]): number {
-  if (Number.isNaN(arg)) {
-    return bound[0];
-  }
-
-  const integer = Math.trunc(arg);
-  if (integer < bound[0]) {
-    return bound[0];
-  }
-  if (integer > bound[1]) {
-    return bound[1];
-  }
-  return integer;
-}
-
 function setDefaultFields(arg: object, defaults: object) {
   for (const [key, val] of Object.entries(defaults)) {
     if (!Object.hasOwn(arg, key)) {
@@ -1965,7 +1942,15 @@ export class RsvimOpt {
       Number.isInteger(value),
       `Rsvim.opt.shiftWidth: value must be an integer, got ${typeof value}`,
     );
-    value = boundByIntegers(value, [1, 255]);
+
+    // Bound the value into the range of `[1, 255]`.
+    if (value < 1) {
+      value = 1;
+    }
+    if (value > 255) {
+      value = 255;
+    }
+
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_shift_width(value);
   }
@@ -2060,7 +2045,15 @@ export class RsvimOpt {
       Number.isInteger(value),
       `Rsvim.opt.tabStop: value must be an integer, got ${typeof value}`,
     );
-    value = boundByIntegers(value, [1, 255]);
+
+    // Bound the value into the range of `[1, 255]`.
+    if (value < 1) {
+      value = 1;
+    }
+    if (value > 255) {
+      value = 255;
+    }
+
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.opt_set_tab_stop(value);
   }
