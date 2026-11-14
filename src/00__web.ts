@@ -23,29 +23,6 @@ import { assert } from "es-toolkit/util";
 // Web API below. A few helpers are local to this module (i.e. not exported) so
 // that the calls stay in the same scope.
 
-/**
- * Bound a number into the integer range of `[bound[0], bound[1]]`.
- *
- * The value is truncated to an integer first, e.g. `1.5` becomes `1`. A `NaN`
- * falls back to the lower bound, which matches the web standard behavior of
- * `setTimeout`/`setInterval`: a `NaN` delay is treated as `0`, then clamped up
- * to the minimum.
- */
-function boundByIntegers(arg: number, bound: [number, number]): number {
-  if (Number.isNaN(arg)) {
-    return bound[0];
-  }
-
-  const integer = Math.trunc(arg);
-  if (integer < bound[0]) {
-    return bound[0];
-  }
-  if (integer > bound[1]) {
-    return bound[1];
-  }
-  return integer;
-}
-
 function setDefaultFields(arg: object, defaults: object) {
   for (const [key, val] of Object.entries(defaults)) {
     if (!Object.hasOwn(arg, key)) {
@@ -386,6 +363,39 @@ export type TypedArray =
 // Timer API {
 
 const TIMEOUT_MAX = Math.pow(2, 31) - 1;
+
+/**
+ * Normalize the `delay` argument of {@link setInterval} and {@link setTimeout}.
+ *
+ * The delay is optional and defaults to `1`. It is truncated to an integer and
+ * bounded to `[1, TIMEOUT_MAX]`, because the rust side requires an integer
+ * within that range. A `NaN` delay falls back to the lower bound, which matches
+ * the web standard behavior: a `NaN` delay is treated as `0`, then clamped up to
+ * the minimum.
+ *
+ * @param {string} api - Name of the caller, used in the error message.
+ * @param {number} delay - The delay in milliseconds, or `undefined`.
+ * @returns {number} The normalized integer delay.
+ * @throws Throws {@link !Error} if delay is neither a number nor undefined.
+ */
+function normalizeDelay(api: string, delay?: number): number {
+  delay = delay ?? 1;
+  assert(isNumber(delay), `${api}: delay must be a number`);
+
+  if (Number.isNaN(delay)) {
+    return 1;
+  }
+
+  const integer = Math.trunc(delay);
+  if (integer < 1) {
+    return 1;
+  }
+  if (integer > TIMEOUT_MAX) {
+    return TIMEOUT_MAX;
+  }
+  return integer;
+}
+
 // In javascript side, `nextTimerId` and `activeTimers` maps to the internal
 // timeout ID returned from rust `global_create_timer` api. This is mostly for
 // being compatible with web api standard, as the standard requires the returned
@@ -425,14 +435,7 @@ export function setInterval(
   delay?: number,
   ...args: any[]
 ): number {
-  delay = delay ?? 1;
-  assert(isNumber(delay), `setInterval: delay must be a number`);
-
-  // Coalesce to number or NaN.
-  delay *= 1;
-
-  // Check delay's boundaries.
-  delay = boundByIntegers(delay, [1, TIMEOUT_MAX]);
+  delay = normalizeDelay("setInterval", delay);
 
   // Check if callback is a valid function.
   assert(isFunction(callback), `setInterval: callback must be a function`);
@@ -486,15 +489,7 @@ export function setTimeout(
   delay?: number,
   ...args: any[]
 ): number {
-  delay = delay ?? 1;
-  assert(isNumber(delay), `setTimeout: delay must be a number`);
-
-  // Coalesce to number or NaN.
-  delay *= 1;
-
-  // Check delay's boundaries, and truncate it to an integer within
-  // `[1, TIMEOUT_MAX]`. Note the rust side requires an integer delay.
-  delay = boundByIntegers(delay, [1, TIMEOUT_MAX]);
+  delay = normalizeDelay("setTimeout", delay);
 
   // Check if callback is a valid function.
   assert(isFunction(callback), `setTimeout: callback must be a function`);
