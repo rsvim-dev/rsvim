@@ -11,20 +11,50 @@
  * @packageDocumentation
  */
 
-import {
-  checkIsNumber,
-  checkIsInteger,
-  checkIsBoolean,
-  checkIsString,
-  checkIsFunction,
-  checkIsObject,
-  checkIsUint8Array,
-  isTypedArray,
-  isDataView,
-  checkIsArrayBufferFamily,
-  boundByIntegers,
-  setDefaultFields,
-} from "./_internal";
+import { isBoolean } from "es-toolkit/predicate/isBoolean";
+import { isFunction } from "es-toolkit/predicate/isFunction";
+import { isNumber } from "es-toolkit/predicate/isNumber";
+import { isString } from "es-toolkit/predicate/isString";
+import { assert } from "es-toolkit/util";
+
+// Utilities {
+//
+// Argument validators are the `assert` from `es-toolkit`, called inline at each
+// Web API below. A few helpers are local to this module (i.e. not exported) so
+// that the calls stay in the same scope.
+
+/**
+ * Bound a number into the integer range of `[bound[0], bound[1]]`.
+ *
+ * The value is truncated to an integer first, e.g. `1.5` becomes `1`. A `NaN`
+ * falls back to the lower bound, which matches the web standard behavior of
+ * `setTimeout`/`setInterval`: a `NaN` delay is treated as `0`, then clamped up
+ * to the minimum.
+ */
+function boundByIntegers(arg: number, bound: [number, number]): number {
+  if (Number.isNaN(arg)) {
+    return bound[0];
+  }
+
+  const integer = Math.trunc(arg);
+  if (integer < bound[0]) {
+    return bound[0];
+  }
+  if (integer > bound[1]) {
+    return bound[1];
+  }
+  return integer;
+}
+
+function setDefaultFields(arg: object, defaults: object) {
+  for (const [key, val] of Object.entries(defaults)) {
+    if (!Object.hasOwn(arg, key)) {
+      Object.defineProperty(arg, key, { value: val, writable: true });
+    }
+  }
+}
+
+// Utilities }
 
 /**
  * Encode string text into bytes, it only supports "utf-8" encoding.
@@ -50,10 +80,10 @@ export class TextEncoder {
    *
    * @param {string} input - Text that need encode.
    * @returns {Uint8Array} Encoded uint8 bytes array.
-   * @throws Throws {@link !TypeError} if input is not a string.
+   * @throws Throws {@link !Error} if input is not a string.
    */
   encode(input: string): Uint8Array {
-    checkIsString(input, `"TextEncoder.encode" input`);
+    assert(isString(input), `TextEncoder.encode: input must be a string`);
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.global_encoding_encode(input);
@@ -65,11 +95,14 @@ export class TextEncoder {
    * @param {string} src - Text that need encode.
    * @param {Uint8Array} dest - Destination that receives the encoded uint8 bytes array.
    * @returns {TextEncoder.EncodeIntoResult} Encode result, it contains two numbers: the "read" Unicode code units from src string, and the "written" UTF-8 bytes into the dest buffer.
-   * @throws Throws {@link !TypeError} if src is not a string, or dest is not a {@link !Uint8Array}.
+   * @throws Throws {@link !Error} if src is not a string, or dest is not a {@link !Uint8Array}.
    */
   encodeInto(src: string, dest: Uint8Array): TextEncoder.EncodeIntoResult {
-    checkIsString(src, `"TextEncoder.encodeInto" src`);
-    checkIsUint8Array(dest, `"TextEncoder.encodeInto" dest`);
+    assert(isString(src), `TextEncoder.encodeInto: src must be a string`);
+    assert(
+      dest instanceof Uint8Array,
+      `TextEncoder.encodeInto: dest must be a Uint8Array`,
+    );
 
     // @ts-ignore Ignore warning
     return __InternalRsvimGlobalObject.global_encoding_encode_into(
@@ -170,11 +203,11 @@ export class TextDecoder {
    *
    * @param {string} encoding - (Optional) Decoder encoding, by default is "utf-8".
    * @param {TextDecoder.Options} options - (Optional) Decode options, by default is `{fatal: false, ignoreBOM: false}`.
-   * @throws Throws {@link !TypeError} if encoding is not a string or options is invalid. Throw {@link !RangeError} if encoding is unknown or not support.
+   * @throws Throws {@link !Error} if encoding is not a string or options is invalid. Throw {@link !RangeError} if encoding is unknown or not support.
    */
   constructor(encoding?: string, options?: TextDecoder.Options) {
     encoding = encoding ?? "utf-8";
-    checkIsString(encoding, `"TextDecoder.constructor" encoding`);
+    assert(isString(encoding), `TextDecoder: encoding must be a string`);
 
     const encodingIsValid =
       // @ts-ignore Ignore warning
@@ -182,18 +215,19 @@ export class TextDecoder {
         encoding,
       );
     if (!encodingIsValid) {
-      throw new RangeError(
-        `"TextDecoder.constructor" encoding is unknown: ${encoding}`,
-      );
+      throw new RangeError(`TextDecoder: unknown encoding ${encoding}`);
     }
 
     options = options ?? { fatal: false, ignoreBOM: false };
-    checkIsObject(options, `"TextDecoder.constructor" options`);
+    assert(
+      typeof options === "object",
+      `TextDecoder: options must be an object`,
+    );
     setDefaultFields(options, { fatal: false, ignoreBOM: false });
-    checkIsBoolean(options.fatal, `"TextDecoder.constructor" fatal option`);
-    checkIsBoolean(
-      options.ignoreBOM,
-      `"TextDecoder.constructor" ignoreBOM option`,
+    assert(isBoolean(options.fatal), `TextDecoder: fatal must be a boolean`);
+    assert(
+      isBoolean(options.ignoreBOM),
+      `TextDecoder: ignoreBOM must be a boolean`,
     );
 
     this.#encoding = encoding;
@@ -227,28 +261,34 @@ export class TextDecoder {
    * @param {(ArrayBuffer | TypedArray | DataView)} input - (Optional) Bytes array, by default is `new Uint8Array()`.
    * @param {TextDecoder.DecodeOptions} options - (Optional) Decode options, by default is `{stream: false}`. When decode a stream data (e.g. read from tcp network) while reading it and cannot determine the end of bytes, should set `stream` option to `true`.
    * @returns {string} Decoded string text.
-   * @throws Throws {@link !TypeError} if input is not a Uint8Array, or options is invalid, or the data is malformed and `fatal` option is set.
+   * @throws Throws {@link !Error} if input is not an {@link !ArrayBuffer}, {@link !TypedArray} or {@link !DataView}, or options is invalid. Throw {@link !TypeError} if the data is malformed and `fatal` option is set.
    */
   decode(
     input?: ArrayBuffer | TypedArray | DataView,
     options?: TextDecoder.DecodeOptions,
   ): string {
     input = input ?? new Uint8Array();
-    checkIsArrayBufferFamily(input, `"TextDecoder.decode" input`);
+    assert(
+      input instanceof ArrayBuffer || ArrayBuffer.isView(input),
+      `TextDecoder.decode: input must be ArrayBuffer or view`,
+    );
 
+    // Both `DataView` and all the typed arrays are views over an `ArrayBuffer`.
     let buffer = input as ArrayBuffer;
-    if (isTypedArray(input)) {
-      // @ts-ignore Ignore warning
-      buffer = input.buffer as ArrayBuffer;
-    } else if (isDataView(input)) {
-      // @ts-ignore Ignore warning
+    if (ArrayBuffer.isView(input)) {
       buffer = input.buffer as ArrayBuffer;
     }
 
     options = options ?? { stream: false };
-    checkIsObject(options, `"TextDecoder.decode" options`);
+    assert(
+      typeof options === "object",
+      `TextDecoder.decode: options must be an object`,
+    );
     setDefaultFields(options, { stream: false });
-    checkIsBoolean(options.stream, `"TextDecoder.decode" stream option`);
+    assert(
+      isBoolean(options.stream),
+      `TextDecoder.decode: stream must be a boolean`,
+    );
 
     const stream = options.stream as boolean;
 
@@ -358,11 +398,11 @@ const activeTimers = new Map();
  * Cancel a repeated timer previously established by calling {@link setInterval}.
  *
  * @param {number} id - The ID (integer) which identifies the schedule.
- * @throws Throws {@link !TypeError} if ID is not an integer.
+ * @throws Throws {@link !Error} if ID is not an integer.
  */
 export function clearInterval(id: number): void {
   // Check parameter's type.
-  checkIsInteger(id, `"clearInterval" ID`);
+  assert(Number.isInteger(id), `clearInterval: ID must be an integer`);
 
   if (activeTimers.has(id)) {
     // @ts-ignore Ignore warning
@@ -378,7 +418,7 @@ export function clearInterval(id: number): void {
  * @param {number} delay - (Optional) The milliseconds that the timer should delay in between execution of the function, by default is `1`. It is truncated to an integer and bounded to the range of `[1, 2147483647]`.
  * @param {...any} args - (Optional) Additional arguments which are passed through to the function.
  * @returns {number} The ID (integer) which identifies the timer created.
- * @throws Throws {@link !TypeError} if callback is not a function, or delay is neither a number or undefined.
+ * @throws Throws {@link !Error} if callback is not a function, or delay is neither a number or undefined.
  */
 export function setInterval(
   callback: (...args: any[]) => void,
@@ -386,7 +426,7 @@ export function setInterval(
   ...args: any[]
 ): number {
   delay = delay ?? 1;
-  checkIsNumber(delay, `"setInterval" delay`);
+  assert(isNumber(delay), `setInterval: delay must be a number`);
 
   // Coalesce to number or NaN.
   delay *= 1;
@@ -395,7 +435,7 @@ export function setInterval(
   delay = boundByIntegers(delay, [1, TIMEOUT_MAX]);
 
   // Check if callback is a valid function.
-  checkIsFunction(callback, `"setInterval" callback`);
+  assert(isFunction(callback), `setInterval: callback must be a function`);
 
   // Pin down the correct ID value.
   const id = nextTimerId++;
@@ -419,11 +459,11 @@ export function setInterval(
  * Cancel a timeout previously established by calling {@link setTimeout}.
  *
  * @param {number} id - The ID (integer) which identifies the timer.
- * @throws Throws {@link !TypeError} if ID is not an integer.
+ * @throws Throws {@link !Error} if ID is not an integer.
  */
 export function clearTimeout(id: number): void {
   // Check parameter's type.
-  checkIsInteger(id, `"clearTimeout" ID`);
+  assert(Number.isInteger(id), `clearTimeout: ID must be an integer`);
 
   if (activeTimers.has(id)) {
     // @ts-ignore Ignore warning
@@ -439,7 +479,7 @@ export function clearTimeout(id: number): void {
  * @param {number} delay - (Optional) The milliseconds that the timer should wait before the function is executed, by default is `1`. It is truncated to an integer and bounded to the range of `[1, 2147483647]`.
  * @param {...any} args - (Optional) Additional arguments which are passed through to the function.
  * @returns {number} The ID (integer) which identifies the timer created.
- * @throws Throws {@link !TypeError} if callback is not a function, or delay is neither a number or undefined.
+ * @throws Throws {@link !Error} if callback is not a function, or delay is neither a number or undefined.
  */
 export function setTimeout(
   callback: (...args: any[]) => void,
@@ -447,7 +487,7 @@ export function setTimeout(
   ...args: any[]
 ): number {
   delay = delay ?? 1;
-  checkIsNumber(delay, `"setTimeout" delay`);
+  assert(isNumber(delay), `setTimeout: delay must be a number`);
 
   // Coalesce to number or NaN.
   delay *= 1;
@@ -457,7 +497,7 @@ export function setTimeout(
   delay = boundByIntegers(delay, [1, TIMEOUT_MAX]);
 
   // Check if callback is a valid function.
-  checkIsFunction(callback, `"setTimeout" callback`);
+  assert(isFunction(callback), `setTimeout: callback must be a function`);
 
   // Pin down the correct ID value.
   const id = nextTimerId++;
@@ -488,7 +528,7 @@ export function setTimeout(
  * to drive the script's execution environment.
  *
  * @param {function} callback - A function to be executed.
- * @throws Throws {@link !TypeError} if callback is not a function.
+ * @throws Throws {@link !Error} if callback is not a function.
  */
 export function queueMicrotask(callback: () => void): void {
   // Note: We wrap `queueMicrotask` and manually emit the exception because
@@ -496,7 +536,7 @@ export function queueMicrotask(callback: () => void): void {
   // the microtask_checkpoint phase.
 
   // Check if the callback argument is a valid type.
-  checkIsFunction(callback, `"queueMicrotask" callback`);
+  assert(isFunction(callback), `queueMicrotask: callback must be a function`);
 
   // @ts-ignore Ignore warning
   __InternalRsvimGlobalObject.global_queue_microtask(() => {

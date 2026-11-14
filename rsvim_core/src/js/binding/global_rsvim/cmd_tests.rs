@@ -9,7 +9,7 @@ use std::time::Duration;
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
 // #[should_panic(
-//   expected = "\"Rsvim.cmd.echo\" message parameter cannot be undefined or null"
+//   expected = "Rsvim.cmd.echo: message is required"
 // )]
 async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
   test_log_init();
@@ -45,10 +45,7 @@ async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
     let contents = lock!(event_loop.cmdline_text);
     let payload = contents.message().rope().to_string();
     let payload = payload.trim();
-    assert!(
-      payload
-        .contains("\"Rsvim.cmd.echo\" message cannot be undefined or null")
-    );
+    assert!(payload.contains("Rsvim.cmd.echo: message is required"));
   }
 
   Ok(())
@@ -57,7 +54,7 @@ async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
 // #[should_panic(
-//   expected = "\"Rsvim.cmd.echo\" message parameter cannot be undefined or null"
+//   expected = "Rsvim.cmd.echo: message is required"
 // )]
 async fn test_echo2_should_panic_with_null_param() -> IoResult<()> {
   test_log_init();
@@ -93,10 +90,7 @@ async fn test_echo2_should_panic_with_null_param() -> IoResult<()> {
     let contents = lock!(event_loop.cmdline_text);
     let payload = contents.message().rope().to_string();
     let payload = payload.trim();
-    assert!(
-      payload
-        .contains("\"Rsvim.cmd.echo\" message cannot be undefined or null")
-    );
+    assert!(payload.contains("Rsvim.cmd.echo: message is required"));
   }
 
   Ok(())
@@ -861,9 +855,9 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(actual.contains(
-      r####""Rsvim.cmd.create" name must be a string, but found"####
-    ));
+    assert!(
+      actual.contains(r####"Rsvim.cmd.create: name must be a string, got"####)
+    );
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -909,9 +903,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(
-      actual.contains(r####""Rsvim.cmd.create" name is invalid pattern"####)
-    );
+    assert!(actual.contains(r####"Rsvim.cmd.create: name is invalid:"####));
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -957,9 +949,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(
-      actual.contains(r####""Rsvim.cmd.create" name is invalid pattern"####)
-    );
+    assert!(actual.contains(r####"Rsvim.cmd.create: name is invalid:"####));
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -1005,9 +995,11 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(actual.contains(
-      r####""Rsvim.cmd.create" callback must be a function, but found"####
-    ));
+    assert!(
+      actual.contains(
+        r####"Rsvim.cmd.create: callback must be a function, got"####
+      )
+    );
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -1054,7 +1046,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     assert!(actual.is_some());
     let actual = actual.unwrap();
     assert!(actual.contains(
-      r####""Rsvim.cmd.create" bang attribute must be a boolean, but found"####
+      r####"Rsvim.cmd.create: bang attribute must be a boolean, got"####
     ));
 
     let state_rc = event_loop.js_runtime.get_state();
@@ -1101,9 +1093,9 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(actual.contains(
-      r####""Rsvim.cmd.create" nargs attribute is an invalid option"####
-    ));
+    assert!(
+      actual.contains(r####"Rsvim.cmd.create: nargs attribute is invalid:"####)
+    );
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -1150,7 +1142,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     assert!(actual.is_some());
     let actual = actual.unwrap();
     assert!(actual.contains(
-      r####""Rsvim.cmd.create" attributes must be an object, but found"####
+      r####"Rsvim.cmd.create: attributes must be an object, got"####
     ));
 
     let state_rc = event_loop.js_runtime.get_state();
@@ -1197,9 +1189,10 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     info!("actual:{:?}", actual);
     assert!(actual.is_some());
     let actual = actual.unwrap();
-    assert!(actual.contains(
-      r####""Rsvim.cmd.create" options must be an object, but found"####
-    ));
+    assert!(
+      actual
+        .contains(r####"Rsvim.cmd.create: options must be an object, got"####)
+    );
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
@@ -1246,7 +1239,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     assert!(actual.is_some());
     let actual = actual.unwrap();
     assert!(actual.contains(
-      r####""Rsvim.cmd.create" force option must be a boolean, but found"####
+      r####"Rsvim.cmd.create: force option must be a boolean, got"####
     ));
 
     let state_rc = event_loop.js_runtime.get_state();
@@ -1294,7 +1287,7 @@ Rsvim.cmd.echo(`Previous command:${prev}`);
     assert!(actual.is_some());
     let actual = actual.unwrap();
     assert!(actual.contains(
-      r####""Rsvim.cmd.create" alias option must be a string?, but found"####
+      r####"Rsvim.cmd.create: alias option must be a string or nil, got"####
     ));
 
     let state_rc = event_loop.js_runtime.get_state();

@@ -20,7 +20,9 @@
   "types": "./types/index.d.ts",
   "scripts": {},
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
     "browser-sync": "^3.0.4",
+    "es-toolkit": "^1.53.2",
     "prettier": "^3.10.0",
     "rollup": "^4.68.2",
     "terser": "^5.51.2",
