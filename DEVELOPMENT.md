@@ -8,10 +8,7 @@ Please setup your development environment with:
   - For Linux, install [gcc](https://gcc.gnu.org/).
   - For macOS, install [Xcode Clang](https://developer.apple.com/xcode/).
   - For Windows, install [Visual Studio with C++/C# Desktop Components](https://visualstudio.microsoft.com/), [LLVM](https://llvm.org/).
-- Install [mise](https://github.com/jdx/mise), then run `mise i`. This installs
-  Rust, Node, Python and all the command line tools used below, including
-  [just](https://github.com/casey/just), `cargo-nextest`, `sccache`, `taplo`,
-  `typos` and `cargo-release`.
+- Install [mise](https://github.com/jdx/mise), then run `mise i` and `npm i`. This installs all cli tools and npm packages.
 
 ## Repository
 
