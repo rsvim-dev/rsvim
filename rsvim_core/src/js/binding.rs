@@ -1,7 +1,7 @@
 //! Js runtime bindings.
 
+pub mod global;
 pub mod global_rsvim;
-pub mod global_this;
 
 use crate::prelude::*;
 // use crate::dns;
@@ -63,67 +63,67 @@ pub fn create_new_context<'s, 'b>(
       scope,
       vim,
       "global_create_timer",
-      global_this::timeout::create_timer,
+      global::timeout::create_timer,
     );
     set_function_to(
       scope,
       vim,
       "global_clear_timer",
-      global_this::timeout::clear_timer,
+      global::timeout::clear_timer,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_encode",
-      global_this::text_encoder::encode,
+      global::text_encoder::encode,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_encode_into",
-      global_this::text_encoder::encode_into,
+      global::text_encoder::encode_into,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_check_encoding_label",
-      global_this::text_encoder::check_encoding_label,
+      global::text_encoder::check_encoding_label,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_decode_single",
-      global_this::text_encoder::decode_single,
+      global::text_encoder::decode_single,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_create_stream_decoder",
-      global_this::text_encoder::create_stream_decoder,
+      global::text_encoder::create_stream_decoder,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_decode_stream",
-      global_this::text_encoder::decode_stream,
+      global::text_encoder::decode_stream,
     );
     set_function_to(
       scope,
       vim,
       "global_encoding_close_stream_decoder",
-      global_this::text_encoder::close_stream_decoder,
+      global::text_encoder::close_stream_decoder,
     );
     set_function_to(
       scope,
       vim,
       "global_queue_microtask",
-      global_this::microtask::queue_microtask,
+      global::microtask::queue_microtask,
     );
     set_function_to(
       scope,
       vim,
       "global_report_error",
-      global_this::microtask::report_error,
+      global::microtask::report_error,
     );
   }
 
