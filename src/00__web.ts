@@ -17,22 +17,6 @@ import { isNumber } from "es-toolkit/predicate/isNumber";
 import { isString } from "es-toolkit/predicate/isString";
 import { assert } from "es-toolkit/util";
 
-// Utilities {
-//
-// Argument validators are the `assert` from `es-toolkit`, called inline at each
-// Web API below. A few helpers are local to this module (i.e. not exported) so
-// that the calls stay in the same scope.
-
-function setDefaultFields(arg: object, defaults: object) {
-  for (const [key, val] of Object.entries(defaults)) {
-    if (!Object.hasOwn(arg, key)) {
-      Object.defineProperty(arg, key, { value: val, writable: true });
-    }
-  }
-}
-
-// Utilities }
-
 /**
  * Encode string text into bytes, it only supports "utf-8" encoding.
  *
@@ -195,12 +179,11 @@ export class TextDecoder {
       throw new RangeError(`TextDecoder: unknown encoding ${encoding}`);
     }
 
-    options = options ?? { fatal: false, ignoreBOM: false };
     assert(
-      typeof options === "object",
-      `TextDecoder: options must be an object`,
+      options === undefined || options === null || typeof options === "object",
+      `TextDecoder: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, { fatal: false, ignoreBOM: false });
+    options = { fatal: false, ignoreBOM: false, ...options };
     assert(isBoolean(options.fatal), `TextDecoder: fatal must be a boolean`);
     assert(
       isBoolean(options.ignoreBOM),
@@ -208,8 +191,8 @@ export class TextDecoder {
     );
 
     this.#encoding = encoding;
-    this.#fatal = options.fatal as boolean;
-    this.#ignoreBOM = options.ignoreBOM as boolean;
+    this.#fatal = options.fatal;
+    this.#ignoreBOM = options.ignoreBOM;
 
     // The #rid is actually created when calling `decode` API.
     // Since `encoding_rs::Decoder` lifetime only decode one buffer or stream, otherwise it will panic.
@@ -256,18 +239,17 @@ export class TextDecoder {
       buffer = input.buffer as ArrayBuffer;
     }
 
-    options = options ?? { stream: false };
     assert(
-      typeof options === "object",
-      `TextDecoder.decode: options must be an object`,
+      options === undefined || options === null || typeof options === "object",
+      `TextDecoder.decode: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, { stream: false });
+    options = { stream: false, ...options };
     assert(
       isBoolean(options.stream),
       `TextDecoder.decode: stream must be a boolean`,
     );
 
-    const stream = options.stream as boolean;
+    const stream = options.stream;
 
     try {
       // For non-stream, single pass decoding,

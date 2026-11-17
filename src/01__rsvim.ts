@@ -27,35 +27,6 @@ import { isNil } from "es-toolkit/predicate/isNil";
 import { isString } from "es-toolkit/predicate/isString";
 import { assert } from "es-toolkit/util";
 
-// Utilities {
-//
-// Argument validators are the `assert` from `es-toolkit`, called inline at each
-// API below. A few helpers are local to this module (i.e. not exported) so that
-// the calls stay in the same scope.
-
-/**
- * Check if the argument is one of the given options.
- *
- * The options are a list of literals, while the argument comes from the
- * javascript side so it could be any value, thus typed as `unknown` here.
- */
-function isOneOf<T extends string | number>(
-  arg: unknown,
-  options: readonly T[],
-): arg is T {
-  return (options as readonly unknown[]).includes(arg);
-}
-
-function setDefaultFields(arg: object, defaults: object) {
-  for (const [key, val] of Object.entries(defaults)) {
-    if (!Object.hasOwn(arg, key)) {
-      Object.defineProperty(arg, key, { value: val, writable: true });
-    }
-  }
-}
-
-// Utilities }
-
 /**
  * The `Rsvim.buf` global object for Vim buffers.
  *
@@ -219,27 +190,28 @@ export namespace RsvimCmd {
       `Rsvim.cmd.create: callback must be a function, got ${typeof callback}`,
     );
 
-    attributes = attributes ?? { bang: false, nargs: "0" };
     assert(
-      typeof attributes === "object",
+      attributes === undefined ||
+        attributes === null ||
+        typeof attributes === "object",
       `Rsvim.cmd.create: attributes must be an object, got ${typeof attributes}`,
     );
-    setDefaultFields(attributes, { bang: false, nargs: "0" });
+    attributes = { bang: false, nargs: "0", ...attributes };
     assert(
       isBoolean(attributes.bang),
       `Rsvim.cmd.create: bang attribute must be a boolean, got ${typeof attributes.bang}`,
     );
     assert(
-      isOneOf(attributes.nargs, ["0", "1", "?", "+", "*"]),
+      attributes.nargs !== undefined &&
+        ["0", "1", "?", "+", "*"].includes(attributes.nargs),
       `Rsvim.cmd.create: nargs attribute is invalid: ${attributes.nargs}`,
     );
 
-    options = options ?? { force: true };
     assert(
-      typeof options === "object",
+      options === undefined || options === null || typeof options === "object",
       `Rsvim.cmd.create: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, { force: true });
+    options = { force: true, ...options };
     assert(
       isBoolean(options.force),
       `Rsvim.cmd.create: force option must be a boolean, got ${typeof options.force}`,
@@ -494,14 +466,15 @@ export namespace RsvimFs {
       typeof options === "object",
       `Rsvim.fs.open: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, {
+    options = {
       append: false,
       create: false,
       createNew: false,
       read: false,
       truncate: false,
       write: false,
-    });
+      ...options,
+    };
     assert(
       isBoolean(options.append),
       `Rsvim.fs.open: append option must be a boolean, got ${typeof options.append}`,
@@ -554,14 +527,15 @@ export namespace RsvimFs {
       typeof options === "object",
       `Rsvim.fs.openSync: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, {
+    options = {
       append: false,
       create: false,
       createNew: false,
       read: false,
       truncate: false,
       write: false,
-    });
+      ...options,
+    };
     assert(
       isBoolean(options.append),
       `Rsvim.fs.openSync: append option must be a boolean, got ${typeof options.append}`,
@@ -904,7 +878,7 @@ export namespace RsvimFs {
     options = options ?? "junction";
     if (!isNil(options)) {
       assert(
-        isOneOf(options, ["file", "dir", "junction"]),
+        ["file", "dir", "junction"].includes(options),
         `Rsvim.fs.symlink: options is invalid: ${options}`,
       );
     }
@@ -950,7 +924,7 @@ export namespace RsvimFs {
     options = options ?? "junction";
     if (!isNil(options)) {
       assert(
-        isOneOf(options, ["file", "dir", "junction"]),
+        ["file", "dir", "junction"].includes(options),
         `Rsvim.fs.symlink: options is invalid: ${options}`,
       );
     }
@@ -1047,18 +1021,15 @@ export namespace RsvimFs {
       `Rsvim.fs.mkdir: path must be a string, got ${typeof path}`,
     );
 
-    options = options ?? {
-      recursive: false,
-      mode: 0o777,
-    };
     assert(
-      typeof options === "object",
+      options === undefined || options === null || typeof options === "object",
       `Rsvim.fs.mkdir: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, {
+    options = {
       recursive: false,
       mode: 0o777,
-    });
+      ...options,
+    };
 
     // @ts-ignore Ignore warning
     return await __InternalRsvimGlobalObject.fs_mkdir(path, options);
@@ -1086,18 +1057,15 @@ export namespace RsvimFs {
       `Rsvim.fs.mkdirSync: path must be a string, got ${typeof path}`,
     );
 
-    options = options ?? {
-      recursive: false,
-      mode: 0o777,
-    };
     assert(
-      typeof options === "object",
+      options === undefined || options === null || typeof options === "object",
       `Rsvim.fs.mkdirSync: options must be an object, got ${typeof options}`,
     );
-    setDefaultFields(options, {
+    options = {
       recursive: false,
       mode: 0o777,
-    });
+      ...options,
+    };
 
     // @ts-ignore Ignore warning
     __InternalRsvimGlobalObject.fs_mkdir_sync(path, options);
@@ -1748,7 +1716,7 @@ export class RsvimOpt {
    */
   set fileEncoding(value: RsvimOpt.FileEncodingOption) {
     assert(
-      isOneOf(value, ["utf-8"]),
+      value === "utf-8",
       `Rsvim.opt.fileEncoding: value is invalid: ${value}`,
     );
     // @ts-ignore Ignore warning
@@ -1801,7 +1769,7 @@ export class RsvimOpt {
    */
   set fileFormat(value: RsvimOpt.FileFormatOption) {
     assert(
-      isOneOf(value, ["dos", "unix", "mac"]),
+      ["dos", "unix", "mac"].includes(value),
       `Rsvim.opt.fileFormat: value is invalid: ${value}`,
     );
     // @ts-ignore Ignore warning
@@ -2136,20 +2104,13 @@ export namespace RsvimProc {
         `Rsvim.proc.Command: execPath must be a string, got ${typeof execPath}`,
       );
 
-      options = options ?? {
-        args: [],
-        clearEnv: false,
-        detached: false,
-        env: { __proto__: null },
-        stdin: "null",
-        stdout: "piped",
-        stderr: "piped",
-      };
       assert(
-        typeof options === "object",
+        options === undefined ||
+          options === null ||
+          typeof options === "object",
         `Rsvim.proc.Command: options must be an object, got ${typeof options}`,
       );
-      setDefaultFields(options, {
+      options = {
         args: [],
         clearEnv: false,
         detached: false,
@@ -2157,7 +2118,8 @@ export namespace RsvimProc {
         stdin: "null",
         stdout: "piped",
         stderr: "piped",
-      });
+        ...options,
+      };
       assert(
         Array.isArray(options.args),
         `Rsvim.proc.Command: args option must be an array, got ${typeof options.args}`,
@@ -2175,15 +2137,18 @@ export namespace RsvimProc {
         `Rsvim.proc.Command: env option must be an object, got ${typeof options.env}`,
       );
       assert(
-        isOneOf(options.stdin, ["null", "piped", "inherit"]),
+        options.stdin !== undefined &&
+          ["null", "piped", "inherit"].includes(options.stdin),
         `Rsvim.proc.Command: stdin option is invalid: ${options.stdin}`,
       );
       assert(
-        isOneOf(options.stdout, ["null", "piped", "inherit"]),
+        options.stdout !== undefined &&
+          ["null", "piped", "inherit"].includes(options.stdout),
         `Rsvim.proc.Command: stdout option is invalid: ${options.stdout}`,
       );
       assert(
-        isOneOf(options.stderr, ["null", "piped", "inherit"]),
+        options.stderr !== undefined &&
+          ["null", "piped", "inherit"].includes(options.stderr),
         `Rsvim.proc.Command: stderr option is invalid: ${options.stderr}`,
       );
 
