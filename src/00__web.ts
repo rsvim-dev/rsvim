@@ -378,7 +378,7 @@ const TIMEOUT_MAX = Math.pow(2, 31) - 1;
  * @returns {number} The normalized integer delay.
  * @throws Throws {@link !Error} if delay is neither a number nor undefined.
  */
-function normalizeDelay(api: string, delay?: number): number {
+function _normalizeDelay(api: string, delay?: number): number {
   delay = delay ?? 1;
   assert(isNumber(delay), `${api}: delay must be a number`);
 
@@ -435,7 +435,7 @@ export function setInterval(
   delay?: number,
   ...args: any[]
 ): number {
-  delay = normalizeDelay("setInterval", delay);
+  delay = _normalizeDelay("setInterval", delay);
 
   // Check if callback is a valid function.
   assert(isFunction(callback), `setInterval: callback must be a function`);
@@ -489,7 +489,7 @@ export function setTimeout(
   delay?: number,
   ...args: any[]
 ): number {
-  delay = normalizeDelay("setTimeout", delay);
+  delay = _normalizeDelay("setTimeout", delay);
 
   // Check if callback is a valid function.
   assert(isFunction(callback), `setTimeout: callback must be a function`);
