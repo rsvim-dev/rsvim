@@ -51,9 +51,43 @@ pub type ModulePath = String;
 /// Module source code.
 pub type ModuleSource = String;
 
+/// Builtin modules, maps from the module specifier to its source code.
+///
+/// These modules are compiled by `tsc` and bundled by `rollup`, see
+/// `rollup.config.js`, then minified by `terser` into `./js/*.min.js`, see the
+/// `bundle` recipe in `justfile`. They are embedded into the binary at compile
+/// time, thus no file is needed at runtime.
+///
+/// The `rsvim:ext` prefix indicates a core module, see [`CoreModuleLoader`].
+///
+/// [`CoreModuleLoader`]: crate::js::loader::core_loader::CoreModuleLoader
 pub static CORE_MODULES: LazyLock<FoldMap<&'static str, &'static str>> =
   LazyLock::new(|| {
     let modules = vec![
+      (
+        "rsvim:ext/buf",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/buf.min.js")),
+      ),
+      (
+        "rsvim:ext/cmd",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/cmd.min.js")),
+      ),
+      (
+        "rsvim:ext/fs",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/fs.min.js")),
+      ),
+      (
+        "rsvim:ext/opt",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/opt.min.js")),
+      ),
+      (
+        "rsvim:ext/process",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/process.min.js")),
+      ),
+      (
+        "rsvim:ext/syn",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/syn.min.js")),
+      ),
       // ("rsvim:ext/infra", include_str!("./runtime/00__infra.js")),
       // ("console", include_str!("./js/console.js")),
       // ("events", include_str!("./js/events.js")),
@@ -167,15 +201,14 @@ pub fn load_import(
   // // Load module.
   // loader.load(specifier)
 
-  // We don't actually have core modules
+  // Choose a loader by the specifier, core modules are provided by the
+  // `CoreModuleLoader` while the others are loaded from the local filesystem.
   let loader: &dyn ModuleLoader = _choose_module_loader(specifier);
 
   loader.load(specifier)
 }
 
 /// Resolves module imports without dependency.
-///
-/// TODO: Support dependencies resolving for builtin modules.
 pub fn fetch_module<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   filename: &str,

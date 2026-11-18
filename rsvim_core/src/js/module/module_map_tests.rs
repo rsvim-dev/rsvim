@@ -27,8 +27,9 @@ mod test_static_import {
 
     let p2 = Path::new("util.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -83,8 +84,9 @@ mod test_static_import {
 
     let p2 = Path::new("util.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     export default { echo };
     "#;
@@ -134,8 +136,9 @@ mod test_static_import {
 
     let p2 = Path::new("node_modules/utils/lib/echo.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -247,8 +250,9 @@ export function echoC(value) {
 
     let p5 = Path::new("utils/d.js");
     let src5: &str = r#"
+import { cmd } from "rsvim:ext/cmd";
 export function echoD(value) {
-  Rsvim.cmd.echo(`D:${value}`);
+  cmd.echo(`D:${value}`);
 }
     "#;
 
@@ -310,8 +314,9 @@ export function echoD(value) {
 
     let p2 = Path::new("node_modules/utils/lib/echo.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -399,8 +404,9 @@ export function echoD(value) {
 
     let p2 = Path::new("node_modules/utils/index.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -476,8 +482,9 @@ export function echoD(value) {
 
     let p2 = Path::new("utils/index.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -550,8 +557,9 @@ export function echoD(value) {
 
     let p2 = Path::new(".rsvim/util.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -607,8 +615,9 @@ export function echoD(value) {
 
     let p2 = Path::new(".rsvim/util.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     export default { echo };
     "#;
@@ -673,8 +682,9 @@ export function echoD(value) {
 
     let p4 = Path::new(".rsvim/node_modules/util/index.js");
     let src4: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -762,8 +772,9 @@ export function echoD(value) {
 
     let p4 = Path::new(".rsvim/util/index.js");
     let src4: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -839,8 +850,9 @@ echoA(5);
 
     let p2 = Path::new(".rsvim/utils/a.js");
     let src2: &str = r#"
+import { cmd } from "rsvim:ext/cmd";
 export function echoA(value) {
-  Rsvim.cmd.echo(`A:${value}`);
+  cmd.echo(`A:${value}`);
 }
     "#;
 
@@ -922,8 +934,9 @@ export function echoA(value) {
 
     let p4 = Path::new(".rsvim/util/index.js");
     let src4: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
     let p4_2 = Path::new(".rsvim/util/package.json");
@@ -1012,8 +1025,9 @@ export function echoA(value) {
 
     let p4 = Path::new(".rsvim/node_modules/util/index.js");
     let src4: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -1075,8 +1089,9 @@ export function echoA(value) {
 
     let p2 = Path::new(".rsvim/utils/lib/echo.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 
@@ -1163,6 +1178,8 @@ mod test_import_meta {
 
     let p1 = Path::new("rsvim.js");
     let src1: &str = r#"
+import { cmd } from "rsvim:ext/cmd";
+import { process } from "rsvim:ext/process";
 import { echoUrl, echoFileName, echoDirName, echoMain } from './utils/a.js';
 
 setTimeout(() => {
@@ -1179,31 +1196,32 @@ setTimeout(() => {
   echoMain(isMain);
 
   const resolvedModulePath = import.meta.resolve("./utils/a.js");
-  Rsvim.cmd.echo(resolvedModulePath);
-  Rsvim.rt.exit();
+  cmd.echo(resolvedModulePath);
+  process.exit();
 }, 1);
     "#;
 
     let p2 = Path::new("utils/a.js");
     let src2: &str = r#"
+import { cmd } from "rsvim:ext/cmd";
 export function echoUrl(value) {
   const url = import.meta.url;
-  Rsvim.cmd.echo(`${url}:${value}`);
+  cmd.echo(`${url}:${value}`);
 }
 
 export function echoFileName(value) {
   const filename = import.meta.filename;
-  Rsvim.cmd.echo(`${filename}:${value}`);
+  cmd.echo(`${filename}:${value}`);
 }
 
 export function echoDirName(value) {
   const dirname = import.meta.dirname;
-  Rsvim.cmd.echo(`${dirname}:${value}`);
+  cmd.echo(`${dirname}:${value}`);
 }
 
 export function echoMain(value) {
   const isMain = import.meta.main;
-  Rsvim.cmd.echo(`${isMain}:${value}`);
+  cmd.echo(`${isMain}:${value}`);
 }
     "#;
 
@@ -1336,29 +1354,31 @@ export function echoMain(value) {
 
     let p1 = Path::new("rsvim.js");
     let src1: &str = r#"
+import { cmd } from "rsvim:ext/cmd";
+import { process } from "rsvim:ext/process";
 setTimeout(() => {
   try {
     const url1 = import.meta.resolve(undefined);
-    Rsvim.cmd.echo(url1);
+    cmd.echo(url1);
   } catch(e) {
-    Rsvim.cmd.echo(e);
+    cmd.echo(e);
   }
 
   try {
     const url2 = import.meta.resolve(null);
-    Rsvim.cmd.echo(url2);
+    cmd.echo(url2);
   } catch(e) {
-    Rsvim.cmd.echo(e);
+    cmd.echo(e);
   }
 
   try {
     const url3 = import.meta.resolve();
-    Rsvim.cmd.echo(url3);
+    cmd.echo(url3);
   } catch(e) {
-    Rsvim.cmd.echo(e);
+    cmd.echo(e);
   }
 
-  Rsvim.rt.exit();
+  process.exit();
 }, 1);
     "#;
 
@@ -1429,8 +1449,9 @@ mod test_require {
 
     let p2 = Path::new("util.js");
     let src2: &str = r#"
+    import { cmd } from "rsvim:ext/cmd";
     export function echo(value) {
-        Rsvim.cmd.echo(value);
+        cmd.echo(value);
     }
     "#;
 

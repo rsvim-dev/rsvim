@@ -14,8 +14,9 @@ async fn test_queue_microtask1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   queueMicrotask(() => {
-    Rsvim.cmd.echo(1);
+    cmd.echo(1);
   });
 "#;
 
@@ -55,9 +56,10 @@ async fn test_queue_microtask2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   setTimeout(() => {
     queueMicrotask(() => {
-      Rsvim.cmd.echo(2);
+      cmd.echo(2);
     })
   }, 10);
 "#;

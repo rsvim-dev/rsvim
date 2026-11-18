@@ -20,7 +20,10 @@ async fn test_js_echo1() -> IoResult<()> {
   let mocked_ops = vec![
     MockOperation::Operation(Operation::GotoCmdlineExMode),
     MockOperation::Operation(Operation::CursorInsert(
-      CursorInsertPayload::Text("js Rsvim.cmd.echo(1);".to_compact_string()),
+      CursorInsertPayload::Text(
+        r#"js import { cmd } from "rsvim:ext/cmd"; cmd.echo(1);"#
+          .to_compact_string(),
+      ),
     )),
     MockOperation::Operation(Operation::ConfirmExCommandAndGotoNormalMode),
     MockOperation::SleepFor(Duration::from_millis(50)),
@@ -151,17 +154,19 @@ async fn test_buf_write1() -> IoResult<()> {
   ];
 
   let src: &str = r#"
+import { buf } from "rsvim:ext/buf";
+import { cmd } from "rsvim:ext/cmd";
 function write(ctx) {
-  const bufId = Rsvim.buf.current();
+  const bufId = buf.current();
   try {
-    const n = Rsvim.buf.writeSync(bufId);
-    Rsvim.cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
+    const n = buf.writeSync(bufId);
+    cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
   } catch (e) {
-    Rsvim.cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
+    cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
   }
 }
 
-Rsvim.cmd.create("write", write, {}, {alias: "w"});
+cmd.create("write", write, {}, {alias: "w"});
   "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -211,17 +216,19 @@ async fn test_buf_write2() -> IoResult<()> {
   ];
 
   let src: &str = r#"
+import { buf } from "rsvim:ext/buf";
+import { cmd } from "rsvim:ext/cmd";
 function write(ctx) {
   const bufId = ctx.currentBufferId;
   try {
-    const n = Rsvim.buf.writeSync(bufId);
-    Rsvim.cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
+    const n = buf.writeSync(bufId);
+    cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
   } catch (e) {
-    Rsvim.cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
+    cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
   }
 }
 
-Rsvim.cmd.create("write", write, {}, {alias: "w"});
+cmd.create("write", write, {}, {alias: "w"});
   "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -271,17 +278,19 @@ async fn test_buf_write_failed1() -> IoResult<()> {
   ];
 
   let src: &str = r#"
+import { buf } from "rsvim:ext/buf";
+import { cmd } from "rsvim:ext/cmd";
 function write() {
-  const bufId = Rsvim.buf.current();
+  const bufId = buf.current();
   try {
-    const n = Rsvim.buf.writeSync(bufId);
-    Rsvim.cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
+    const n = buf.writeSync(bufId);
+    cmd.echo(`Buffer ${bufId} have been saved, ${n} bytes written.`);
   } catch (e) {
-    Rsvim.cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
+    cmd.echo(`Failed to write buffer ${bufId}: ${e}`);
   }
 }
 
-Rsvim.cmd.create("write", write, {}, {alias: "w"});
+cmd.create("write", write, {}, {alias: "w"});
   "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -334,18 +343,20 @@ async fn test_async_command() -> IoResult<()> {
 
   let src = format!(
     r#"
+import {{ cmd }} from "rsvim:ext/cmd";
+import {{ fs }} from "rsvim:ext/fs";
 async function msg() {{
   try {{
-    const f = await Rsvim.fs.open({:?});
-    const buf = new Uint8Array(100);
-    const n = await f.read(buf);
-    Rsvim.cmd.echo(`n:${{n}}`);
+    const f = await fs.open({:?});
+    const bytes = new Uint8Array(100);
+    const n = await f.read(bytes);
+    cmd.echo(`n:${{n}}`);
   }} catch (e) {{
-    Rsvim.cmd.echo(`Failed:${{e}}`);
+    cmd.echo(`Failed:${{e}}`);
   }}
 }}
 
-Rsvim.cmd.create("msg", msg);
+cmd.create("msg", msg);
   "#,
     tmpfile.path()
   );

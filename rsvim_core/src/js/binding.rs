@@ -1,7 +1,25 @@
 //! Js runtime bindings.
 
+pub mod buf;
+pub mod cmd;
+pub mod fs;
 pub mod global;
-pub mod global_rsvim;
+pub mod opt;
+pub mod process;
+pub mod syn;
+
+#[cfg(test)]
+mod buf_tests;
+#[cfg(test)]
+mod cmd_tests;
+#[cfg(test)]
+mod fs_tests;
+#[cfg(test)]
+mod opt_tests;
+#[cfg(test)]
+mod process_tests;
+#[cfg(test)]
+mod syn_tests;
 
 use crate::prelude::*;
 // use crate::dns;
@@ -127,261 +145,137 @@ pub fn create_new_context<'s, 'b>(
     );
   }
 
-  // For `Rsvim.buf`
+  // For `buf`
   {
-    set_function_to(
-      scope,
-      vim,
-      "buf_write_sync",
-      global_rsvim::buf::write_sync,
-    );
-    set_function_to(scope, vim, "buf_current", global_rsvim::buf::current);
-    set_function_to(scope, vim, "buf_list", global_rsvim::buf::list);
+    set_function_to(scope, vim, "buf_write_sync", buf::write_sync);
+    set_function_to(scope, vim, "buf_current", buf::current);
+    set_function_to(scope, vim, "buf_list", buf::list);
   }
 
-  // For `Rsvim.cmd`
+  // For `cmd`
   {
-    set_function_to(scope, vim, "cmd_create", global_rsvim::cmd::create);
-    set_function_to(scope, vim, "cmd_echo", global_rsvim::cmd::echo);
-    set_function_to(scope, vim, "cmd_list", global_rsvim::cmd::list);
-    set_function_to(scope, vim, "cmd_get", global_rsvim::cmd::get);
-    set_function_to(scope, vim, "cmd_remove", global_rsvim::cmd::remove);
+    set_function_to(scope, vim, "cmd_create", cmd::create);
+    set_function_to(scope, vim, "cmd_echo", cmd::echo);
+    set_function_to(scope, vim, "cmd_list", cmd::list);
+    set_function_to(scope, vim, "cmd_get", cmd::get);
+    set_function_to(scope, vim, "cmd_remove", cmd::remove);
   }
 
-  // For `Rsvim.fs`
+  // For `fs`
   {
-    set_function_to(scope, vim, "fs_open", global_rsvim::fs::open_async);
-    set_function_to(scope, vim, "fs_open_sync", global_rsvim::fs::open_sync);
-    set_function_to(scope, vim, "fs_close", global_rsvim::fs::close_sync);
-    set_function_to(scope, vim, "fs_read", global_rsvim::fs::read_async);
-    set_function_to(scope, vim, "fs_read_sync", global_rsvim::fs::read_sync);
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_dir",
-      global_rsvim::fs::read_dir_async,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_dir_sync",
-      global_rsvim::fs::read_dir_sync,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_dir_next",
-      global_rsvim::fs::read_dir_next_async,
-    );
+    set_function_to(scope, vim, "fs_open", fs::open_async);
+    set_function_to(scope, vim, "fs_open_sync", fs::open_sync);
+    set_function_to(scope, vim, "fs_close", fs::close_sync);
+    set_function_to(scope, vim, "fs_read", fs::read_async);
+    set_function_to(scope, vim, "fs_read_sync", fs::read_sync);
+    set_function_to(scope, vim, "fs_read_dir", fs::read_dir_async);
+    set_function_to(scope, vim, "fs_read_dir_sync", fs::read_dir_sync);
+    set_function_to(scope, vim, "fs_read_dir_next", fs::read_dir_next_async);
     set_function_to(
       scope,
       vim,
       "fs_read_dir_next_sync",
-      global_rsvim::fs::read_dir_next_sync,
+      fs::read_dir_next_sync,
     );
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_dir_close",
-      global_rsvim::fs::read_dir_close,
-    );
-    set_function_to(scope, vim, "fs_write", global_rsvim::fs::write_async);
-    set_function_to(scope, vim, "fs_write_sync", global_rsvim::fs::write_sync);
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_file",
-      global_rsvim::fs::read_file_async,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_file_sync",
-      global_rsvim::fs::read_file_sync,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_text_file",
-      global_rsvim::fs::read_text_file_async,
-    );
+    set_function_to(scope, vim, "fs_read_dir_close", fs::read_dir_close);
+    set_function_to(scope, vim, "fs_write", fs::write_async);
+    set_function_to(scope, vim, "fs_write_sync", fs::write_sync);
+    set_function_to(scope, vim, "fs_read_file", fs::read_file_async);
+    set_function_to(scope, vim, "fs_read_file_sync", fs::read_file_sync);
+    set_function_to(scope, vim, "fs_read_text_file", fs::read_text_file_async);
     set_function_to(
       scope,
       vim,
       "fs_read_text_file_sync",
-      global_rsvim::fs::read_text_file_sync,
+      fs::read_text_file_sync,
     );
-    set_function_to(scope, vim, "fs_lstat", global_rsvim::fs::lstat_async);
-    set_function_to(scope, vim, "fs_lstat_sync", global_rsvim::fs::lstat_sync);
-    set_function_to(scope, vim, "fs_stat", global_rsvim::fs::stat_async);
-    set_function_to(scope, vim, "fs_stat_sync", global_rsvim::fs::stat_sync);
-    set_function_to(scope, vim, "fs_symlink", global_rsvim::fs::symlink_async);
-    set_function_to(
-      scope,
-      vim,
-      "fs_symlink_sync",
-      global_rsvim::fs::symlink_sync,
-    );
-    set_function_to(scope, vim, "fs_link", global_rsvim::fs::link_async);
-    set_function_to(scope, vim, "fs_link_sync", global_rsvim::fs::link_sync);
-    set_function_to(scope, vim, "fs_mkdir", global_rsvim::fs::mkdir_async);
-    set_function_to(scope, vim, "fs_mkdir_sync", global_rsvim::fs::mkdir_sync);
+    set_function_to(scope, vim, "fs_lstat", fs::lstat_async);
+    set_function_to(scope, vim, "fs_lstat_sync", fs::lstat_sync);
+    set_function_to(scope, vim, "fs_stat", fs::stat_async);
+    set_function_to(scope, vim, "fs_stat_sync", fs::stat_sync);
+    set_function_to(scope, vim, "fs_symlink", fs::symlink_async);
+    set_function_to(scope, vim, "fs_symlink_sync", fs::symlink_sync);
+    set_function_to(scope, vim, "fs_link", fs::link_async);
+    set_function_to(scope, vim, "fs_link_sync", fs::link_sync);
+    set_function_to(scope, vim, "fs_mkdir", fs::mkdir_async);
+    set_function_to(scope, vim, "fs_mkdir_sync", fs::mkdir_sync);
   }
 
-  // For `Rsvim.opt`
+  // For `opt`
   {
-    set_function_to(scope, vim, "opt_get_wrap", global_rsvim::opt::get_wrap);
-    set_function_to(scope, vim, "opt_set_wrap", global_rsvim::opt::set_wrap);
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_line_break",
-      global_rsvim::opt::get_line_break,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_line_break",
-      global_rsvim::opt::set_line_break,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_tab_stop",
-      global_rsvim::opt::get_tab_stop,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_tab_stop",
-      global_rsvim::opt::set_tab_stop,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_expand_tab",
-      global_rsvim::opt::get_expand_tab,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_expand_tab",
-      global_rsvim::opt::set_expand_tab,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_shift_width",
-      global_rsvim::opt::get_shift_width,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_shift_width",
-      global_rsvim::opt::set_shift_width,
-    );
+    set_function_to(scope, vim, "opt_get_wrap", opt::get_wrap);
+    set_function_to(scope, vim, "opt_set_wrap", opt::set_wrap);
+    set_function_to(scope, vim, "opt_get_line_break", opt::get_line_break);
+    set_function_to(scope, vim, "opt_set_line_break", opt::set_line_break);
+    set_function_to(scope, vim, "opt_get_tab_stop", opt::get_tab_stop);
+    set_function_to(scope, vim, "opt_set_tab_stop", opt::set_tab_stop);
+    set_function_to(scope, vim, "opt_get_expand_tab", opt::get_expand_tab);
+    set_function_to(scope, vim, "opt_set_expand_tab", opt::set_expand_tab);
+    set_function_to(scope, vim, "opt_get_shift_width", opt::get_shift_width);
+    set_function_to(scope, vim, "opt_set_shift_width", opt::set_shift_width);
     set_function_to(
       scope,
       vim,
       "opt_get_file_encoding",
-      global_rsvim::opt::get_file_encoding,
+      opt::get_file_encoding,
     );
     set_function_to(
       scope,
       vim,
       "opt_set_file_encoding",
-      global_rsvim::opt::set_file_encoding,
+      opt::set_file_encoding,
     );
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_file_format",
-      global_rsvim::opt::get_file_format,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_file_format",
-      global_rsvim::opt::set_file_format,
-    );
+    set_function_to(scope, vim, "opt_get_file_format", opt::get_file_format);
+    set_function_to(scope, vim, "opt_set_file_format", opt::set_file_format);
     set_function_to(
       scope,
       vim,
       "opt_get_fix_end_of_line",
-      global_rsvim::opt::get_fix_end_of_line,
+      opt::get_fix_end_of_line,
     );
     set_function_to(
       scope,
       vim,
       "opt_set_fix_end_of_line",
-      global_rsvim::opt::set_fix_end_of_line,
+      opt::set_fix_end_of_line,
     );
     set_function_to(
       scope,
       vim,
       "opt_get_syntax_parser_lib_path",
-      global_rsvim::opt::get_syntax_parser_lib_path,
+      opt::get_syntax_parser_lib_path,
     );
     set_function_to(
       scope,
       vim,
       "opt_set_syntax_parser_lib_path",
-      global_rsvim::opt::set_syntax_parser_lib_path,
+      opt::set_syntax_parser_lib_path,
     );
   }
 
-  // For `Rsvim.proc`
+  // For `process`
   {
+    set_function_to(scope, vim, "process_spawn_child", process::spawn_child);
     set_function_to(
       scope,
       vim,
-      "proc_spawn_child",
-      global_rsvim::proc::spawn_child,
+      "process_read_text_from_child",
+      process::read_text_from_child,
     );
-    set_function_to(
-      scope,
-      vim,
-      "proc_read_text_from_child",
-      global_rsvim::proc::read_text_from_child,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "proc_wait_child",
-      global_rsvim::proc::wait_child,
-    );
+    set_function_to(scope, vim, "process_wait_child", process::wait_child);
+    set_function_to(scope, vim, "process_exit", process::exit);
   }
 
-  // For `Rsvim.rt`
+  // For `syn`
   {
-    set_function_to(scope, vim, "rt_exit", global_rsvim::rt::exit);
-  }
-
-  // For `Rsvim.syn`
-  {
-    set_function_to(
-      scope,
-      vim,
-      "syn_load_parser",
-      global_rsvim::syn::load_treesitter_parser,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "syn_load_parser_sync",
-      global_rsvim::syn::load_parser_sync,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "syn_list_parsers",
-      global_rsvim::syn::list_parsers,
-    );
+    set_function_to(scope, vim, "syn_load_parser", syn::load_treesitter_parser);
+    set_function_to(scope, vim, "syn_load_parser_sync", syn::load_parser_sync);
+    set_function_to(scope, vim, "syn_list_parsers", syn::list_parsers);
     set_function_to(
       scope,
       vim,
       "syn_get_parser_metadata",
-      global_rsvim::syn::get_parser_metadata,
+      syn::get_parser_metadata,
     );
   }
 

@@ -45,7 +45,6 @@ use exception::PromiseRejectionEntry;
 use hook::module_resolve_cb;
 use module::ImportMap;
 use module::ModuleMap;
-use module::fetch_module;
 use module::fetch_module_tree;
 use module::resolve_import;
 use pending::TaskCallback;
@@ -108,17 +107,21 @@ fn init_v8_isolate(isolate: &mut v8::OwnedIsolate) {
   // );
 }
 
+/// Loads, compiles and evaluates all builtin modules.
+///
+/// The entry modules are embedded here, and their dependencies are the core
+/// modules embedded in [`CORE_MODULES`], which are resolved and loaded by the
+/// [`CoreModuleLoader`]. Note that [`fetch_module_tree`] takes care of the
+/// dependencies, i.e. fetching them recursively, thus only the entry modules
+/// are listed here.
+///
+/// [`CORE_MODULES`]: module::CORE_MODULES
+/// [`CoreModuleLoader`]: loader::CoreModuleLoader
 fn init_builtin_modules(scope: &mut v8::PinScope) {
-  static BUILTIN_MODULES: [(/* filename */ &str, /* source */ &str); 2] = [
-    (
-      "00__web.js",
-      include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/00__web.min.js")),
-    ),
-    (
-      "01__rsvim.js",
-      include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/01__rsvim.min.js")),
-    ),
-  ];
+  static BUILTIN_MODULES: [(/* filename */ &str, /* source */ &str); 1] = [(
+    "00__web.js",
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/00__web.min.js")),
+  )];
 
   for module in BUILTIN_MODULES.iter() {
     let filename = module.0;
@@ -126,7 +129,7 @@ fn init_builtin_modules(scope: &mut v8::PinScope) {
 
     v8::tc_scope!(let tc_scope, scope);
 
-    let module = fetch_module(tc_scope, filename, Some(source)).unwrap();
+    let module = fetch_module_tree(tc_scope, filename, Some(source)).unwrap();
     let _ = module
       .instantiate_module(tc_scope, module_resolve_cb)
       .unwrap();

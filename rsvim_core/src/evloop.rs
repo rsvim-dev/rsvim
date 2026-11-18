@@ -17,18 +17,18 @@ use crate::hl::ColorSchemeManager;
 use crate::hl::ColorSchemeManagerArc;
 use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
-use crate::js::binding::global_rsvim::fs::link::fs_link_a;
-use crate::js::binding::global_rsvim::fs::mkdir::fs_mkdir_s;
-use crate::js::binding::global_rsvim::fs::open::fs_open_a;
-use crate::js::binding::global_rsvim::fs::read::fs_read_s;
-use crate::js::binding::global_rsvim::fs::read_dir::fs_read_dir_next_s;
-use crate::js::binding::global_rsvim::fs::read_dir::fs_read_dir_s;
-use crate::js::binding::global_rsvim::fs::read_file::fs_read_file_a;
-use crate::js::binding::global_rsvim::fs::read_text_file::fs_read_text_file_a;
-use crate::js::binding::global_rsvim::fs::stat::fs_lstat_a;
-use crate::js::binding::global_rsvim::fs::stat::fs_stat_a;
-use crate::js::binding::global_rsvim::fs::symlink::fs_symlink_s;
-use crate::js::binding::global_rsvim::fs::write::fs_write_s;
+use crate::js::binding::fs::link::fs_link_a;
+use crate::js::binding::fs::mkdir::fs_mkdir_s;
+use crate::js::binding::fs::open::fs_open_a;
+use crate::js::binding::fs::read::fs_read_s;
+use crate::js::binding::fs::read_dir::fs_read_dir_next_s;
+use crate::js::binding::fs::read_dir::fs_read_dir_s;
+use crate::js::binding::fs::read_file::fs_read_file_a;
+use crate::js::binding::fs::read_text_file::fs_read_text_file_a;
+use crate::js::binding::fs::stat::fs_lstat_a;
+use crate::js::binding::fs::stat::fs_stat_a;
+use crate::js::binding::fs::symlink::fs_symlink_s;
+use crate::js::binding::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
 use crate::js::command::CommandManagerArc;
 use crate::js::resource::Resource;
@@ -583,7 +583,7 @@ impl EventLoop {
   }
 
   // Since we run user's config script (i.e. `.rsvim/rsvim.js`) before
-  // initializing TUI/UI-tree. If user calls the `Rsvim.cmd.echo` API directly
+  // initializing TUI/UI-tree. If user calls the `cmd.echo` API directly
   // in their configs right before the editor TUI initialize, the UI tree is
   // not created, and the "command-line-message" widget inside UI tree does not
   // exist.

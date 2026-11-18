@@ -379,7 +379,7 @@ class Bundle(Cmd):
         # Minify .js files into .min.js files, see ./terser.config.json for the
         # minify options.
         config_file = "terser.config.json"
-        for file in ["00__web", "01__rsvim"]:
+        for file in ["00__web", "cmd", "fs", "opt", "process", "syn", "buf"]:
             src_file = f"./build/{file}.bundle.js"
             tmp_file = f"./rsvim_core/js/{file}.min.js"
             cmd = f"npx terser {src_file} --config-file {config_file} -o {tmp_file}"

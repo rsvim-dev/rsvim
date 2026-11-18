@@ -15,10 +15,11 @@ async fn test_timeout1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { opt } from "rsvim:ext/opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
-    Rsvim.opt.wrap = false;
-    Rsvim.opt.lineBreak = true;
+    opt.wrap = false;
+    opt.lineBreak = true;
   }, 1);
 "#;
 
@@ -63,10 +64,11 @@ async fn test_timeout2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(20))];
   let src: &str = r#"
+  import { opt } from "rsvim:ext/opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
-    Rsvim.opt.wrap = false;
-    Rsvim.opt.lineBreak = true;
+    opt.wrap = false;
+    opt.lineBreak = true;
   }, 100);
 
   // Cancel the timeout immediately
@@ -114,13 +116,15 @@ async fn test_timeout3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
+  import { opt } from "rsvim:ext/opt";
   // Set timeout to update global options.
   const timerId = setTimeout((arg1, arg2, arg3) => {
-    Rsvim.cmd.echo(arg1);
-    Rsvim.cmd.echo(arg2);
-    Rsvim.cmd.echo(arg3);
-    Rsvim.opt.wrap = false;
-    Rsvim.opt.lineBreak = true;
+    cmd.echo(arg1);
+    cmd.echo(arg2);
+    cmd.echo(arg3);
+    opt.wrap = false;
+    opt.lineBreak = true;
   }, 1, "Hello", "World", true);
 "#;
 
@@ -182,13 +186,15 @@ async fn test_timeout4() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(20))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
+  import { opt } from "rsvim:ext/opt";
   // Set timeout to update global options.
   const timerId = setTimeout((arg1, arg2, arg3) => {
-    Rsvim.opt.wrap = false;
-    Rsvim.opt.lineBreak = true;
-    Rsvim.cmd.echo(arg1);
-    Rsvim.cmd.echo(arg2);
-    Rsvim.cmd.echo(arg3);
+    opt.wrap = false;
+    opt.lineBreak = true;
+    cmd.echo(arg1);
+    cmd.echo(arg2);
+    cmd.echo(arg3);
   }, 100, 1,true,"Ok");
 
   // Cancel the timeout immediately
@@ -239,10 +245,11 @@ async fn test_timeout5() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { opt } from "rsvim:ext/opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
-    Rsvim.opt.wrap = false;
-    Rsvim.opt.lineBreak = true;
+    opt.wrap = false;
+    opt.lineBreak = true;
   }); // by default `delay` is 1
 "#;
 
@@ -287,10 +294,11 @@ async fn test_interval1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   var a = 1;
   var timerId;
   timerId = setInterval(() => {
-    Rsvim.cmd.echo(a);
+    cmd.echo(a);
     a += 1;
     if (a > 3) {
       clearInterval(timerId);
@@ -335,15 +343,16 @@ async fn test_interval2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   var n = 0;
   const timerId = setInterval(() => {
-    Rsvim.cmd.echo("a");
+    cmd.echo("a");
     n += 1;
   }, 3);
 
   setTimeout(() => {
     clearInterval(timerId);
-    Rsvim.cmd.echo(n);
+    cmd.echo(n);
   }, 20);
 "#;
 
@@ -391,15 +400,16 @@ async fn test_interval3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   var n = 0;
   const timerId = setInterval(() => {
-    Rsvim.cmd.echo("a");
+    cmd.echo("a");
     n += 1;
   }, 3);
 
   setTimeout(() => {
     clearTimeout(timerId);
-    Rsvim.cmd.echo(n);
+    cmd.echo(n);
   }, 20);
 "#;
 
@@ -447,20 +457,21 @@ async fn test_timeout6() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   // A fractional delay must be truncated into an integer, otherwise the rust
   // side hits a `debug_assert!(is_v8_int!(...))` and panics in debug builds.
   setTimeout(() => {
-    Rsvim.cmd.echo("fractional");
+    cmd.echo("fractional");
   }, 1.5);
 
   // A `NaN` delay falls back to the lower bound, i.e. 1.
   setTimeout(() => {
-    Rsvim.cmd.echo("nan");
+    cmd.echo("nan");
   }, NaN);
 
   // An out-of-range delay is clamped into `[1, 2^31 - 1]`.
   setTimeout(() => {
-    Rsvim.cmd.echo("huge");
+    cmd.echo("huge");
   }, 1e10);
 "#;
 

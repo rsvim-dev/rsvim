@@ -147,6 +147,8 @@ export class TextDecoder {
    *
    * @example
    * ```javascript
+   * import { cmd } from "rsvim:ext/cmd";
+   *
    * const bytes = new Uint8Array([
    *   0xf0, 0x9d, 0x93, 0xbd,
    *   0xf0, 0x9d, 0x93, 0xae,
@@ -154,7 +156,7 @@ export class TextDecoder {
    *   0xf0, 0x9d, 0x93, 0xbd
    * ]);
    * if (new TextDecoder().decode(bytes) !== "𝓽𝓮𝔁𝓽") {
-   *   Rsvim.cmd.echo("Failed to decode");
+   *   cmd.echo("Failed to decode");
    * }
    * ```
    *

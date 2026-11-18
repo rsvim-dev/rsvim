@@ -181,15 +181,15 @@ fmt-check: _env
 [doc("""
 Compile typescript and bundle the javascript runtime
 
-`tsc` compiles the .ts files into ./build/ and ./types/, `rollup` tree-shakes
-and bundles them (see rollup.config.js), and `terser` minifies the bundles into
-rsvim_core/js/*.min.js (see terser.config.json).
+`tsc` compiles the .ts files into ./build/ and ./types/, `rollup` bundles them,
+and `terser` minifies the bundles into rsvim_core/js/*.min.js.
 """)]
 bundle: _env
     npx tsc
     npx rollup -c
-    npx terser ./build/00__web.bundle.js --config-file terser.config.json -o ./rsvim_core/js/00__web.min.js
-    npx terser ./build/01__rsvim.bundle.js --config-file terser.config.json -o ./rsvim_core/js/01__rsvim.min.js
+    for name in 00__web cmd fs opt process syn buf; do \
+      npx terser ./build/$name.bundle.js --config-file terser.config.json -o ./rsvim_core/js/$name.min.js ; \
+    done
 
 [doc("""
 cargo doc --workspace

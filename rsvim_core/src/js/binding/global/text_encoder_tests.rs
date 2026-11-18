@@ -14,6 +14,7 @@ async fn test_encode1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -21,14 +22,14 @@ async fn test_encode1() -> IoResult<()> {
   const bytes2 = encoder.encode(s2);
 
   if (bytes1.byteLength !== 17) {
-    Rsvim.cmd.echo(`bytes1 failed, bytesLen:${bytes1.byteLength}`);
+    cmd.echo(`bytes1 failed, bytesLen:${bytes1.byteLength}`);
   }
 
   if (bytes2.byteLength !== 18 ) {
-    Rsvim.cmd.echo(`bytes2 failed, bytesLen:${bytes2.byteLength}`);
+    cmd.echo(`bytes2 failed, bytesLen:${bytes2.byteLength}`);
   }
 
-  Rsvim.cmd.echo(`encoding:${encoder.encoding}`);
+  cmd.echo(`encoding:${encoder.encoding}`);
 "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -65,6 +66,7 @@ async fn test_encode2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -74,11 +76,11 @@ async fn test_encode2() -> IoResult<()> {
   const res2 = encoder.encodeInto(s2, buf2);
 
   if (res1.read !== s1.length || res1.written !== 17) {
-    Rsvim.cmd.echo(`buf1 failed, res1.read:${res1.read}, res1.written:${res1.written}, s1.length:${s1.length}`);
+    cmd.echo(`buf1 failed, res1.read:${res1.read}, res1.written:${res1.written}, s1.length:${s1.length}`);
   }
 
   if (res2.read !== s2.length || res2.written !== 18) {
-    Rsvim.cmd.echo(`buf2 failed, res2.read:${res2.read}, res2.written:${res2.written}, s2.length:${s2.length}`);
+    cmd.echo(`buf2 failed, res2.read:${res2.read}, res2.written:${res2.written}, s2.length:${s2.length}`);
   }
 "#;
 
@@ -114,6 +116,7 @@ async fn test_encode3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -123,11 +126,11 @@ async fn test_encode3() -> IoResult<()> {
   const res2 = encoder.encodeInto(s2, buf2);
 
   if (res1.read !== 16 || res1.written !== 16) {
-    Rsvim.cmd.echo(`buf1 failed, res1.read:${res1.read}, res1.written:${res1.written}, s1.length:${s1.length}`);
+    cmd.echo(`buf1 failed, res1.read:${res1.read}, res1.written:${res1.written}, s1.length:${s1.length}`);
   }
 
   if (res2.read !== 5 || res2.written !== 15) {
-    Rsvim.cmd.echo(`buf2 failed, res2.read:${res2.read}, res2.written:${res2.written}, s2.length:${s2.length}`);
+    cmd.echo(`buf2 failed, res2.read:${res2.read}, res2.written:${res2.written}, s2.length:${s2.length}`);
   }
 "#;
 
@@ -163,6 +166,7 @@ async fn test_decode1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const s1 = "This is some data";
   const s2 = "你好，世界！";
   const encoder = new TextEncoder();
@@ -176,18 +180,18 @@ async fn test_decode1() -> IoResult<()> {
   const s5 = decoder4.decode(bytes2);
 
   if (s1 !== s3) {
-    Rsvim.cmd.echo("failed-1");
+    cmd.echo("failed-1");
   }
   if (s2 !== s4) {
-    Rsvim.cmd.echo("failed-2");
+    cmd.echo("failed-2");
   }
   if (s2 !== s5) {
-    Rsvim.cmd.echo("failed-3");
+    cmd.echo("failed-3");
   }
 
-  Rsvim.cmd.echo(decoder3.encoding);
-  Rsvim.cmd.echo(decoder3.fatal);
-  Rsvim.cmd.echo(decoder3.ignoreBOM);
+  cmd.echo(decoder3.encoding);
+  cmd.echo(decoder3.fatal);
+  cmd.echo(decoder3.ignoreBOM);
 "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -228,6 +232,7 @@ async fn test_decode2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const s1 = "This is some data";
   const s2 = "你好，世界！";
   const encoder = new TextEncoder();
@@ -241,18 +246,18 @@ async fn test_decode2() -> IoResult<()> {
   const s5 = decoder4.decode(bytes2);
 
   if (s1 !== s3) {
-    Rsvim.cmd.echo("failed-1");
+    cmd.echo("failed-1");
   }
   if (s2 !== s4) {
-    Rsvim.cmd.echo("failed-2");
+    cmd.echo("failed-2");
   }
   if (s2 !== s5) {
-    Rsvim.cmd.echo("failed-3");
+    cmd.echo("failed-3");
   }
 
-  Rsvim.cmd.echo(decoder3.encoding);
-  Rsvim.cmd.echo(decoder3.fatal);
-  Rsvim.cmd.echo(decoder3.ignoreBOM);
+  cmd.echo(decoder3.encoding);
+  cmd.echo(decoder3.fatal);
+  cmd.echo(decoder3.ignoreBOM);
 "#;
 
   // Prepare $RSVIM_CONFIG/rsvim.js
@@ -293,6 +298,7 @@ async fn test_decode3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const fixture = new Uint8Array([
     0xf0, 0x9d, 0x93, 0xbd,
     0xf0, 0x9d, 0x93, 0xae,
@@ -301,7 +307,7 @@ async fn test_decode3() -> IoResult<()> {
   ]);
   const decoder = new TextDecoder();
   if (decoder.decode(fixture) !== "𝓽𝓮𝔁𝓽") {
-    Rsvim.cmd.echo("failed");
+    cmd.echo("failed");
   }
 "#;
 
@@ -337,6 +343,7 @@ async fn test_decode4() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const fixture1 = new Uint8Array([
     0xf0, 0x9d, 0x93, 0xbd,
   ]);
@@ -353,7 +360,7 @@ async fn test_decode4() -> IoResult<()> {
   s += decoder.decode(undefined, {stream:false});
 
   if (s !== "𝓽𝓮𝔁𝓽") {
-    Rsvim.cmd.echo("failed");
+    cmd.echo("failed");
   }
 "#;
 
@@ -389,10 +396,11 @@ async fn test_decode5() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
+  import { cmd } from "rsvim:ext/cmd";
   const fixture = new Uint8Array([0x89, 0x95, 0x9f, 0xbf]);
   const decoder = new TextDecoder("ascii");
   if (decoder.decode(fixture) !== "‰•Ÿ¿") {
-    Rsvim.cmd.echo("failed");
+    cmd.echo("failed");
   }
 "#;
 

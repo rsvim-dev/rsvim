@@ -5,30 +5,50 @@
 // tree-shakes unused code. Keep the "es" format, since the js runtime loads
 // them as v8 modules.
 //
-// The js runtime has no module resolution of its own: it only knows the two
+// The js runtime has no module resolution for npm packages: it only knows the
 // builtin modules embedded by `rsvim_core/src/js.rs`. Any npm dependency must
 // therefore be inlined into the bundle, which is what `node-resolve` does.
+//
+// Every builtin module is bundled separately, because the runtime loads each of
+// them as a standalone v8 module. The imports between the builtin extension
+// modules are rewritten to the `rsvim:ext/<name>` scheme and kept external, so
+// they are resolved by the runtime's core module loader instead of being
+// inlined, see `rsvim_core/src/js/loader/core_loader.rs`.
 //
 // Usage: npx rollup -c
 
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 
+// Builtin modules that are imported by other builtin modules.
+const CORE_MODULES = ["cmd", "fs", "opt", "process", "syn", "buf"];
+
+// Entry modules, `00__web` and the core modules above.
+const ENTRIES = ["00__web", ...CORE_MODULES];
+
+const moduleName = (id) => id.split("/").pop().replace(/\.js$/, "");
+
+// Rewrites imports between builtin modules to the `rsvim:ext/<name>` scheme.
+const coreModules = {
+  name: "core-modules",
+  resolveId(source, importer) {
+    // Entry modules themselves are never external.
+    if (!importer) {
+      return null;
+    }
+    const name = moduleName(source);
+    if (!CORE_MODULES.includes(name)) {
+      return null;
+    }
+    return { id: `rsvim:ext/${name}`, external: true };
+  },
+};
+
 /** @type {import("rollup").RollupOptions[]} */
-export default [
-  {
-    input: "./build/00__web.js",
-    output: {
-      file: "./build/00__web.bundle.js",
-      format: "es",
-    },
-    plugins: [nodeResolve()],
+export default ENTRIES.map((name) => ({
+  input: `./build/${name}.js`,
+  output: {
+    file: `./build/${name}.bundle.js`,
+    format: "es",
   },
-  {
-    input: "./build/01__rsvim.js",
-    output: {
-      file: "./build/01__rsvim.bundle.js",
-      format: "es",
-    },
-    plugins: [nodeResolve()],
-  },
-];
+  plugins: [coreModules, nodeResolve()],
+}));
