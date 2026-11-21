@@ -31,11 +31,11 @@ jobs:
       - uses: extractions/setup-just@v4
       - name: Bundle
         run: |
-          # Use `npm ci` (not `npm install`): it installs strictly from the
-          # lockfile and never rewrites it, so the `git diff --exit-code` below
-          # does not trip over npm-version-specific lockfile normalization
-          # (e.g. npm 10 dropping the `libc` fields written by npm 11).
-          npm ci
+          # No committed lockfile in this repo, so `npm install` here just
+          # resolves devDependencies for the bundle toolchain. package-lock.json
+          # is git-ignored, which keeps npm-version-specific lockfile churn out
+          # of the `git diff --exit-code HEAD` check below.
+          npm install
           npx tsc --version
           echo "show PWD=${PWD}"
           just bundle

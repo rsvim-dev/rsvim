@@ -30,7 +30,7 @@ jobs:
       - uses: crate-ci/typos@master
       - name: Prettier
         run: |
-          npm ci
+          npm install
           npx prettier --version
           echo "show PWD=${PWD}"
           echo "npx prettier --check *.md ./src/*.ts"
