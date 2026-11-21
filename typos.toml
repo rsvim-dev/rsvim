@@ -12,6 +12,10 @@ extend-ignore-words-re = [
 extend-exclude = [
   "CHANGELOG.md",
   "CHANGELOG.md.bak",
+  "JS_RUNTIME_ANALYSIS_DATA.md",
+  "JS_RUNTIME_COMPARISON.md",
+  "JS_RUNTIME_DYNAMIC_IMPORT.md",
+  "JS_RUNTIME_EVENT_LOOPS.md",
   "dev.py",
   "*_tests.rs",
   "tests_and_benchmarks",

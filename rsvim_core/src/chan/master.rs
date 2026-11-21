@@ -4,9 +4,9 @@
 use crate::buf::BufferId;
 use crate::js::TaskId;
 use crate::js::TimerId;
-use crate::js::binding::global_rsvim::fs::mkdir::FsMkdirOptions;
-use crate::js::binding::global_rsvim::fs::open::FsOpenOptions;
-use crate::js::binding::global_rsvim::fs::symlink::FsSymlinkOptions;
+use crate::js::binding::fs::mkdir::FsMkdirOptions;
+use crate::js::binding::fs::open::FsOpenOptions;
+use crate::js::binding::fs::symlink::FsSymlinkOptions;
 use crate::js::resource::ResourceId;
 use crate::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
@@ -20,9 +20,6 @@ pub enum MasterMessage {
 
   /// Js runtime ask master to exit
   ExitReq(ExitReq),
-
-  /// Js runtime ask master to load import
-  LoadImportReq(LoadImportReq),
 
   /// Js runtime ask master to tick loop again.
   TickAgainReq,
@@ -87,12 +84,6 @@ pub struct TimeoutReq {
   pub start_at: Instant,
   pub delay: u32,
   pub repeated: bool,
-}
-
-#[derive(Debug)]
-pub struct LoadImportReq {
-  pub task_id: TaskId,
-  pub specifier: String,
 }
 
 #[derive(Debug)]

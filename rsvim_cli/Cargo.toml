@@ -15,13 +15,9 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = ["icudata", "typescript", "wasm"]
-icudata = ["rsvim_core/icudata"]
+default = []
 jemalloc = ["dep:tikv-jemallocator"]
 mimalloc = ["dep:mimalloc"]
-typescript = ["rsvim_core/typescript"]
-tzdata = ["rsvim_core/tzdata"]
-wasm = ["rsvim_core/wasm"]
 
 [dependencies]
 rsvim_core = { workspace = true }
@@ -59,7 +55,6 @@ rsvim_core = { workspace = true }
 
 foldhash = { workspace = true }
 gix = { workspace = true }
-swc_core = { workspace = true }
 toml = { workspace = true, features = ["fast_hash"] }
 # zstd = { workspace = true }
 

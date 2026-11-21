@@ -1,7 +1,7 @@
 //! Js error.
 
 use crate::js::JsRuntimeState;
-use crate::js::binding::global_rsvim::cmd::send_cmdline_message;
+use crate::js::binding::cmd::send_cmdline_message;
 use crate::prelude::*;
 
 /// Represents an exception coming from V8.

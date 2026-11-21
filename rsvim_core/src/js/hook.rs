@@ -1,18 +1,10 @@
 //! Js runtime hooks: promise, import and import.meta, etc.
 
-use crate::js;
 use crate::js::JsRuntime;
-use crate::js::binding::set_exception_code;
 use crate::js::binding::throw_type_error;
-use crate::js::module::EsModuleFuture;
-use crate::js::module::ModuleGraph;
-use crate::js::module::ModuleStatus;
 use crate::js::module::resolve_import;
-use crate::js::pending;
 use crate::prelude::*;
 use crate::util::paths;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Called during `Module::instantiate_module`, see:
 /// - Rusty V8 API:
@@ -174,122 +166,4 @@ pub extern "C" fn promise_reject_cb(message: v8::PromiseRejectMessage) {
     }
     PromiseRejectAfterResolved | PromiseResolveAfterResolved => {}
   }
-}
-
-// Called when we require the embedder to load a module.
-// https://docs.rs/v8/0.56.1/v8/trait.HostImportModuleDynamicallyCallback.html
-pub fn host_import_module_dynamically_cb<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  _host_defined_options: v8::Local<'s, v8::Data>,
-  base: v8::Local<'s, v8::Value>,
-  specifier: v8::Local<'s, v8::String>,
-  _import_attributes: v8::Local<v8::FixedArray>,
-) -> Option<v8::Local<'s, v8::Promise>> {
-  // Get module base and specifier as strings.
-  let base = base.to_rust_string_lossy(scope);
-  let base = paths::maybe_parent(&base).to_string_lossy();
-  let specifier = specifier.to_rust_string_lossy(scope);
-  trace!(
-    "|host_import_module_dynamically_cb| base:{:?}, specifier:{:?}",
-    base, specifier
-  );
-
-  // Create the import promise.
-  let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
-  let promise = promise_resolver.get_promise(scope);
-
-  let state_rc = JsRuntime::state(scope);
-  let mut state = state_rc.borrow_mut();
-
-  let import_map = state.options.import_map.clone();
-
-  let specifier = match resolve_import(&base, &specifier, import_map) {
-    Ok(specifier) => specifier,
-    Err(e) => {
-      drop(state);
-      trace!("Failed to resolve import {specifier:?}(base:{base:?}): {e:?}");
-      let exception = v8::String::new(scope, &e.to_string()).unwrap();
-      let exception = v8::Exception::error(scope, exception);
-      set_exception_code(scope, exception, &e);
-      promise_resolver.reject(scope, exception);
-      return Some(promise);
-    }
-  };
-
-  let dynamic_import_being_fetched =
-    state.module_map.pending.iter().any(|graph_rc| {
-      *graph_rc.borrow().root_rc().borrow().path() == specifier
-    });
-
-  // Check if the requested dynamic module is already resolved.
-  if state.module_map.contains(&specifier) && !dynamic_import_being_fetched {
-    // Create a local handle for the module.
-    let module = state.module_map.get(&specifier).unwrap();
-    let module = module.open(scope);
-
-    // Note: Since this is a dynamic import will resolve the promise
-    // with the module's namespace object instead of it's evaluation result.
-    promise_resolver.resolve(scope, module.get_module_namespace());
-    return Some(promise);
-  }
-
-  let global_promise = v8::Global::new(scope, promise_resolver);
-
-  if dynamic_import_being_fetched {
-    // Find the graph with the same root that is being resolved
-    // and declare this graph as same origin.
-    state
-      .module_map
-      .pending
-      .iter()
-      .find(|graph_rc| {
-        *graph_rc.borrow().root_rc().borrow().path() == specifier
-      })
-      .unwrap()
-      .borrow_mut()
-      .same_origin_mut()
-      .push(global_promise);
-
-    return Some(promise);
-  }
-
-  let graph = ModuleGraph::dynamic_import(&specifier, global_promise);
-  let graph_rc = Rc::new(RefCell::new(graph));
-  let status = ModuleStatus::Fetching;
-
-  state.module_map.pending.push(Rc::clone(&graph_rc));
-  trace!(
-    "|host_import_module_dynamically_cb| ModuleMap pending {:?}",
-    specifier
-  );
-
-  state.module_map.seen.insert(specifier.clone(), status);
-  trace!(
-    "|host_import_module_dynamically_cb| ModuleMap seen {:?} {:?}",
-    specifier, status
-  );
-
-  // Use the event-loop to asynchronously load the requested module.
-  let loader_cb = {
-    let state_rc = state_rc.clone();
-    let specifier = specifier.clone();
-    move |maybe_result: Option<TheResult<Vec<u8>>>| {
-      let fut = EsModuleFuture {
-        path: specifier.clone(),
-        module: graph_rc.borrow().root_rc(),
-        maybe_result,
-      };
-      let mut state = state_rc.borrow_mut();
-      state.pending_futures.push(Box::new(fut));
-    }
-  };
-  let task_id = js::TaskId::next();
-  pending::create_import_loader(
-    &mut state,
-    task_id,
-    &specifier,
-    Box::new(loader_cb),
-  );
-
-  Some(promise)
 }
