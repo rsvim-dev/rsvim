@@ -17,9 +17,6 @@ target/
 
 # Node/Deno
 node_modules
-# Not committed: npm lockfile contents are npm-version-specific (e.g. npm 11
-# writes `libc` fields that npm 10 strips), which made CI's
-# `git diff --exit-code HEAD` fail on any npm version skew.
 package-lock.json
 
 # TS intermediate build output (tsc -> rollup -> terser)
