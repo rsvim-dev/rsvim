@@ -23,7 +23,7 @@ import { assert } from "es-toolkit/util";
  *
  * @example
  * ```javascript
- * import { buf } from "rsvim:ext/buf";
+ * import buf from "rsvim:buf";
  *
  * const bufId = buf.current();
  * ```
@@ -115,3 +115,5 @@ export namespace buf {
     return __InternalRsvimGlobalObject.buf_write_sync(bufId);
   }
 }
+
+export default buf;

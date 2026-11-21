@@ -58,37 +58,37 @@ pub type ModuleSource = String;
 /// `bundle` recipe in `justfile`. They are embedded into the binary at compile
 /// time, thus no file is needed at runtime.
 ///
-/// The `rsvim:ext` prefix indicates a core module, see [`CoreModuleLoader`].
+/// The `rsvim:` prefix indicates a core module, see [`CoreModuleLoader`].
 ///
 /// [`CoreModuleLoader`]: crate::js::loader::core_loader::CoreModuleLoader
 pub static CORE_MODULES: LazyLock<FoldMap<&'static str, &'static str>> =
   LazyLock::new(|| {
     let modules = vec![
       (
-        "rsvim:ext/buf",
+        "rsvim:buf",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/buf.min.js")),
       ),
       (
-        "rsvim:ext/cmd",
+        "rsvim:cmd",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/cmd.min.js")),
       ),
       (
-        "rsvim:ext/fs",
+        "rsvim:fs",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/fs.min.js")),
       ),
       (
-        "rsvim:ext/opt",
+        "rsvim:opt",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/opt.min.js")),
       ),
       (
-        "rsvim:ext/process",
+        "rsvim:process",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/process.min.js")),
       ),
       (
-        "rsvim:ext/syn",
+        "rsvim:syn",
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/syn.min.js")),
       ),
-      // ("rsvim:ext/infra", include_str!("./runtime/00__infra.js")),
+      // ("rsvim:infra", include_str!("./runtime/00__infra.js")),
       // ("console", include_str!("./js/console.js")),
       // ("events", include_str!("./js/events.js")),
       // ("process", include_str!("./js/process.js")),

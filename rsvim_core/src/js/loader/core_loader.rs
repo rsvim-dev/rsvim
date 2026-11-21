@@ -9,12 +9,12 @@ use crate::prelude::*;
 #[derive(Default)]
 /// For core module loader, its module path is the same with the specifier.
 ///
-/// To indicate core modules, they use a special pattern 'rsvim:ext' as its prefix. For example:
+/// To indicate core modules, they use a special pattern 'rsvim:' as its prefix. For example:
 ///
 /// ```javascript
-/// import { cmd } from "rsvim:ext/cmd";
-/// import { fs } from "rsvim:ext/fs";
-/// import { opt } from "rsvim:ext/opt";
+/// import cmd from "rsvim:cmd";
+/// import fs from "rsvim:fs";
+/// import opt from "rsvim:opt";
 /// ```
 ///
 /// See [`CORE_MODULES`] for the builtin modules actually provided.

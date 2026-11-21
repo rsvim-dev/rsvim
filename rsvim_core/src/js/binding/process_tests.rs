@@ -15,7 +15,7 @@ async fn test_new_command1() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-  import { process } from "rsvim:ext/process";
+  import process from "rsvim:process";
   const cmd1 = new process.Command("ls");
   if (typeof cmd1 !== "object") {{
     throw new Error("cmd1 is not object");
@@ -84,8 +84,8 @@ async fn test_spawn1() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30000))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { process } from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import process from "rsvim:process";
   const cmd1 = new process.Command("ls");
   const child1 = cmd1.spawn();
   cmd.echo(`child1: ${typeof child1}`);
@@ -130,8 +130,8 @@ async fn test_spawn2() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30000))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { process } from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import process from "rsvim:process";
   const cmd2 = new process.Command("ls");
   const child2 = cmd2.spawn();
   const stdout2 = child2.stdout;
@@ -191,8 +191,8 @@ async fn test_spawn3() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30000))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { process } from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import process from "rsvim:process";
   const command = new process.Command("ls");
   const child = command.spawn();
   const stdout3 = child.stdout;
@@ -264,8 +264,8 @@ async fn test_spawn4() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30000))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { process } from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import process from "rsvim:process";
   const child = new process.Command("ls").spawn();
   cmd.echo(`disposed1:${child.isDisposed}`);
   const exitStatus1 = await child.wait();
@@ -328,8 +328,8 @@ async fn test_spawn5() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30000))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { process } from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import process from "rsvim:process";
   const child = new process.Command("ls").spawn();
   {
     await using usedChild = child;
@@ -385,7 +385,7 @@ async fn test_exit1() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-  import { process } from "rsvim:ext/process";
+  import process from "rsvim:process";
   setTimeout(() => {
     process.exit();
   }, 1);
@@ -424,7 +424,7 @@ async fn test_exit2() -> IoResult<()> {
   let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-  import { process } from "rsvim:ext/process";
+  import process from "rsvim:process";
   setTimeout(() => {
     process.exit(-1);
   }, 1);

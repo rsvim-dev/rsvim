@@ -21,3 +21,4 @@ export declare namespace syn {
         injectionRegex?: string;
     };
 }
+export default syn;

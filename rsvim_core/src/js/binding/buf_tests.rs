@@ -23,7 +23,7 @@ mod tests_current1 {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-    import { buf } from "rsvim:ext/buf";
+    import buf from "rsvim:buf";
     const bufId = buf.current();
     if (bufId !== undefined) {
         throw new Error("Current buffer ID is not undefined!");
@@ -71,7 +71,7 @@ mod tests_current1 {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { buf } from "rsvim:ext/buf";
+  import buf from "rsvim:buf";
   setTimeout(() => {
     const buf1 = buf.current();
     if (buf1 === null || buf1 === undefined) {
@@ -141,8 +141,8 @@ mod tests_current1 {
     let f1 = assert_fs::NamedTempFile::new("write_sync1.txt").unwrap();
 
     let src: &str = r#"
-  import { buf } from "rsvim:ext/buf";
-  import { cmd } from "rsvim:ext/cmd";
+  import buf from "rsvim:buf";
+  import cmd from "rsvim:cmd";
   setTimeout(() => {
     const buf1 = buf.current();
     if (typeof buf1 !== "number" || buf1 <= 0) {

@@ -23,7 +23,7 @@ import { assert } from "es-toolkit/util";
  *
  * @example
  * ```javascript
- * import { syn } from "rsvim:ext/syn";
+ * import syn from "rsvim:syn";
  *
  * await syn.loadParser({ grammarPath: "./tree-sitter-c" });
  * ```
@@ -221,3 +221,5 @@ export namespace syn {
     injectionRegex?: string;
   };
 }
+
+export default syn;

@@ -27,7 +27,7 @@ async fn test_open_close1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
+  import fs from "rsvim:fs";
   const f = await fs.open({:?});
   if (f.isDisposed) {{
     throw new Error("It cannot be closed");
@@ -82,7 +82,7 @@ async fn test_open_close2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
+  import fs from "rsvim:fs";
   using f = fs.openSync({:?});
     "#,
     tmpfile.path()
@@ -124,7 +124,7 @@ async fn test_open_close3() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
+  import fs from "rsvim:fs";
   const f = await fs.open({:?}, {{ create: true, write: true }});
   if (f.isDisposed) {{
     throw new Error("It cannot be closed");
@@ -174,7 +174,7 @@ async fn test_open_close4() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
+  import fs from "rsvim:fs";
   const f = fs.openSync({:?}, {{ create: true, write: true }});
   if (f.isDisposed) {{
     throw new Error("It cannot be closed");
@@ -224,8 +224,8 @@ async fn test_open_close_failed1() -> IoResult<()> {
 
   let src = format!(
     r#"
-import {{ cmd }} from "rsvim:ext/cmd";
-import {{ fs }} from "rsvim:ext/fs";
+import cmd from "rsvim:cmd";
+import fs from "rsvim:fs";
 try {{
   const f = await fs.open({:?});
 }} catch (e) {{
@@ -277,8 +277,8 @@ async fn test_open_close_failed2() -> IoResult<()> {
 
   let src = format!(
     r#"
-import {{ cmd }} from "rsvim:ext/cmd";
-import {{ fs }} from "rsvim:ext/fs";
+import cmd from "rsvim:cmd";
+import fs from "rsvim:fs";
 try {{
   const f = fs.openSync({:?});
 }} catch (e) {{
@@ -332,8 +332,8 @@ async fn test_read_write1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   using f = await fs.open({:?});
   const buf1 = new Uint8Array(100);
   const n1 = await f.read(buf1);
@@ -388,8 +388,8 @@ async fn test_read_write2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   using f = fs.openSync({:?});
   const buf1 = new Uint8Array(0);
   const n1 = f.readSync(buf1);
@@ -441,8 +441,8 @@ async fn test_read_write3() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   using f = await fs.open({:?}, {{create:true,write:true}});
   const buf1 = new TextEncoder().encode("Hello World");
   const n1 = await f.write(buf1);
@@ -498,8 +498,8 @@ async fn test_read_write4() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   using f = await fs.open({:?}, {{create:true,write:true}});
   const buf1 = new TextEncoder().encode("Hello World");
   const n1 = f.writeSync(buf1);
@@ -557,8 +557,8 @@ async fn test_read_file1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   const data = await fs.readFile({:?});
   cmd.echo(data);
   cmd.echo(data.byteLength);
@@ -610,8 +610,8 @@ async fn test_read_file2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   const data = fs.readFileSync({:?});
   cmd.echo(data);
   cmd.echo(data.byteLength);
@@ -663,8 +663,8 @@ async fn test_read_text_file1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   const data = await fs.readTextFile({:?});
   cmd.echo(data);
     "#,
@@ -711,8 +711,8 @@ async fn test_read_text_file2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   const data = fs.readTextFileSync({:?});
   cmd.echo(data);
     "#,
@@ -759,9 +759,9 @@ async fn test_fs_stat1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   const fstat = await fs.lstat({:?});
   cmd.echo(`fstat created:${{fstat.created}}, accessed:${{fstat.accessed}}, modified:${{fstat.modified}}, isDir:${{fstat.isDir}}, isFile:${{fstat.isFile}}, isSymlink:${{fstat.isSymlink}}, len:${{fstat.len}}, readOnly:${{fstat.readOnly}}`);
   process.exit();
@@ -812,9 +812,9 @@ async fn test_fs_stat2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   const fstat = await fs.lstat({:?});
   cmd.echo(`fstat fileAttributes:${{fstat.fileAttributes}}, creationTime:${{fstat.creationTime}}, lastAccessTime:${{fstat.lastAccessTime}}, lastWriteTime:${{fstat.lastWriteTime}}, fileSize:${{fstat.fileSize}}`);
   cmd.echo(`fstat dev:${{fstat.dev}}`);
@@ -869,9 +869,9 @@ async fn test_fs_stat3() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   const fstat = await fs.lstat({:?});
   cmd.echo(`fstat dev:${{fstat.dev}}, ino:${{fstat.ino}}, ino:${{fstat.ino}}, mode:${{fstat.mode}}, nlink:${{fstat.nlink}}, uid:${{fstat.uid}}, gid:${{fstat.gid}}, rdev:${{fstat.rdev}}, size:${{fstat.size}}, atime:${{fstat.atime}}, atimeNsec:${{fstat.atimeNsec}}, mtime:${{fstat.mtime}}, mtimeNsec:${{fstat.mtimeNsec}}, ctime:${{fstat.ctime}}, ctimeNsec:${{fstat.ctimeNsec}}, blksize:${{fstat.blksize}}, blocks:${{fstat.blocks}}`);
   cmd.echo(`fstat fileAttributes:${{fstat.fileAttributes}}`);
@@ -928,9 +928,9 @@ async fn test_fs_symlink1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.symlink({:?}, {:?});
   const payload1 = await fs.readTextFile({:?});
   cmd.echo(payload1);
@@ -995,9 +995,9 @@ async fn test_fs_symlink2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.symlink({:?}, {:?}, "file");
   const payload1 = await fs.readTextFile({:?});
   cmd.echo(payload1);
@@ -1062,8 +1062,8 @@ async fn test_fs_symlink3() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.symlink({:?}, {:?});
   fs.symlinkSync({:?}, {:?});
   process.exit();
@@ -1120,9 +1120,9 @@ async fn test_fs_link1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.link({:?}, {:?});
   const payload1 = await fs.readTextFile({:?});
   cmd.echo(payload1);
@@ -1183,8 +1183,8 @@ async fn test_fs_mkdir1() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.mkdir({:?});
   fs.mkdirSync({:?});
   process.exit();
@@ -1230,8 +1230,8 @@ async fn test_fs_mkdir2() -> IoResult<()> {
 
   let src = format!(
     r#"
-  import {{ fs }} from "rsvim:ext/fs";
-  import {{ process }} from "rsvim:ext/process";
+  import fs from "rsvim:fs";
+  import process from "rsvim:process";
   await fs.mkdir({:?}, {{recursive: true, mode: 0o766}});
   fs.mkdirSync({:?}, {{recursive: true, mode: 0o766}});
   process.exit();
@@ -1346,8 +1346,8 @@ async fn test_read_dir1() -> IoResult<()> {
 
   let src = format!(
     r###"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   for (const entry of fs.readDirSync({:?})) {{
     cmd.echo(`name:${{entry.name}},file:${{entry.isFile}},dir:${{entry.isDir}},symlink:${{entry.isSymlink}}`);
   }}
@@ -1403,8 +1403,8 @@ async fn test_read_dir2() -> IoResult<()> {
 
   let src = format!(
     r###"
-  import {{ cmd }} from "rsvim:ext/cmd";
-  import {{ fs }} from "rsvim:ext/fs";
+  import cmd from "rsvim:cmd";
+  import fs from "rsvim:fs";
   for await (const entry of fs.readDir({:?})) {{
     cmd.echo(`name:${{entry.name}},file:${{entry.isFile}},dir:${{entry.isDir}},symlink:${{entry.isSymlink}}`);
   }}

@@ -23,3 +23,4 @@ export declare class Opt {
     set wrap(value: boolean);
 }
 export declare const opt: Opt;
+export default opt;

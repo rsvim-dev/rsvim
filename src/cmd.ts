@@ -26,7 +26,7 @@ import { assert } from "es-toolkit/util";
  *
  * @example
  * ```javascript
- * import { cmd } from "rsvim:ext/cmd";
+ * import cmd from "rsvim:cmd";
  *
  * cmd.echo("Hello, rsvim!");
  * ```
@@ -51,8 +51,8 @@ export namespace cmd {
    *
    * @example
    * ```javascript
-   * import { buf } from "rsvim:ext/buf";
-   * import { fs } from "rsvim:ext/fs";
+   * import buf from "rsvim:buf";
+   * import fs from "rsvim:fs";
    *
    * async function write(ctx: cmd.CommandContext): void {
    *   try {
@@ -325,3 +325,5 @@ export namespace cmd {
     currentWindowId: number;
   };
 }
+
+export default cmd;

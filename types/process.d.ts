@@ -40,3 +40,4 @@ export declare namespace process {
     };
     function exit(exitCode?: number): void;
 }
+export default process;

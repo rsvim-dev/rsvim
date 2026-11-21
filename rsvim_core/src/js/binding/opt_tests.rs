@@ -20,7 +20,7 @@ mod tests_wrap {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const val1 = opt.wrap;
   opt.wrap = false;
     "#;
@@ -70,7 +70,7 @@ mod tests_tab_stop {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const v1 = opt.tabStop;
   opt.tabStop = 4;
     "#;
@@ -118,7 +118,7 @@ mod tests_tab_stop {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.tabStop = -1;
     "#;
 
@@ -165,7 +165,7 @@ mod tests_tab_stop {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.tabStop = undefined;
     "#;
 
@@ -224,7 +224,7 @@ mod tests_file_encoding {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const v2 = opt.fileEncoding;
   opt.fileEncoding = "utf-8";
     "#;
@@ -279,7 +279,7 @@ mod tests_file_encoding {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.fileEncoding = "utf-16";
     "#;
 
@@ -334,7 +334,7 @@ mod tests_file_format {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const v3 = opt.fileFormat;
   opt.fileFormat = "mac";
     "#;
@@ -386,7 +386,7 @@ mod tests_file_format {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.fileFormat = "CRLF";
     "#;
 
@@ -441,7 +441,7 @@ mod tests_fix_end_of_line {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const v3 = opt.fixEndOfLine;
   opt.fixEndOfLine = false;
     "#;
@@ -489,7 +489,7 @@ mod tests_fix_end_of_line {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.fixEndOfLine = "LF";
     "#;
 
@@ -544,7 +544,7 @@ mod tests_expand_tab {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const value = opt.expandTab;
   opt.expandTab = true;
     "#;
@@ -592,7 +592,7 @@ mod tests_expand_tab {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.expandTab = null;
     "#;
 
@@ -647,7 +647,7 @@ mod tests_shift_width {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const value = opt.shiftWidth;
   opt.shiftWidth = 4;
     "#;
@@ -695,7 +695,7 @@ mod tests_shift_width {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.shiftWidth = 10000;
     "#;
 
@@ -742,7 +742,7 @@ mod tests_shift_width {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.shiftWidth = 1.123;
     "#;
 
@@ -807,7 +807,7 @@ mod tests_syntax_parser_lib_path {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   const value = opt.syntaxParserLibPath;
   opt.syntaxParserLibPath = ".";
     "#;
@@ -853,7 +853,7 @@ mod tests_syntax_parser_lib_path {
     let mocked_ops = vec![MockOperation::SleepFor(Duration::from_millis(30))];
 
     let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   opt.syntaxParserLibPath = 1.123;
     "#;
 

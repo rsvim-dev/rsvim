@@ -16,10 +16,10 @@ async fn test_load1() -> IoResult<()> {
 
   // The runtime path is "./rsvim_core", so we need to prepend ".." for it.
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
-  import { process } from "rsvim:ext/process";
-  import { syn } from "rsvim:ext/syn";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
+  import process from "rsvim:process";
+  import syn from "rsvim:syn";
   opt.syntaxParserLibPath = ".test-tree-sitter-parsers";
   try {
     const parsers = await syn.loadParser({ grammarPath: "../tests_and_benchmarks/tree-sitter-c" });
@@ -69,10 +69,10 @@ async fn test_load_sync1() -> IoResult<()> {
 
   // The runtime path is "./rsvim_core", so we need to prepend ".." for it.
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
-  import { process } from "rsvim:ext/process";
-  import { syn } from "rsvim:ext/syn";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
+  import process from "rsvim:process";
+  import syn from "rsvim:syn";
   opt.syntaxParserLibPath = ".test-tree-sitter-parsers";
   try {
     const parsers = syn.loadParserSync({ grammarPath: "../tests_and_benchmarks/tree-sitter-python" });
@@ -126,10 +126,10 @@ async fn test_list1() -> IoResult<()> {
 
   // The runtime path is "./rsvim_core", so we need to prepend ".." for it.
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
-  import { process } from "rsvim:ext/process";
-  import { syn } from "rsvim:ext/syn";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
+  import process from "rsvim:process";
+  import syn from "rsvim:syn";
   opt.syntaxParserLibPath = ".test-tree-sitter-parsers";
   try {
     const parsers = syn.loadParserSync({ grammarPath: "../tests_and_benchmarks/tree-sitter-python" });
@@ -189,10 +189,10 @@ async fn test_get_metadata1() -> IoResult<()> {
 
   // The runtime path is "./rsvim_core", so we need to prepend ".." for it.
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
-  import { process } from "rsvim:ext/process";
-  import { syn } from "rsvim:ext/syn";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
+  import process from "rsvim:process";
+  import syn from "rsvim:syn";
   opt.syntaxParserLibPath = ".test-tree-sitter-parsers";
   try {
     const meta = syn.getParserMetadata("c");

@@ -26,7 +26,7 @@ import { assert } from "es-toolkit/util";
  *
  * @example
  * ```javascript
- * import { process } from "rsvim:ext/process";
+ * import process from "rsvim:process";
  *
  * const child = new process.Command("ls");
  * ```
@@ -421,7 +421,7 @@ export namespace process {
    *
    * @example
    * ```javascript
-   * import { process } from "rsvim:ext/process";
+   * import process from "rsvim:process";
    *
    * // Exit with default exit code `0`.
    * process.exit();
@@ -444,3 +444,5 @@ export namespace process {
     __InternalRsvimGlobalObject.process_exit(exitCode);
   }
 }
+
+export default process;

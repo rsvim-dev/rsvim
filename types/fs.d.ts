@@ -79,3 +79,4 @@ export declare namespace fs {
         mode?: number;
     };
 }
+export default fs;

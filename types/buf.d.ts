@@ -3,3 +3,4 @@ export declare namespace buf {
     function list(): number[];
     function writeSync(bufId: number): number;
 }
+export default buf;

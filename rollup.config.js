@@ -10,8 +10,8 @@
 // therefore be inlined into the bundle, which is what `node-resolve` does.
 //
 // Every builtin module is bundled separately, because the runtime loads each of
-// them as a standalone v8 module. The imports between the builtin extension
-// modules are rewritten to the `rsvim:ext/<name>` scheme and kept external, so
+// them as a standalone v8 module. The imports between the builtin modules are
+// rewritten to the `rsvim:<name>` scheme and kept external, so
 // they are resolved by the runtime's core module loader instead of being
 // inlined, see `rsvim_core/src/js/loader/core_loader.rs`.
 //
@@ -27,7 +27,7 @@ const ENTRIES = ["00__web", ...CORE_MODULES];
 
 const moduleName = (id) => id.split("/").pop().replace(/\.js$/, "");
 
-// Rewrites imports between builtin modules to the `rsvim:ext/<name>` scheme.
+// Rewrites imports between builtin modules to the `rsvim:<name>` scheme.
 const coreModules = {
   name: "core-modules",
   resolveId(source, importer) {
@@ -39,7 +39,7 @@ const coreModules = {
     if (!CORE_MODULES.includes(name)) {
       return null;
     }
-    return { id: `rsvim:ext/${name}`, external: true };
+    return { id: `rsvim:${name}`, external: true };
   },
 };
 

@@ -25,7 +25,7 @@ import { assert } from "es-toolkit/util";
  *
  * @example
  * ```javascript
- * import { fs } from "rsvim:ext/fs";
+ * import fs from "rsvim:fs";
  *
  * const file = await fs.open("README.md");
  * ```
@@ -1181,3 +1181,5 @@ export namespace fs {
     mode?: number;
   };
 }
+
+export default fs;

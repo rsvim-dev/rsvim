@@ -15,7 +15,7 @@ async fn test_timeout1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
     opt.wrap = false;
@@ -64,7 +64,7 @@ async fn test_timeout2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(20))];
   let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
     opt.wrap = false;
@@ -116,8 +116,8 @@ async fn test_timeout3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
   // Set timeout to update global options.
   const timerId = setTimeout((arg1, arg2, arg3) => {
     cmd.echo(arg1);
@@ -186,8 +186,8 @@ async fn test_timeout4() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(20))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
-  import { opt } from "rsvim:ext/opt";
+  import cmd from "rsvim:cmd";
+  import opt from "rsvim:opt";
   // Set timeout to update global options.
   const timerId = setTimeout((arg1, arg2, arg3) => {
     opt.wrap = false;
@@ -245,7 +245,7 @@ async fn test_timeout5() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { opt } from "rsvim:ext/opt";
+  import opt from "rsvim:opt";
   // Set timeout to update global options.
   const timerId = setTimeout(() => {
     opt.wrap = false;
@@ -294,7 +294,7 @@ async fn test_interval1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   var a = 1;
   var timerId;
   timerId = setInterval(() => {
@@ -343,7 +343,7 @@ async fn test_interval2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   var n = 0;
   const timerId = setInterval(() => {
     cmd.echo("a");
@@ -400,7 +400,7 @@ async fn test_interval3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   var n = 0;
   const timerId = setInterval(() => {
     cmd.echo("a");
@@ -457,7 +457,7 @@ async fn test_timeout6() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   // A fractional delay must be truncated into an integer, otherwise the rust
   // side hits a `debug_assert!(is_v8_int!(...))` and panics in debug builds.
   setTimeout(() => {

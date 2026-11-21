@@ -51,7 +51,7 @@ export namespace opt {
  *
  * @example
  * ```javascript
- * import { opt } from "rsvim:ext/opt";
+ * import opt from "rsvim:opt";
  *
  * opt.wrap = true;
  * ```
@@ -506,7 +506,7 @@ export class Opt {
  *
  * @example
  * ```javascript
- * import { opt } from "rsvim:ext/opt";
+ * import opt from "rsvim:opt";
  *
  * opt.wrap = true;
  * ```
@@ -514,3 +514,5 @@ export class Opt {
  * @category Editor APIs
  */
 export const opt = new Opt();
+
+export default opt;

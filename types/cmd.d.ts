@@ -26,3 +26,4 @@ export declare namespace cmd {
         currentWindowId: number;
     };
 }
+export default cmd;

@@ -19,7 +19,7 @@ async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-    import { cmd } from "rsvim:ext/cmd";
+    import cmd from "rsvim:cmd";
     cmd.echo();
     "#;
 
@@ -65,7 +65,7 @@ async fn test_echo2_should_panic_with_null_param() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-    import { cmd } from "rsvim:ext/cmd";
+    import cmd from "rsvim:cmd";
     cmd.echo(null);
     "#;
 
@@ -108,7 +108,7 @@ async fn test_echo3() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-    import { cmd } from "rsvim:ext/cmd";
+    import cmd from "rsvim:cmd";
     cmd.echo("");
     cmd.echo("Test echo");
     cmd.echo(123);
@@ -159,7 +159,7 @@ async fn test_echo4() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(30))];
 
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   setTimeout(() => {
     cmd.echo("");
     cmd.echo("Test echo");
@@ -208,8 +208,8 @@ async fn test_create1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { buf } from "rsvim:ext/buf";
-import { cmd } from "rsvim:ext/cmd";
+import buf from "rsvim:buf";
+import cmd from "rsvim:cmd";
 function write() {
   try {
     const bufId = cmd.current();
@@ -274,7 +274,7 @@ async fn test_recreate1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 setTimeout(() => {
   const prev1 = cmd.create("write", () => {cmd.echo(1); return 1;});
   cmd.echo(`Previous-1 command:${prev1}`);
@@ -346,7 +346,7 @@ async fn test_recreate2() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 setTimeout(() => {
   const prev1 = cmd.create("write", () => {cmd.echo(1); return 1;}, {alias:"w"}, {force:false});
   cmd.echo(`Previous-1 command:${prev1}`);
@@ -411,7 +411,7 @@ async fn test_recreate_failed1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 setTimeout(() => {
   try {
     const prev1 = cmd.create("write", () => {cmd.echo(1); return 1;}, {}, {force:false, alias:"w"});
@@ -481,7 +481,7 @@ async fn test_recreate_failed2() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 setTimeout(() => {
   try {
     const prev1 = cmd.create("write", () => {cmd.echo(1); return 1;}, {}, {force:false,alias:"w"});
@@ -551,7 +551,7 @@ async fn test_list1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 cmd.create("write", () => {});
 cmd.list().forEach((name) => {
   cmd.echo(`name:${name}`);
@@ -614,7 +614,7 @@ async fn test_get1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 cmd.create("write", () => {});
 const def = cmd.get("write");
 cmd.echo(`name:${def.name}`);
@@ -676,7 +676,7 @@ async fn test_get_failed1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 cmd.create("write", () => {});
 const def = cmd.get("w");
 cmd.echo(`name:${def}`);
@@ -738,7 +738,7 @@ async fn test_remove1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 cmd.create("write", () => {});
 const prev = cmd.remove("write");
 cmd.echo(prev.name);
@@ -787,7 +787,7 @@ async fn test_remove2() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 cmd.create("write", () => {});
 const prev = cmd.remove("w");
 cmd.echo(`${prev}`);
@@ -845,7 +845,7 @@ async fn test_create_failed1() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create(1, () => {});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -892,7 +892,7 @@ async fn test_create_failed2() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("0", () => {});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -939,7 +939,7 @@ async fn test_create_failed3() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("$abc", () => {});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -986,7 +986,7 @@ async fn test_create_failed4() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", 123);
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1035,7 +1035,7 @@ async fn test_create_failed5() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, {bang:1});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1085,7 +1085,7 @@ async fn test_create_failed6() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, {nargs:"a"});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1134,7 +1134,7 @@ async fn test_create_failed7() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, "a");
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1183,7 +1183,7 @@ async fn test_create_failed8() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, undefined, 1);
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1232,7 +1232,7 @@ async fn test_create_failed9() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, undefined, {force:"b"});
 cmd.echo(`Previous command:${prev}`);
     "#;
@@ -1282,7 +1282,7 @@ async fn test_create_failed10() -> IoResult<()> {
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
 
   let src: &str = r#"
-import { cmd } from "rsvim:ext/cmd";
+import cmd from "rsvim:cmd";
 const prev = cmd.create("abc", () => {}, undefined, {alias:1});
 cmd.echo(`Previous command:${prev}`);
     "#;

@@ -147,7 +147,7 @@ export class TextDecoder {
    *
    * @example
    * ```javascript
-   * import { cmd } from "rsvim:ext/cmd";
+   * import cmd from "rsvim:cmd";
    *
    * const bytes = new Uint8Array([
    *   0xf0, 0x9d, 0x93, 0xbd,

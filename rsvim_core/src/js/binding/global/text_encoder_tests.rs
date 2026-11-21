@@ -14,7 +14,7 @@ async fn test_encode1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -66,7 +66,7 @@ async fn test_encode2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -116,7 +116,7 @@ async fn test_encode3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const encoder = new TextEncoder();
   const s1 = "This is some data";
   const s2 = "你好，世界！";
@@ -166,7 +166,7 @@ async fn test_decode1() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const s1 = "This is some data";
   const s2 = "你好，世界！";
   const encoder = new TextEncoder();
@@ -232,7 +232,7 @@ async fn test_decode2() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const s1 = "This is some data";
   const s2 = "你好，世界！";
   const encoder = new TextEncoder();
@@ -298,7 +298,7 @@ async fn test_decode3() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const fixture = new Uint8Array([
     0xf0, 0x9d, 0x93, 0xbd,
     0xf0, 0x9d, 0x93, 0xae,
@@ -343,7 +343,7 @@ async fn test_decode4() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const fixture1 = new Uint8Array([
     0xf0, 0x9d, 0x93, 0xbd,
   ]);
@@ -396,7 +396,7 @@ async fn test_decode5() -> IoResult<()> {
 
   let mocked_events = vec![MockEvent::SleepFor(Duration::from_millis(50))];
   let src: &str = r#"
-  import { cmd } from "rsvim:ext/cmd";
+  import cmd from "rsvim:cmd";
   const fixture = new Uint8Array([0x89, 0x95, 0x9f, 0xbf]);
   const decoder = new TextDecoder("ascii");
   if (decoder.decode(fixture) !== "‰•Ÿ¿") {

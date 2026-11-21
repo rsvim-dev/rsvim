@@ -21,8 +21,7 @@ async fn test_js_echo1() -> IoResult<()> {
     MockOperation::Operation(Operation::GotoCmdlineExMode),
     MockOperation::Operation(Operation::CursorInsert(
       CursorInsertPayload::Text(
-        r#"js import { cmd } from "rsvim:ext/cmd"; cmd.echo(1);"#
-          .to_compact_string(),
+        r#"js import cmd from "rsvim:cmd"; cmd.echo(1);"#.to_compact_string(),
       ),
     )),
     MockOperation::Operation(Operation::ConfirmExCommandAndGotoNormalMode),
@@ -154,8 +153,8 @@ async fn test_buf_write1() -> IoResult<()> {
   ];
 
   let src: &str = r#"
-import { buf } from "rsvim:ext/buf";
-import { cmd } from "rsvim:ext/cmd";
+import buf from "rsvim:buf";
+import cmd from "rsvim:cmd";
 function write(ctx) {
   const bufId = buf.current();
   try {
@@ -216,8 +215,8 @@ async fn test_buf_write2() -> IoResult<()> {
   ];
 
   let src: &str = r#"
-import { buf } from "rsvim:ext/buf";
-import { cmd } from "rsvim:ext/cmd";
+import buf from "rsvim:buf";
+import cmd from "rsvim:cmd";
 function write(ctx) {
   const bufId = ctx.currentBufferId;
   try {
@@ -278,8 +277,8 @@ async fn test_buf_write_failed1() -> IoResult<()> {
   ];
 
   let src: &str = r#"
-import { buf } from "rsvim:ext/buf";
-import { cmd } from "rsvim:ext/cmd";
+import buf from "rsvim:buf";
+import cmd from "rsvim:cmd";
 function write() {
   const bufId = buf.current();
   try {
@@ -343,8 +342,8 @@ async fn test_async_command() -> IoResult<()> {
 
   let src = format!(
     r#"
-import {{ cmd }} from "rsvim:ext/cmd";
-import {{ fs }} from "rsvim:ext/fs";
+import cmd from "rsvim:cmd";
+import fs from "rsvim:fs";
 async function msg() {{
   try {{
     const f = await fs.open({:?});
