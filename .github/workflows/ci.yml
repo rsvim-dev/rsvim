@@ -31,11 +31,7 @@ jobs:
       - uses: extractions/setup-just@v4
       - name: Bundle
         run: |
-          # No committed lockfile in this repo, so `npm install` here just
-          # resolves devDependencies for the bundle toolchain. package-lock.json
-          # is git-ignored, which keeps npm-version-specific lockfile churn out
-          # of the `git diff --exit-code HEAD` check below.
-          npm install
+          npm i
           npx tsc --version
           echo "show PWD=${PWD}"
           just bundle
