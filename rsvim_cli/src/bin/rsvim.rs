@@ -16,16 +16,12 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 use clap::Parser;
 use rsvim_core::cli::CliOptions;
 use rsvim_core::evloop::EventLoop;
-use rsvim_core::js::SnapshotData;
 use rsvim_core::log;
 use rsvim_core::prelude::*;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use tokio::time::Instant;
-
-const RSVIM_SNAPSHOT: &[u8] =
-  include_bytes!(concat!(env!("OUT_DIR"), "/RSVIM_SNAPSHOT.BIN"));
 
 static RSVIM_VERSION: LazyLock<String> = LazyLock::new(|| {
   let version_tags =
@@ -55,34 +51,15 @@ static RSVIM_VERSION: LazyLock<String> = LazyLock::new(|| {
     version_tags["profile"],
     version_tags["host"]
   );
-  let (features, typescript_enabled) = {
-    (
-      format!(
-        "features: {}typescript {}wasm {}icudata {}tzdata {}jemalloc {}mimalloc",
-        if cfg!(feature = "typescript") {
-          "+"
-        } else {
-          "-"
-        },
-        if cfg!(feature = "wasm") { "+" } else { "-" },
-        if cfg!(feature = "icudata") { "+" } else { "-" },
-        if cfg!(feature = "tzdata") { "+" } else { "-" },
-        if cfg!(feature = "jemalloc") { "+" } else { "-" },
-        if cfg!(feature = "mimalloc") { "+" } else { "-" },
-      ),
-      cfg!(feature = "typescript"),
-    )
+  let features = if cfg!(feature = "jemalloc") {
+    "features: +jemalloc\n"
+  } else if cfg!(feature = "mimalloc") {
+    "features: +mimalloc\n"
+  } else {
+    ""
   };
   let v8_version = format!("v8 {}", version_tags["v8"]);
-  if typescript_enabled {
-    let swc_core_version = format!("swc_core {}", version_tags["swc_core"]);
-    format!(
-      "{}\n{}\n{}\n{}",
-      binary_version, v8_version, swc_core_version, features
-    )
-  } else {
-    format!("{}\n{}\n{}", binary_version, features, v8_version)
-  }
+  format!("{}\n{}{}", binary_version, features, v8_version)
 });
 
 fn main() -> IoResult<()> {
@@ -107,12 +84,8 @@ fn main() -> IoResult<()> {
   let rt = tokio::runtime::Runtime::new()?;
   rt.block_on(async {
     // Create event loop.
-    let mut event_loop = EventLoop::new(
-      startup_moment,
-      startup_unix_epoch,
-      cli_opts,
-      SnapshotData::new(RSVIM_SNAPSHOT),
-    )?;
+    let mut event_loop =
+      EventLoop::new(startup_moment, startup_unix_epoch, cli_opts)?;
 
     // Initialize.
     event_loop.initialize()?;

@@ -9,16 +9,15 @@ use crate::prelude::*;
 #[derive(Default)]
 /// For core module loader, its module path is the same with the specifier.
 ///
-/// To indicate core modules, they use a special pattern 'rsvim:ext' as its prefix. For example:
+/// To indicate core modules, they use a special pattern 'rsvim:' as its prefix. For example:
 ///
 /// ```javascript
-/// const net = import "rsvim:ext/net";
-/// const fs = import "rsvim:ext/fs";
-/// const process = import "rsvim:ext/process";
+/// import cmd from "rsvim:cmd";
+/// import fs from "rsvim:fs";
+/// import opt from "rsvim:opt";
 /// ```
 ///
-/// But these are just some examples (to show how core module specifiers are different from other
-/// modules). For now we don't support any core modules.
+/// See [`CORE_MODULES`] for the builtin modules actually provided.
 pub struct CoreModuleLoader;
 
 impl ModuleLoader for CoreModuleLoader {

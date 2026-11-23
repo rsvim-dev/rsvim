@@ -10,9 +10,7 @@ mod fs_loader_tests;
 use crate::js::module::ModulePath;
 use crate::js::module::ModuleSource;
 use crate::prelude::*;
-use async_trait::async_trait;
 pub use core_loader::CoreModuleLoader;
-pub use fs_loader::AsyncFsModuleLoader;
 pub use fs_loader::FsModuleLoader;
 
 /// Module loader.
@@ -39,13 +37,4 @@ pub trait ModuleLoader {
   /// For url module loader, it will first download the resource to local filesystem as local file
   /// cache, then read the cache contents and return as module source code.
   fn load(&self, module_path: &str) -> TheResult<ModuleSource>;
-}
-
-#[async_trait]
-/// Async [`ModuleLoader`].
-///
-/// NOTE: This is only allow to use in event loop, i.e. with tokio runtime, not
-/// in js runtime.
-pub trait AsyncModuleLoader {
-  async fn load(&self, module_path: &str) -> TheResult<ModuleSource>;
 }

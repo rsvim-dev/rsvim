@@ -17,6 +17,10 @@ target/
 
 # Node/Deno
 node_modules
+package-lock.json
+
+# TS intermediate build output (tsc -> rollup -> terser)
+build/
 
 # Generated Typedoc
 generated-typedocs

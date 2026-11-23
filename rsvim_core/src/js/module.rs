@@ -27,7 +27,6 @@
 //! source can be evaluated by js engine. But in ECMAScript standards, there are also many other
 //! kinds of sources: `json`/`json5`, `wasm`, etc.
 
-pub mod es_module;
 pub mod import_map;
 pub mod module_map;
 
@@ -36,8 +35,6 @@ mod module_map_tests;
 
 use crate::js::JsRuntime;
 use crate::js::binding;
-use crate::js::loader::AsyncFsModuleLoader;
-use crate::js::loader::AsyncModuleLoader;
 use crate::js::loader::CoreModuleLoader;
 use crate::js::loader::FsModuleLoader;
 use crate::js::loader::ModuleLoader;
@@ -45,7 +42,6 @@ use crate::prelude::*;
 use crate::util::paths;
 use std::sync::LazyLock;
 // use url::Url;
-pub use es_module::*;
 pub use import_map::*;
 pub use module_map::*;
 
@@ -55,31 +51,44 @@ pub type ModulePath = String;
 /// Module source code.
 pub type ModuleSource = String;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Module import status.
+/// Builtin modules, maps from the module specifier to its source code.
 ///
-/// NOTE: All modules (plugins/packages) will be local files on user's operating system, no
-/// network/http modules will be fetching. The only one use case of `Resolving` status should be
-/// dynamically import and its `Promise`.
-pub enum ModuleStatus {
-  // Indicates the module **itself** is fetching.
-  Fetching,
-
-  // Indicates the module dependencies are resolving, i.e.
-  // fetching/loading/compiling/etc.
-  Resolving,
-
-  // Indicates the module has been seen before.
-  Duplicate,
-
-  // Indicates the module include all its dependencies is resolved.
-  Ready,
-}
-
+/// These modules are compiled by `tsc` and bundled by `rollup`, see
+/// `rollup.config.js`, then minified by `terser` into `./js/*.min.js`, see the
+/// `bundle` recipe in `justfile`. They are embedded into the binary at compile
+/// time, thus no file is needed at runtime.
+///
+/// The `rsvim:` prefix indicates a core module, see [`CoreModuleLoader`].
+///
+/// [`CoreModuleLoader`]: crate::js::loader::core_loader::CoreModuleLoader
 pub static CORE_MODULES: LazyLock<FoldMap<&'static str, &'static str>> =
   LazyLock::new(|| {
     let modules = vec![
-      // ("rsvim:ext/infra", include_str!("./runtime/00__infra.js")),
+      (
+        "rsvim:buf",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/buf.min.js")),
+      ),
+      (
+        "rsvim:cmd",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/cmd.min.js")),
+      ),
+      (
+        "rsvim:fs",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/fs.min.js")),
+      ),
+      (
+        "rsvim:opt",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/opt.min.js")),
+      ),
+      (
+        "rsvim:process",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/process.min.js")),
+      ),
+      (
+        "rsvim:syn",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/syn.min.js")),
+      ),
+      // ("rsvim:infra", include_str!("./runtime/00__infra.js")),
       // ("console", include_str!("./js/console.js")),
       // ("events", include_str!("./js/events.js")),
       // ("process", include_str!("./js/process.js")),
@@ -192,29 +201,14 @@ pub fn load_import(
   // // Load module.
   // loader.load(specifier)
 
-  // We don't actually have core modules
+  // Choose a loader by the specifier, core modules are provided by the
+  // `CoreModuleLoader` while the others are loaded from the local filesystem.
   let loader: &dyn ModuleLoader = _choose_module_loader(specifier);
 
   loader.load(specifier)
 }
 
-/// Async [`load_import`].
-///
-/// NOTE: This is only allow to use in event loop, i.e. with tokio runtime, not
-/// in js runtime.
-pub async fn async_load_import(
-  specifier: &str,
-  _skip_cache: bool,
-) -> TheResult<ModuleSource> {
-  static ASYNC_FS_MODULE_LOADER: AsyncFsModuleLoader = AsyncFsModuleLoader {};
-
-  let loader: &dyn AsyncModuleLoader = &ASYNC_FS_MODULE_LOADER;
-  loader.load(specifier).await
-}
-
 /// Resolves module imports without dependency.
-///
-/// TODO: Support dependencies resolving for custom snapshot.
 pub fn fetch_module<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   filename: &str,
@@ -228,16 +222,6 @@ pub fn fetch_module<'s>(
     Some(source) => source.into(),
     None => load_import(filename, true).unwrap(),
   };
-
-  // if cfg!(debug_assertions) {
-  //   const MAX_SRC_LEN: usize = 100;
-  //   let src = if source.as_str().len() > MAX_SRC_LEN {
-  //     String::from(&source.as_str()[..MAX_SRC_LEN]) + "..."
-  //   } else {
-  //     String::from(source.as_str())
-  //   };
-  //   trace!("Fetch module, filename:{:?}, source:{:?}", filename, src);
-  // }
 
   let source = v8::String::new(scope, &source).unwrap();
   let mut source = v8::script_compiler::Source::new(source, Some(&origin));
@@ -268,15 +252,6 @@ pub fn fetch_module_tree<'s>(
   {
     let mut state = state_rc.borrow_mut();
     state.module_map.insert(filename, module_id, module_ref);
-    state
-      .module_map
-      .seen
-      .insert(filename.into(), ModuleStatus::Ready);
-    trace!(
-      "|fetch_module_tree| ModuleMap seen {:?} {:?}",
-      filename,
-      ModuleStatus::Ready
-    );
   }
 
   let requests = module.get_module_requests();

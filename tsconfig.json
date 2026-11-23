@@ -18,9 +18,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noUncheckedIndexedAccess": false,
-    "outDir": "./rsvim_core/src/js/runtime/",
-    "removeComments": false,
-    "rootDir": "./runtime/",
+    "outDir": "./build/",
+    "removeComments": true,
+    "rootDir": "./src/",
     "strict": true,
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
@@ -31,6 +31,6 @@
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["./runtime/*.ts"],
+  "include": ["./src/*.ts"],
   "exclude": ["./target/**/*.js"]
 }

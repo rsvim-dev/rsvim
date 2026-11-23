@@ -5,9 +5,9 @@ use crate::chan::MasterMessage;
 use crate::js::JsRuntimeState;
 use crate::js::TaskId;
 use crate::js::TimerId;
-use crate::js::binding::global_rsvim::fs::mkdir::FsMkdirOptions;
-use crate::js::binding::global_rsvim::fs::open::FsOpenOptions;
-use crate::js::binding::global_rsvim::fs::symlink::FsSymlinkOptions;
+use crate::js::binding::fs::mkdir::FsMkdirOptions;
+use crate::js::binding::fs::open::FsOpenOptions;
+use crate::js::binding::fs::symlink::FsSymlinkOptions;
 use crate::js::resource::ResourceId;
 use crate::prelude::*;
 use tokio::time::Instant;
@@ -40,22 +40,6 @@ pub fn remove_timer(
   timer_id: TimerId,
 ) -> Option<TimerId> {
   state.pending_timers.remove(&timer_id).map(|_| timer_id)
-}
-
-pub fn create_import_loader(
-  state: &mut JsRuntimeState,
-  task_id: TaskId,
-  specifier: &str,
-  cb: TaskCallback,
-) {
-  state.pending_import_loaders.insert(task_id, cb);
-  chan::send_to_master(
-    state.master_tx.clone(),
-    MasterMessage::LoadImportReq(chan::LoadImportReq {
-      task_id,
-      specifier: specifier.to_string(),
-    }),
-  );
 }
 
 pub fn create_fs_open(

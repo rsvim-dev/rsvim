@@ -1,16 +1,10 @@
 //! Fs (filesystem) module loader.
 
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::js::loader::AsyncModuleLoader;
 use crate::js::loader::ModuleLoader;
 use crate::js::module::ModulePath;
 use crate::js::module::ModuleSource;
-#[cfg(feature = "typescript")]
-use crate::js::transpiler::TypeScript;
-#[cfg(feature = "wasm")]
-use crate::js::transpiler::Wasm;
 use crate::prelude::*;
-use async_trait::async_trait;
 use oxc_resolver::ResolveOptions;
 use oxc_resolver::Resolver;
 
@@ -62,41 +56,6 @@ mod sync_load {
   }
 }
 
-mod async_load {
-  use super::*;
-
-  pub async fn async_load_source(path: &Path) -> TheResult<ModuleSource> {
-    match tokio::fs::read_to_string(path).await {
-      Ok(source) => {
-        let source = if is_json_import(path) {
-          wrap_json(source.as_str())
-        } else {
-          source
-        };
-        Ok(source)
-      }
-      Err(e) => Err(TheErr::LoadModuleFailed(
-        path.to_string_lossy().to_string(),
-        e,
-      )),
-    }
-  }
-
-  pub async fn async_load_as_file(
-    path: &Path,
-  ) -> TheResult<(PathBuf, ModuleSource)> {
-    // If path is a file.
-    if path.is_file() {
-      return match async_load_source(path).await {
-        Ok(source) => Ok((path.to_path_buf(), source)),
-        Err(e) => Err(e),
-      };
-    }
-
-    Err(TheErr::ModuleNotFound(path.to_string_lossy().to_string()))
-  }
-}
-
 #[allow(dead_code)]
 #[derive(Default)]
 /// Fs (filesystem) module loader.
@@ -106,20 +65,8 @@ pub struct FsModuleLoader {
 
 fn create_resolve_opts() -> ResolveOptions {
   ResolveOptions {
-    extensions: vec![
-      ".js".into(),
-      ".ts".into(),
-      ".mjs".into(),
-      ".json".into(),
-      ".wasm".into(),
-    ],
-    extension_alias: vec![
-      (".js".into(), vec![".js".into()]),
-      (".mjs".into(), vec![".mjs".into()]),
-      (".ts".into(), vec![".ts".into()]),
-      (".json".into(), vec![".json".into()]),
-      (".wasm".into(), vec![".wasm".into()]),
-    ],
+    extensions: vec![".js".into()],
+    extension_alias: vec![(".js".into(), vec![".js".into()])],
     modules: vec![
       PATH_CONFIG.config_home().to_string_lossy().to_string(),
       PATH_CONFIG
@@ -189,74 +136,7 @@ impl ModuleLoader for FsModuleLoader {
   fn load(&self, specifier: &str) -> TheResult<ModuleSource> {
     // Load source.
     let path = Path::new(specifier);
-    let maybe_source = sync_load::load_as_file(path);
-
-    let (path, source) = match maybe_source {
-      Ok((path, source)) => (path, source),
-      Err(e) => return Err(e),
-    };
-
-    let path_extension =
-      path.extension().unwrap().to_string_lossy().to_string();
-
-    // Use a preprocessor if necessary.
-    match path_extension.as_str() {
-      #[cfg(feature = "wasm")]
-      "wasm" => Ok(Wasm::parse(&source)),
-      #[cfg(feature = "typescript")]
-      "ts" => {
-        let fname = path.to_str();
-        TypeScript::compile(fname, &source)
-      }
-      // "jsx" => {
-      //   Jsx::compile(fname, &source).map_err(|e| JsRuntimeErr::Message(e.to_string()).into())
-      // }
-      // "tsx" => Jsx::compile(fname, &source)
-      //   .and_then(|output| TypeScript::compile(fname, &output))
-      //   .map_err(|e| JsRuntimeErr::Message(e.to_string()).into()),
-      _ => Ok(source),
-    }
-  }
-}
-
-#[derive(Default)]
-/// Async [`FsModuleLoader`].
-///
-/// NOTE: This is only allow to use in event loop, i.e. with tokio runtime, not
-/// in js runtime.
-pub struct AsyncFsModuleLoader;
-
-#[async_trait]
-impl AsyncModuleLoader for AsyncFsModuleLoader {
-  async fn load(&self, specifier: &str) -> TheResult<ModuleSource> {
-    // Load source.
-    let path = Path::new(specifier);
-    let maybe_source = async_load::async_load_as_file(path).await;
-
-    let (path, source) = match maybe_source {
-      Ok((path, source)) => (path, source),
-      Err(e) => return Err(e),
-    };
-
-    let path_extension =
-      path.extension().unwrap().to_string_lossy().to_string();
-
-    // Use a preprocessor if necessary.
-    match path_extension.as_str() {
-      #[cfg(feature = "wasm")]
-      "wasm" => Ok(Wasm::parse(&source)),
-      #[cfg(feature = "typescript")]
-      "ts" => {
-        let fname = path.to_str();
-        TypeScript::compile(fname, &source)
-      }
-      // "jsx" => {
-      //   Jsx::compile(fname, &source).map_err(|e| JsRuntimeErr::Message(e.to_string()).into())
-      // }
-      // "tsx" => Jsx::compile(fname, &source)
-      //   .and_then(|output| TypeScript::compile(fname, &output))
-      //   .map_err(|e| JsRuntimeErr::Message(e.to_string()).into()),
-      _ => Ok(source),
-    }
+    let maybe_source = sync_load::load_as_file(path)?;
+    Ok(maybe_source.1)
   }
 }

@@ -1,3 +1,7 @@
 CHANGELOG.md
 types/*.d.ts
 rsvim_core/src/js/runtime/*.js
+JS_RUNTIME_ANALYSIS_DATA.md
+JS_RUNTIME_COMPARISON.md
+JS_RUNTIME_DYNAMIC_IMPORT.md
+JS_RUNTIME_EVENT_LOOPS.md
