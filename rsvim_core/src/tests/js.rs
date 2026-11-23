@@ -11,11 +11,8 @@ use crate::prelude::*;
 use crate::syntax::SyntaxManager;
 use crate::ui::tree::Tree;
 use std::sync::Arc;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 use taffy::Style;
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::time::Instant;
 
 pub fn make_js_runtime() -> JsRuntime {
   let canvas_size = size!(10, 10);
@@ -43,12 +40,6 @@ pub fn make_js_runtime() -> JsRuntime {
   let ex_commands_manager = CommandManager::to_arc(CommandManager::default());
   let resource_table = ResourceTable::to_arc(ResourceTable::new());
 
-  let startup_moment = Instant::now();
-  let startup_unix_epoch = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_millis();
-
   let editor = EditorHandles {
     cli_opts,
     tree,
@@ -60,12 +51,5 @@ pub fn make_js_runtime() -> JsRuntime {
     resource_table,
   };
 
-  JsRuntime::new(
-    JsRuntimeOptions::default(),
-    startup_moment,
-    startup_unix_epoch,
-    master_tx,
-    jsrt_rx,
-    editor,
-  )
+  JsRuntime::new(JsRuntimeOptions::default(), master_tx, jsrt_rx, editor)
 }

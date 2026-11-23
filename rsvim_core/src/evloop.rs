@@ -307,8 +307,6 @@ impl EventLoop {
     // Js Runtime
     let js_runtime = JsRuntime::new(
       JsRuntimeOptions::default(),
-      startup_moment,
-      startup_unix_epoch,
       master_tx.clone(),
       jsrt_rx,
       editor.clone(),
@@ -367,8 +365,6 @@ impl EventLoop {
     // Js Runtime
     let js_runtime = JsRuntime::new(
       JsRuntimeOptions::default(),
-      startup_moment,
-      startup_unix_epoch,
       master_tx.clone(),
       jsrt_rx,
       editor.clone(),

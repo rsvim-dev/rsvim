@@ -46,7 +46,6 @@ use pending::TimerCallback;
 use std::sync::Once;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::time::Instant;
 
 pub fn v8_version() -> &'static str {
   v8::VERSION_STRING
@@ -166,8 +165,12 @@ pub mod boost {
   }
 
   #[derive(rsvim_macro::RcRefCellPtr)]
-  /// The state of js runtime.
-  pub struct JsRuntimeState {
+  /// The v8 isolate's in-process state, i.e. the kernel of the js runtime.
+  ///
+  /// Only things that v8 callbacks can and only can reach from here belong
+  /// here. `Rsvim`-level fields (writer / canvas / state machine / the receive
+  /// ends of the channels) are **forbidden** to be put in.
+  pub struct JsKernel {
     /// A sand-boxed execution context with its own set of built-in objects and functions.
     pub context: v8::Global<v8::Context>,
     /// Holds information about resolved ES modules.
@@ -178,10 +181,6 @@ pub mod boost {
     pub pending_tasks: FoldMap<TaskId, TaskCallback>,
     /// Holds JS pending futures scheduled by the event-loop.
     pub pending_futures: Vec<Box<dyn JsFuture>>,
-    /// Indicates the start time of the process.
-    pub startup_moment: Instant,
-    /// Specifies the timestamp which the current process began in Unix time.
-    pub time_origin: u128,
     // /// Holds callbacks scheduled by nextTick.
     // pub next_tick_queue: NextTickQueue,
     /// Stores and manages uncaught exceptions.
@@ -198,6 +197,12 @@ pub mod boost {
     pub editor: EditorHandles,
     // Data Access for RSVIM }
   }
+
+  /// Backward-compatible alias: `rsvim_core/src/js/pending.rs`,
+  /// `js/err.rs` and `js/binding/cmd.rs` keep using the old name.
+  pub type JsRuntimeState = JsKernel;
+  /// Backward-compatible alias of [`JsKernelRc`].
+  pub type JsRuntimeStateRc = JsKernelRc;
 
   /// Javascript runtime.
   ///
@@ -227,8 +232,6 @@ pub mod boost {
     /// Creates a new JsRuntime.
     pub fn new(
       options: JsRuntimeOptions,
-      startup_moment: Instant,
-      time_origin: u128,
       master_tx: UnboundedSender<MasterMessage>,
       jsrt_rx: UnboundedReceiver<JsMessage>,
       editor: EditorHandles,
@@ -250,14 +253,12 @@ pub mod boost {
 
       // Store state inside the v8 isolate slot.
       // https://v8docs.nodesource.com/node-4.8/d5/dda/classv8_1_1_isolate.html#a7acadfe7965997e9c386a05f098fbe36
-      let state = JsRuntimeState::to_rc(JsRuntimeState {
+      let state = JsKernel::to_rc(JsKernel {
         context,
         module_map: ModuleMap::new(),
         pending_timers: FoldMap::new(),
         pending_tasks: FoldMap::new(),
         pending_futures: vec![],
-        startup_moment,
-        time_origin,
         // next_tick_queue: Vec::new(),
         exceptions: ExceptionState::new(),
         options,
