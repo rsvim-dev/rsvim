@@ -55,7 +55,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -107,7 +107,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -193,7 +193,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -283,7 +283,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -372,7 +372,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -445,7 +445,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -523,7 +523,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -586,7 +586,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -639,7 +639,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -709,7 +709,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -812,7 +812,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -875,7 +875,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -974,7 +974,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -1052,7 +1052,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -1146,7 +1146,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -1243,7 +1243,7 @@ export function echoMain(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -1398,7 +1398,7 @@ setTimeout(() => {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 
@@ -1471,7 +1471,7 @@ mod test_require {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
+      let state_rc = event_loop.kernel;
       let state = state_rc.borrow();
       info!("module_map:{:#?}", state.module_map);
 

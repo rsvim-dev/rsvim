@@ -246,7 +246,7 @@ cmd.echo(`Previous command:${prev}`);
     let actual = actual.unwrap();
     assert!(actual.contains("Previous command:undefined"));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -318,7 +318,7 @@ setTimeout(() => {
     let actual = actual.unwrap();
     assert!(actual.contains("Previous-2 command:object, 1"));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -384,7 +384,7 @@ setTimeout(() => {
     let actual = actual.unwrap();
     assert!(actual.contains("Previous-2 command:undefined"));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 2);
@@ -453,7 +453,7 @@ setTimeout(() => {
     let actual = actual.unwrap();
     assert!(actual.contains("Failed to recreate command"));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -523,7 +523,7 @@ setTimeout(() => {
     let actual = actual.unwrap();
     assert!(actual.contains("Failed to recreate command"));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -586,7 +586,7 @@ cmd.list().forEach((name) => {
       assert!(expects.iter().any(|e| *e == actual));
     }
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -648,7 +648,7 @@ cmd.echo(`name:${def.name}`);
       assert!(expects.iter().any(|e| *e == actual));
     }
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -710,7 +710,7 @@ cmd.echo(`name:${def}`);
       assert!(expects.iter().any(|e| *e == actual));
     }
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -768,7 +768,7 @@ cmd.echo(prev.name);
     let actual = actual.unwrap();
     assert_eq!(actual, "write");
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -817,7 +817,7 @@ cmd.echo(`${prev}`);
     let actual = actual.unwrap();
     assert_eq!(actual, "undefined");
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
@@ -873,7 +873,7 @@ cmd.echo(`Previous command:${prev}`);
     let actual = actual.unwrap();
     assert!(actual.contains(r####"cmd.create: name must be a string, got"####));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -920,7 +920,7 @@ cmd.echo(`Previous command:${prev}`);
     let actual = actual.unwrap();
     assert!(actual.contains(r####"cmd.create: name is invalid:"####));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -967,7 +967,7 @@ cmd.echo(`Previous command:${prev}`);
     let actual = actual.unwrap();
     assert!(actual.contains(r####"cmd.create: name is invalid:"####));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1016,7 +1016,7 @@ cmd.echo(`Previous command:${prev}`);
       actual.contains(r####"cmd.create: callback must be a function, got"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1066,7 +1066,7 @@ cmd.echo(`Previous command:${prev}`);
         .contains(r####"cmd.create: bang attribute must be a boolean, got"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1115,7 +1115,7 @@ cmd.echo(`Previous command:${prev}`);
       actual.contains(r####"cmd.create: nargs attribute is invalid:"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1164,7 +1164,7 @@ cmd.echo(`Previous command:${prev}`);
       actual.contains(r####"cmd.create: attributes must be an object, got"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1213,7 +1213,7 @@ cmd.echo(`Previous command:${prev}`);
       actual.contains(r####"cmd.create: options must be an object, got"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1263,7 +1263,7 @@ cmd.echo(`Previous command:${prev}`);
         .contains(r####"cmd.create: force option must be a boolean, got"####)
     );
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
@@ -1312,7 +1312,7 @@ cmd.echo(`Previous command:${prev}`);
       r####"cmd.create: alias option must be a string or nil, got"####
     ));
 
-    let state_rc = event_loop.js_runtime.get_state();
+    let state_rc = event_loop.kernel;
     let state = state_rc.borrow();
     let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());

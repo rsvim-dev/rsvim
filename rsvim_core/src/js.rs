@@ -26,7 +26,6 @@ mod converter_tests;
 mod module_tests;
 
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::chan;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
 use crate::handles::EditorHandles;
@@ -44,7 +43,6 @@ use module::resolve_import;
 use pending::TaskCallback;
 use pending::TimerCallback;
 use std::sync::Once;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn v8_version() -> &'static str {
@@ -192,7 +190,6 @@ pub mod boost {
 
     // Data Access for RSVIM {
     pub master_tx: UnboundedSender<MasterMessage>,
-    pub jsrt_rx: UnboundedReceiver<JsMessage>,
     /// Editor's shared data (the same `Arc`s as `Rsvim.editor`).
     pub editor: EditorHandles,
     // Data Access for RSVIM }
@@ -206,6 +203,12 @@ pub mod boost {
 
   /// Javascript runtime.
   ///
+  /// This is a zero-sized namespace: all the state lives in
+  /// [`JsKernel`] (inside the v8 isolate slot) and in
+  /// [`Rsvim`](crate::evloop::Rsvim) (outside the isolate). It is kept as a
+  /// type only so that the ~70 call sites of `JsRuntime::state(scope)` stay
+  /// untouched.
+  ///
   /// There are 3 most important concepts:
   ///
   /// - Isolate
@@ -213,270 +216,177 @@ pub mod boost {
   /// - Handle Scope
   ///
   /// For more details, please see: <https://v8.dev/docs/embed>.
-  pub struct JsRuntime {
-    /// V8 isolate.
-    pub isolate: v8::OwnedIsolate,
+  #[derive(Debug)]
+  pub struct JsRuntime;
 
-    /// The state of the runtime.
-    #[allow(unused)]
-    pub state: JsRuntimeStateRc,
-  }
+  /// Creates a new v8 isolate, together with its [`JsKernel`].
+  ///
+  /// The kernel is stored inside the isolate's slot, so that v8 callbacks can
+  /// reach it with [`JsRuntime::state`]. The caller (i.e.
+  /// [`Rsvim`](crate::evloop::Rsvim)) is responsible for keeping both alive.
+  pub fn new_isolate(
+    options: JsRuntimeOptions,
+    master_tx: UnboundedSender<MasterMessage>,
+    editor: EditorHandles,
+  ) -> (v8::OwnedIsolate, JsKernelRc) {
+    // Fire up the v8 engine.
+    init_v8_platform();
 
-  impl std::fmt::Debug for JsRuntime {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(f, "JsRuntime")
-    }
-  }
+    let mut isolate = v8::Isolate::new(v8::CreateParams::default());
 
-  impl JsRuntime {
-    /// Creates a new JsRuntime.
-    pub fn new(
-      options: JsRuntimeOptions,
-      master_tx: UnboundedSender<MasterMessage>,
-      jsrt_rx: UnboundedReceiver<JsMessage>,
-      editor: EditorHandles,
-    ) -> Self {
-      // Fire up the v8 engine.
-      init_v8_platform();
+    init_v8_isolate(&mut isolate);
 
-      let mut isolate = v8::Isolate::new(v8::CreateParams::default());
+    let context: v8::Global<v8::Context> = {
+      v8::scope!(scope, &mut isolate);
+      let context = binding::create_new_context(scope);
 
-      init_v8_isolate(&mut isolate);
+      // let module_handles = get_context_data(scope, context);
+      v8::Global::new(scope, context)
+    };
 
-      let context: v8::Global<v8::Context> = {
-        v8::scope!(scope, &mut isolate);
-        let context = binding::create_new_context(scope);
+    // Store state inside the v8 isolate slot.
+    // https://v8docs.nodesource.com/node-4.8/d5/dda/classv8_1_1_isolate.html#a7acadfe7965997e9c386a05f098fbe36
+    let kernel = JsKernel::to_rc(JsKernel {
+      context,
+      module_map: ModuleMap::new(),
+      pending_timers: FoldMap::new(),
+      pending_tasks: FoldMap::new(),
+      pending_futures: vec![],
+      // next_tick_queue: Vec::new(),
+      exceptions: ExceptionState::new(),
+      options,
+      // wake_event_queued: false,
+      master_tx,
+      editor,
+    });
 
-        // let module_handles = get_context_data(scope, context);
-        v8::Global::new(scope, context)
-      };
+    isolate.set_slot(kernel.clone());
 
-      // Store state inside the v8 isolate slot.
-      // https://v8docs.nodesource.com/node-4.8/d5/dda/classv8_1_1_isolate.html#a7acadfe7965997e9c386a05f098fbe36
-      let state = JsKernel::to_rc(JsKernel {
-        context,
-        module_map: ModuleMap::new(),
-        pending_timers: FoldMap::new(),
-        pending_tasks: FoldMap::new(),
-        pending_futures: vec![],
-        // next_tick_queue: Vec::new(),
-        exceptions: ExceptionState::new(),
-        options,
-        // wake_event_queued: false,
-        master_tx,
-        jsrt_rx,
-        editor,
-      });
-
-      isolate.set_slot(state.clone());
-
-      let mut runtime = JsRuntime {
-        isolate,
-        // event_loop,
-        state,
-        // inspector,
-      };
-
-      // Load, compile and evaluate all built-in modules.
-      runtime.with_scope(init_builtin_modules);
-
-      runtime
-    }
-
-    fn with_scope<F>(&mut self, func: F)
-    where
-      F: FnOnce(&mut v8::PinScope),
+    // Load, compile and evaluate all built-in modules.
     {
-      let context = self.context();
-      v8::scope_with_context!(scope, &mut self.isolate, context);
-      func(scope);
+      let context = kernel.borrow().context.clone();
+      v8::scope_with_context!(scope, &mut isolate, context);
+      init_builtin_modules(scope);
     }
 
-    /// Executes javascript source code as ES module, i.e. ECMA standard.
-    pub fn execute_module(&mut self, filename: &str, source: Option<&str>) {
-      // Get a reference to v8's scope.
-      self.with_scope(|scope| execute_module(scope, filename, source));
-    }
-
-    /// Runs a single tick of the event-loop.
-    pub fn tick_event_loop(&mut self) {
-      self.with_scope(run_next_tick_callbacks);
-      // self.event_loop.tick();
-      self.run_pending_futures();
-
-      trace!(
-        "|JsRuntime::tick_event_loop| has_promise_rejections:{:?}, has_pending_background_tasks:{:?}",
-        self.has_promise_rejections(),
-        self.isolate.has_pending_background_tasks(),
-      );
-      if self.has_promise_rejections()
-        || self.isolate.has_pending_background_tasks()
-      {
-        chan::send_to_master(
-          self.get_state().borrow().master_tx.clone(),
-          MasterMessage::TickAgainReq,
-        );
-      }
-    }
-
-    // /// Polls the inspector for new devtools messages.
-    // pub fn poll_inspect_session(&mut self) {
-    //   if let Some(inspector) = self.inspector.as_mut() {
-    //     inspector.borrow_mut().poll_session();
-    //   }
-    // }
-
-    /// Runs pending javascript tasks which have received results from master.
-    fn run_pending_futures(&mut self) {
-      // Get a handle-scope and a reference to the runtime's state.
-      let context = self.context();
-      v8::scope_with_context!(scope, &mut self.isolate, context);
-      let state_rc = Self::state(scope);
-
-      // Drain all pending messages
-      let mut messages: Vec<JsMessage> = vec![];
-      {
-        let mut state = state_rc.borrow_mut();
-        while let Ok(msg) = state.jsrt_rx.try_recv() {
-          messages.push(msg);
-        }
-        // Drop(state);
-      }
-
-      macro_rules! process_message {
-        ($variant:ident, $resp:expr) => {{
-          trace!("Recv {}:{:?}", stringify!($variant), $resp.task_id);
-          debug_assert!(
-            state_rc.borrow().pending_tasks.contains_key(&$resp.task_id)
-          );
-          let mut cb = state_rc
-            .borrow_mut()
-            .pending_tasks
-            .remove(&$resp.task_id)
-            .unwrap();
-          cb($resp.maybe_result);
-        }};
-      }
-
-      for msg in messages {
-        match msg {
-          JsMessage::TimeoutResp(resp) => {
-            trace!("Recv TimeResp:{:?}", resp.timer_id);
-            let maybe_timer_cb =
-              state_rc.borrow_mut().pending_timers.remove(&resp.timer_id);
-            if let Some(mut timer_cb) = maybe_timer_cb {
-              timer_cb();
-              if resp.repeated {
-                let mut state = state_rc.borrow_mut();
-                pending::create_timer(
-                  &mut state,
-                  resp.timer_id,
-                  resp.delay,
-                  resp.repeated,
-                  timer_cb,
-                );
-              }
-            }
-            // Otherwise the 'timer_cb' is already been removed by the
-            // `clear_timeout` API.
-          }
-          JsMessage::ExCommandReq(req) => {
-            trace!("Recv ExCommandReq:{:?}", req.payload);
-            let mut state = state_rc.borrow_mut();
-            let command_manager = state.editor.command_manager.clone();
-            let command_manager = lock!(command_manager);
-            if let Some(command_cb) = command_manager.parse(&req) {
-              state.pending_futures.push(Box::new(command_cb));
-            } else {
-              // Print error message
-              report_js_error(&state, TheErr::CommandNotFound(req.payload));
-            }
-          }
-          JsMessage::TickAgainResp => trace!("Recv TickAgainResp"),
-          JsMessage::FsOpenResp(resp) => process_message!(FsOpenResp, resp),
-          JsMessage::FsReadResp(resp) => process_message!(FsReadResp, resp),
-          JsMessage::FsWriteResp(resp) => process_message!(FsWriteResp, resp),
-          JsMessage::FsReadDirResp(resp) => {
-            process_message!(FsReadDirResp, resp)
-          }
-          JsMessage::FsReadDirNextResp(resp) => {
-            process_message!(FsReadDirNextResp, resp)
-          }
-          JsMessage::FsReadFileResp(resp) => {
-            process_message!(FsReadFileResp, resp)
-          }
-          JsMessage::FsReadTextFileResp(resp) => {
-            process_message!(FsReadTextFileResp, resp)
-          }
-          JsMessage::FsStatResp(resp) => process_message!(FsStatResp, resp),
-          JsMessage::FsSymlinkResp(resp) => {
-            process_message!(FsSymlinkResp, resp)
-          }
-          JsMessage::FsLinkResp(resp) => process_message!(FsLinkResp, resp),
-          JsMessage::FsMkdirResp(resp) => process_message!(FsMkdirResp, resp),
-          JsMessage::LoadTreeSitterParserResp(resp) => {
-            process_message!(LoadTreeSitterParserResp, resp)
-          }
-          JsMessage::ReadTextFromChildProcessStdioResp(resp) => {
-            process_message!(ReadTextFromChildProcessStdioResp, resp)
-          }
-          JsMessage::WaitChildProcessResp(resp) => {
-            process_message!(WaitChildProcessResp, resp)
-          }
-        }
-      }
-
-      let futures: Vec<Box<dyn JsFuture>> =
-        std::mem::take(&mut state_rc.borrow_mut().pending_futures);
-      for mut fut in futures {
-        fut.run(scope);
-        if let Some(exception) = check_exceptions(scope) {
-          trace!("Got exceptions when running pending futures: {exception:?}");
-          let state = state_rc.borrow();
-          report_js_error(&state, TheErr::JsError(Box::new(exception)));
-        }
-        run_next_tick_callbacks(scope);
-      }
-    }
+    (isolate, kernel)
   }
 
-  impl JsRuntime {
-    /// Returns if unhandled promise rejections where caught.
-    pub fn has_promise_rejections(&mut self) -> bool {
-      self.get_state().borrow().exceptions.has_promise_rejection()
-    }
-
-    // /// Returns if we have scheduled any next-tick callbacks.
-    // pub fn has_next_tick_callbacks(&mut self) -> bool {
-    //   !self.get_state().borrow().next_tick_queue.is_empty()
-    // }
-  }
-
-  // State management specific methods.
-  // https://github.com/lmt-swallow/puppy-browser/blob/main/src/javascript/runtime.rs
   impl JsRuntime {
     /// Returns the runtime state stored in the given isolate.
-    pub fn state(isolate: &v8::Isolate) -> JsRuntimeStateRc {
-      isolate.get_slot::<JsRuntimeStateRc>().unwrap().clone()
+    pub fn state(isolate: &v8::Isolate) -> JsKernelRc {
+      isolate
+        .get_slot::<JsKernelRc>()
+        .expect("v8 isolate slot not initialized")
+        .clone()
+    }
+  }
+
+  /// Runs pending javascript tasks which have received results from master.
+  ///
+  /// The caller owns the inbox: it drains `jsrt_rx` and passes the messages
+  /// in, so that this function never touches the receiver.
+  pub(crate) fn run_pending_futures(
+    kernel: &JsKernelRc,
+    scope: &mut v8::PinScope,
+    messages: Vec<JsMessage>,
+  ) {
+    let state_rc = kernel;
+
+    macro_rules! process_message {
+      ($variant:ident, $resp:expr) => {{
+        trace!("Recv {}:{:?}", stringify!($variant), $resp.task_id);
+        debug_assert!(
+          state_rc.borrow().pending_tasks.contains_key(&$resp.task_id)
+        );
+        let mut cb = state_rc
+          .borrow_mut()
+          .pending_tasks
+          .remove(&$resp.task_id)
+          .unwrap();
+        cb($resp.maybe_result);
+      }};
     }
 
-    /// Returns the runtime's state.
-    pub fn get_state(&self) -> JsRuntimeStateRc {
-      Self::state(&self.isolate)
+    for msg in messages {
+      match msg {
+        JsMessage::TimeoutResp(resp) => {
+          trace!("Recv TimeResp:{:?}", resp.timer_id);
+          let maybe_timer_cb =
+            state_rc.borrow_mut().pending_timers.remove(&resp.timer_id);
+          if let Some(mut timer_cb) = maybe_timer_cb {
+            timer_cb();
+            if resp.repeated {
+              let mut state = state_rc.borrow_mut();
+              pending::create_timer(
+                &mut state,
+                resp.timer_id,
+                resp.delay,
+                resp.repeated,
+                timer_cb,
+              );
+            }
+          }
+          // Otherwise the 'timer_cb' is already been removed by the
+          // `clear_timeout` API.
+        }
+        JsMessage::ExCommandReq(req) => {
+          trace!("Recv ExCommandReq:{:?}", req.payload);
+          let mut state = state_rc.borrow_mut();
+          let command_manager = state.editor.command_manager.clone();
+          let command_manager = lock!(command_manager);
+          if let Some(command_cb) = command_manager.parse(&req) {
+            state.pending_futures.push(Box::new(command_cb));
+          } else {
+            // Print error message
+            report_js_error(&state, TheErr::CommandNotFound(req.payload));
+          }
+        }
+        JsMessage::TickAgainResp => trace!("Recv TickAgainResp"),
+        JsMessage::FsOpenResp(resp) => process_message!(FsOpenResp, resp),
+        JsMessage::FsReadResp(resp) => process_message!(FsReadResp, resp),
+        JsMessage::FsWriteResp(resp) => process_message!(FsWriteResp, resp),
+        JsMessage::FsReadDirResp(resp) => {
+          process_message!(FsReadDirResp, resp)
+        }
+        JsMessage::FsReadDirNextResp(resp) => {
+          process_message!(FsReadDirNextResp, resp)
+        }
+        JsMessage::FsReadFileResp(resp) => {
+          process_message!(FsReadFileResp, resp)
+        }
+        JsMessage::FsReadTextFileResp(resp) => {
+          process_message!(FsReadTextFileResp, resp)
+        }
+        JsMessage::FsStatResp(resp) => process_message!(FsStatResp, resp),
+        JsMessage::FsSymlinkResp(resp) => {
+          process_message!(FsSymlinkResp, resp)
+        }
+        JsMessage::FsLinkResp(resp) => process_message!(FsLinkResp, resp),
+        JsMessage::FsMkdirResp(resp) => process_message!(FsMkdirResp, resp),
+        JsMessage::LoadTreeSitterParserResp(resp) => {
+          process_message!(LoadTreeSitterParserResp, resp)
+        }
+        JsMessage::ReadTextFromChildProcessStdioResp(resp) => {
+          process_message!(ReadTextFromChildProcessStdioResp, resp)
+        }
+        JsMessage::WaitChildProcessResp(resp) => {
+          process_message!(WaitChildProcessResp, resp)
+        }
+      }
     }
 
-    /// Returns a global context created for the runtime.
-    /// See: <https://v8docs.nodesource.com/node-0.8/df/d69/classv8_1_1_context.html>.
-    pub fn context(&mut self) -> v8::Global<v8::Context> {
-      let state_rc = self.get_state();
-      let state = state_rc.borrow();
-      state.context.clone()
+    let futures: Vec<Box<dyn JsFuture>> =
+      std::mem::take(&mut state_rc.borrow_mut().pending_futures);
+    for mut fut in futures {
+      fut.run(scope);
+      if let Some(exception) = check_exceptions(scope) {
+        trace!("Got exceptions when running pending futures: {exception:?}");
+        let state = state_rc.borrow();
+        report_js_error(&state, TheErr::JsError(Box::new(exception)));
+      }
+      run_next_tick_callbacks(scope);
     }
-
-    // /// Returns the inspector created for the runtime.
-    // pub fn inspector(&mut self) -> Option<Rc<RefCell<JsRuntimeInspector>>> {
-    //   self.inspector.as_ref().cloned()
-    // }
   }
 }
 
@@ -571,7 +481,7 @@ pub fn execute_module<'s, 'b>(
 }
 
 /// Runs callbacks stored in the next-tick queue.
-fn run_next_tick_callbacks(scope: &mut v8::PinScope) {
+pub(crate) fn run_next_tick_callbacks(scope: &mut v8::PinScope) {
   // let state_rc = JsRuntime::state(scope);
   // let callbacks: NextTickQueue = state_rc.borrow_mut().next_tick_queue.drain(..).collect();
 

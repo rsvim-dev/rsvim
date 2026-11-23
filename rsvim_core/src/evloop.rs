@@ -13,7 +13,7 @@ use crate::cli::CliOptions;
 use crate::cmdltext::CmdlineText;
 use crate::handles::EditorHandles;
 use crate::hl::ColorSchemeManager;
-use crate::js::JsRuntime;
+use crate::js::JsKernelRc;
 use crate::js::JsRuntimeOptions;
 use crate::js::binding::fs::link::fs_link_a;
 use crate::js::binding::fs::mkdir::fs_mkdir_s;
@@ -75,7 +75,6 @@ use crossterm::event::KeyEventKind;
 #[cfg(test)]
 use crossterm::event::KeyModifiers;
 
-#[derive(Debug)]
 /// For slow tasks that are suitable to put in the background, this event loop
 /// will spawn them in tokio's async tasks and let them sync back data once
 /// they are done. The event loop controls all the tasks with
@@ -119,8 +118,11 @@ pub struct EventLoop {
   pub blocked_tracker: TaskTracker,
   pub exit_code: i32,
 
-  /// Js runtime.
-  pub js_runtime: JsRuntime,
+  /// V8 isolate.
+  pub isolate: v8::OwnedIsolate,
+  /// The kernel of the js runtime, i.e. the state stored inside the v8
+  /// isolate's slot.
+  pub kernel: JsKernelRc,
 
   /// Channel-1
   pub master_tx: UnboundedSender<MasterMessage>,
@@ -132,7 +134,66 @@ pub struct EventLoop {
 
   /// Channel-3
   pub jsrt_tx: UnboundedSender<JsMessage>,
-  // pub jsrt_rx: UnboundedReceiver<JsMessage>,
+  pub jsrt_rx: UnboundedReceiver<JsMessage>,
+}
+
+impl EventLoop {
+  /// Runs a single tick of the event loop.
+  ///
+  /// This is a thin wrapper that keeps the scheduling untouched; the real
+  /// `tick_js` lands in a later step.
+  pub fn tick_event_loop(&mut self) {
+    let mut messages: Vec<JsMessage> = vec![];
+    while let Ok(msg) = self.jsrt_rx.try_recv() {
+      messages.push(msg);
+    }
+
+    let Self {
+      ref mut isolate,
+      ref kernel,
+      ..
+    } = *self;
+
+    {
+      let context = kernel.borrow().context.clone();
+      v8::scope_with_context!(scope, isolate, context);
+      crate::js::run_next_tick_callbacks(scope);
+      crate::js::run_pending_futures(kernel, scope, messages);
+    }
+
+    let has_promise_rejections =
+      kernel.borrow().exceptions.has_promise_rejection();
+    let has_pending_background_tasks = isolate.has_pending_background_tasks();
+
+    trace!(
+      "|EventLoop::tick_event_loop| has_promise_rejections:{:?}, has_pending_background_tasks:{:?}",
+      has_promise_rejections, has_pending_background_tasks,
+    );
+    if has_promise_rejections || has_pending_background_tasks {
+      chan::send_to_master(
+        kernel.borrow().master_tx.clone(),
+        MasterMessage::TickAgainReq,
+      );
+    }
+  }
+
+  /// Executes javascript source code as ES module, i.e. ECMA standard.
+  pub fn execute_module(&mut self, filename: &str, source: Option<&str>) {
+    let Self {
+      ref mut isolate,
+      ref kernel,
+      ..
+    } = *self;
+    let context = kernel.borrow().context.clone();
+    v8::scope_with_context!(scope, isolate, context);
+    crate::js::execute_module(scope, filename, source);
+  }
+}
+
+impl std::fmt::Debug for EventLoop {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("EventLoop").finish_non_exhaustive()
+  }
 }
 
 #[cfg(test)]
@@ -305,10 +366,9 @@ impl EventLoop {
     let writer = StdoutWriterValue::editor();
 
     // Js Runtime
-    let js_runtime = JsRuntime::new(
+    let (isolate, kernel) = crate::js::new_isolate(
       JsRuntimeOptions::default(),
       master_tx.clone(),
-      jsrt_rx,
       editor.clone(),
     );
 
@@ -323,12 +383,14 @@ impl EventLoop {
       detached_tracker,
       blocked_tracker,
       exit_code,
-      js_runtime,
+      isolate,
+      kernel,
       master_tx,
       master_rx,
       jsrt_forwarder_tx,
       jsrt_forwarder_rx,
       jsrt_tx,
+      jsrt_rx,
     })
   }
 
@@ -363,10 +425,9 @@ impl EventLoop {
     let writer = StdoutWriterValue::dev_null();
 
     // Js Runtime
-    let js_runtime = JsRuntime::new(
+    let (isolate, kernel) = crate::js::new_isolate(
       JsRuntimeOptions::default(),
       master_tx.clone(),
-      jsrt_rx,
       editor.clone(),
     );
 
@@ -381,12 +442,14 @@ impl EventLoop {
       detached_tracker,
       blocked_tracker,
       exit_code,
-      js_runtime,
+      isolate,
+      kernel,
       master_tx,
       master_rx,
       jsrt_forwarder_tx,
       jsrt_forwarder_rx,
       jsrt_tx,
+      jsrt_rx,
     })
   }
 
@@ -416,12 +479,10 @@ impl EventLoop {
   /// Initialize user config file.
   fn _init_config(&mut self) -> IoResult<()> {
     if let Some(config_entry) = PATH_CONFIG.config_entry() {
-      self
-        .js_runtime
-        .execute_module(&config_entry.to_string_lossy(), None);
+      self.execute_module(&config_entry.to_string_lossy(), None);
 
       // Extra tick for some pending imports.
-      self.js_runtime.tick_event_loop();
+      self.tick_event_loop();
     }
     Ok(())
   }
@@ -1162,7 +1223,7 @@ impl EventLoop {
     if let Some(message) = message {
       trace!("Process resp msg:{:?}", message);
       self.jsrt_tx.send(message).unwrap();
-      self.js_runtime.tick_event_loop();
+      self.tick_event_loop();
     }
   }
 
