@@ -31,7 +31,7 @@ async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
 
   // Before running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     assert!(contents.message().rope().to_string().is_empty());
   }
 
@@ -43,7 +43,7 @@ async fn test_echo1_should_panic_with_missing_param() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let payload = contents.message().rope().to_string();
     let payload = payload.trim();
     assert!(payload.contains("cmd.echo: message is required"));
@@ -77,7 +77,7 @@ async fn test_echo2_should_panic_with_null_param() -> IoResult<()> {
 
   // Before running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     assert!(contents.message().rope().to_string().is_empty());
   }
 
@@ -89,7 +89,7 @@ async fn test_echo2_should_panic_with_null_param() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let payload = contents.message().rope().to_string();
     let payload = payload.trim();
     assert!(payload.contains("cmd.echo: message is required"));
@@ -123,7 +123,7 @@ async fn test_echo3() -> IoResult<()> {
 
   // Before running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(contents.message().rope().to_string(), "");
   }
 
@@ -135,7 +135,7 @@ async fn test_echo3() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message().rope().to_string();
     let actual = actual.trim();
     assert!(
@@ -176,7 +176,7 @@ async fn test_echo4() -> IoResult<()> {
 
   // Before running
   {
-    let text_cmdline = lock!(event_loop.cmdline_text);
+    let text_cmdline = lock!(event_loop.editor.cmdline_text);
     let actual = text_cmdline.message().rope().to_string();
     assert!(actual.is_empty());
   }
@@ -189,7 +189,7 @@ async fn test_echo4() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message().rope().to_string();
     let actual = actual.trim();
     assert_eq!(actual, "true");
@@ -238,7 +238,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -248,7 +248,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -297,7 +297,7 @@ setTimeout(() => {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
     let actual = contents.message_history_mut().pop();
@@ -320,7 +320,7 @@ setTimeout(() => {
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -369,7 +369,7 @@ setTimeout(() => {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop();
@@ -386,7 +386,7 @@ setTimeout(() => {
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 2);
     for (name, def) in commands.iter() {
       assert!(name == "write" || name == "writeSync");
@@ -438,7 +438,7 @@ setTimeout(() => {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop();
@@ -455,7 +455,7 @@ setTimeout(() => {
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -508,7 +508,7 @@ setTimeout(() => {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop();
@@ -525,7 +525,7 @@ setTimeout(() => {
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -572,7 +572,7 @@ cmd.list().forEach((name) => {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -588,7 +588,7 @@ cmd.list().forEach((name) => {
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -634,7 +634,7 @@ cmd.echo(`name:${def.name}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -650,7 +650,7 @@ cmd.echo(`name:${def.name}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -696,7 +696,7 @@ cmd.echo(`name:${def}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -712,7 +712,7 @@ cmd.echo(`name:${def}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -758,7 +758,7 @@ cmd.echo(prev.name);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -770,7 +770,7 @@ cmd.echo(prev.name);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -807,7 +807,7 @@ cmd.echo(`${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -819,7 +819,7 @@ cmd.echo(`${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert_eq!(commands.len(), 1);
     let first_command = commands.first_key_value();
     assert!(first_command.is_some());
@@ -864,7 +864,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -875,7 +875,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -911,7 +911,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -922,7 +922,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -958,7 +958,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -969,7 +969,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1005,7 +1005,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1018,7 +1018,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1054,7 +1054,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1068,7 +1068,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1104,7 +1104,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1117,7 +1117,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1153,7 +1153,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1166,7 +1166,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1202,7 +1202,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1215,7 +1215,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1251,7 +1251,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1265,7 +1265,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 
@@ -1301,7 +1301,7 @@ cmd.echo(`Previous command:${prev}`);
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -1314,7 +1314,7 @@ cmd.echo(`Previous command:${prev}`);
 
     let state_rc = event_loop.js_runtime.get_state();
     let state = state_rc.borrow();
-    let commands = lock!(state.command_manager);
+    let commands = lock!(state.editor.command_manager);
     assert!(commands.is_empty());
   }
 

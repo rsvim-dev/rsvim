@@ -25,19 +25,13 @@ mod converter_tests;
 #[cfg(test)]
 mod module_tests;
 
-use crate::buf::BufferManagerArc;
 use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::chan;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
-use crate::cli::CliOptions;
-use crate::cmdltext::CmdlineTextArc;
-use crate::hl::ColorSchemeManagerArc;
+use crate::handles::EditorHandles;
 use crate::prelude::*;
-use crate::syntax::SyntaxManagerArc;
-use crate::ui::tree::TreeArc;
 pub use boost::*;
-use command::CommandManagerArc;
 use err::JsError;
 use err::report_js_error;
 use exception::ExceptionState;
@@ -49,7 +43,6 @@ use module::fetch_module_tree;
 use module::resolve_import;
 use pending::TaskCallback;
 use pending::TimerCallback;
-use resource::ResourceTableArc;
 use std::sync::Once;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
@@ -201,14 +194,8 @@ pub mod boost {
     // Data Access for RSVIM {
     pub master_tx: UnboundedSender<MasterMessage>,
     pub jsrt_rx: UnboundedReceiver<JsMessage>,
-    pub cli_opts: CliOptions,
-    pub tree: TreeArc,
-    pub buffer_manager: BufferManagerArc,
-    pub cmdline_text: CmdlineTextArc,
-    pub syntax_manager: SyntaxManagerArc,
-    pub colorscheme_manager: ColorSchemeManagerArc,
-    pub command_manager: CommandManagerArc,
-    pub resource_table: ResourceTableArc,
+    /// Editor's shared data (the same `Arc`s as `Rsvim.editor`).
+    pub editor: EditorHandles,
     // Data Access for RSVIM }
   }
 
@@ -244,14 +231,7 @@ pub mod boost {
       time_origin: u128,
       master_tx: UnboundedSender<MasterMessage>,
       jsrt_rx: UnboundedReceiver<JsMessage>,
-      cli_opts: CliOptions,
-      tree: TreeArc,
-      buffer_manager: BufferManagerArc,
-      cmdline_text: CmdlineTextArc,
-      syntax_manager: SyntaxManagerArc,
-      colorscheme_manager: ColorSchemeManagerArc,
-      command_manager: CommandManagerArc,
-      resource_table: ResourceTableArc,
+      editor: EditorHandles,
     ) -> Self {
       // Fire up the v8 engine.
       init_v8_platform();
@@ -284,14 +264,7 @@ pub mod boost {
         // wake_event_queued: false,
         master_tx,
         jsrt_rx,
-        cli_opts,
-        tree,
-        buffer_manager,
-        cmdline_text,
-        syntax_manager,
-        colorscheme_manager,
-        command_manager,
-        resource_table,
+        editor,
       });
 
       isolate.set_slot(state.clone());
@@ -409,7 +382,7 @@ pub mod boost {
           JsMessage::ExCommandReq(req) => {
             trace!("Recv ExCommandReq:{:?}", req.payload);
             let mut state = state_rc.borrow_mut();
-            let command_manager = state.command_manager.clone();
+            let command_manager = state.editor.command_manager.clone();
             let command_manager = lock!(command_manager);
             if let Some(command_cb) = command_manager.parse(&req) {
               state.pending_futures.push(Box::new(command_cb));

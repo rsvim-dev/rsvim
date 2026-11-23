@@ -139,7 +139,7 @@ pub fn write_sync<'s>(
   let (file_rid, buf) = _get_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match fs_write_s(resource_table, file_rid, buf) {
     Ok(bytes_written) => {

@@ -138,7 +138,7 @@ pub fn read_dir_sync<'s>(
   let filename = _get_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match fs_read_dir_s(resource_table, Path::new(&filename)) {
     Ok(rd_rid) => {
@@ -274,7 +274,7 @@ pub fn read_dir_next_sync<'s>(
   let rid = _get_next_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match fs_read_dir_next_s(resource_table, rid) {
     Some(Ok(entry)) => {
@@ -299,7 +299,7 @@ pub fn read_dir_close<'s>(
   let rid = _get_next_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
   let mut resource_table = lock!(resource_table);
   let mut rd = resource_table.remove(&rid);
   let _ = rd.take();

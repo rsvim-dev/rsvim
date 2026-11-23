@@ -19,7 +19,7 @@ pub fn get_wrap(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().wrap();
   trace!("get_wrap: {:?}", value);
@@ -37,7 +37,7 @@ pub fn set_wrap<'s>(
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_wrap: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let tree = state_rc.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_wrap(value);
 }
@@ -51,7 +51,7 @@ pub fn get_line_break(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().line_break();
   trace!("get_line_break: {:?}", value);
@@ -69,7 +69,7 @@ pub fn set_line_break<'s>(
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_line_break: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let tree = state_rc.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_line_break(value);
 }
@@ -82,7 +82,7 @@ pub fn get_tab_stop(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().tab_stop();
   trace!("get_tab_stop: {:?}", value);
@@ -100,7 +100,7 @@ pub fn set_tab_stop<'s>(
   let value = u32::from_v8(scope, args.get(0));
   trace!("set_tab_stop: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   debug_assert!(value <= u8::MAX as u32);
@@ -117,7 +117,7 @@ pub fn get_expand_tab(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().expand_tab();
   trace!("get_expand_tab: {:?}", value);
@@ -135,7 +135,7 @@ pub fn set_expand_tab<'s>(
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_expand_tab: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   buffer_manager
@@ -151,7 +151,7 @@ pub fn get_shift_width(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().shift_width();
   trace!("get_shift_width: {:?}", value);
@@ -169,7 +169,7 @@ pub fn set_shift_width<'s>(
   let value = u32::from_v8(scope, args.get(0));
   trace!("set_shift_width: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   debug_assert!(value <= u8::MAX as u32);
@@ -186,7 +186,7 @@ pub fn get_file_encoding(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_encoding();
   trace!("get_file_encoding: {:?}", value);
@@ -205,7 +205,7 @@ pub fn set_file_encoding<'s>(
   let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
   trace!("set_file_encoding: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   let value = FileEncodingOption::try_from(value.as_str()).unwrap();
@@ -222,7 +222,7 @@ pub fn get_file_format(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_format();
   trace!("get_file_format: {:?}", value);
@@ -241,7 +241,7 @@ pub fn set_file_format<'s>(
   let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
   trace!("set_file_format: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   let value = FileFormatOption::try_from(value.as_str()).unwrap();
@@ -258,7 +258,7 @@ pub fn get_fix_end_of_line(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().fix_end_of_line();
   trace!("get_fix_end_of_line: {:?}", value);
@@ -276,7 +276,7 @@ pub fn set_fix_end_of_line<'s>(
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_fix_end_of_line: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
   buffer_manager
@@ -291,7 +291,7 @@ pub fn get_syntax_parser_lib_path(
   mut rv: v8::ReturnValue,
 ) {
   let state_rc = JsRuntime::state(scope);
-  let syntax_manager = state_rc.borrow().syntax_manager.clone();
+  let syntax_manager = state_rc.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   let value = syntax_manager
     .loader()
@@ -314,7 +314,7 @@ pub fn set_syntax_parser_lib_path<'s>(
   let value = args.get(0).to_rust_string_lossy(scope);
   trace!("set_syntax_parser_lib_path: {:?}", value);
   let state_rc = JsRuntime::state(scope);
-  let syntax_manager = state_rc.borrow().syntax_manager.clone();
+  let syntax_manager = state_rc.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   syntax_manager
     .loader()

@@ -44,7 +44,7 @@ async fn test_load1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -97,7 +97,7 @@ async fn test_load_sync1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -156,7 +156,7 @@ async fn test_list1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual1 = contents.message_history_mut().pop();
@@ -219,7 +219,7 @@ async fn test_get_metadata1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 

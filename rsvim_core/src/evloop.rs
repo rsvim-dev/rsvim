@@ -5,16 +5,14 @@ pub mod writer;
 
 use crate::buf::BufferArc;
 use crate::buf::BufferManager;
-use crate::buf::BufferManagerArc;
 use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::chan;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
 use crate::cli::CliOptions;
 use crate::cmdltext::CmdlineText;
-use crate::cmdltext::CmdlineTextArc;
+use crate::handles::EditorHandles;
 use crate::hl::ColorSchemeManager;
-use crate::hl::ColorSchemeManagerArc;
 use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
 use crate::js::binding::fs::link::fs_link_a;
@@ -30,10 +28,8 @@ use crate::js::binding::fs::stat::fs_stat_a;
 use crate::js::binding::fs::symlink::fs_symlink_s;
 use crate::js::binding::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
-use crate::js::command::CommandManagerArc;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceTable;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
 use crate::state::State;
 use crate::state::StateContext;
@@ -44,7 +40,6 @@ use crate::syntax::SyntaxEdit;
 use crate::syntax::SyntaxEditNew;
 use crate::syntax::SyntaxLoadGrammarRequest;
 use crate::syntax::SyntaxManager;
-use crate::syntax::SyntaxManagerArc;
 use crate::ui::canvas::Canvas;
 use crate::ui::canvas::CanvasArc;
 use crate::ui::tree::*;
@@ -94,32 +89,20 @@ pub struct EventLoop {
   /// Specifies the timestamp which the current process began in Unix time.
   pub startup_unix_epoch: u128,
 
-  /// Command line options.
-  pub cli_opts: CliOptions,
-
   /// Stdout writer for editor mode TUI.
   pub writer: StdoutWriterValue,
 
-  /// Widget tree for UI.
-  pub tree: TreeArc,
   /// Canvas for UI.
   pub canvas: CanvasArc,
 
   /// Finite-state machine for editing state.
   pub state_machine: State,
 
-  /// Vim buffers.
-  pub buffer_manager: BufferManagerArc,
-  /// Cmdline text.
-  pub cmdline_text: CmdlineTextArc,
-  /// Syntax and parsers.
-  pub syntax_manager: SyntaxManagerArc,
-  /// Colorschemes.
-  pub colorscheme_manager: ColorSchemeManagerArc,
-  /// Vim commands.
-  pub command_manager: CommandManagerArc,
-  /// Resources.
-  pub resource_table: ResourceTableArc,
+  /// Editor's shared data (buffers, UI tree, managers, resources, cli options).
+  ///
+  /// The same `Arc`s are also cloned into [`JsKernel`], because v8 callbacks
+  /// can only reach the isolate slot.
+  pub editor: EditorHandles,
 
   /// Cancellation token to notify the main loop to exit.
   pub cancellation_token: CancellationToken,
@@ -174,16 +157,11 @@ impl EventLoop {
   pub fn _internal_new(
     terminal_cols: u16,
     terminal_rows: u16,
+    cli_opts: CliOptions,
   ) -> IoResult<(
     /* canvas */ CanvasArc,
-    /* tree */ TreeArc,
     /* state_machine */ State,
-    /* buffer_manager */ BufferManagerArc,
-    /* cmdline_text */ CmdlineTextArc,
-    /* syntax_manager */ SyntaxManagerArc,
-    /* colorscheme_manager */ ColorSchemeManagerArc,
-    /* command_manager */ CommandManagerArc,
-    /* resource_table */ ResourceTableArc,
+    /* editor */ EditorHandles,
     /* cancellation_token */ CancellationToken,
     /* detached_tracker */ TaskTracker,
     /* blocked_tracker */ TaskTracker,
@@ -279,16 +257,21 @@ impl EventLoop {
     // Channel-3
     let (jsrt_tx, jsrt_rx) = unbounded_channel();
 
-    Ok((
-      canvas,
+    let editor = EditorHandles {
+      cli_opts,
       tree,
-      state_machine,
       buffer_manager,
       cmdline_text,
       syntax_manager,
       colorscheme_manager,
       command_manager,
       resource_table,
+    };
+
+    Ok((
+      canvas,
+      state_machine,
+      editor,
       CancellationToken::new(),
       TaskTracker::new(),
       TaskTracker::new(),
@@ -308,14 +291,8 @@ impl EventLoop {
     let (cols, rows) = crossterm::terminal::size()?;
     let (
       canvas,
-      tree,
       state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
+      editor,
       cancellation_token,
       detached_tracker,
       blocked_tracker,
@@ -323,7 +300,7 @@ impl EventLoop {
       (master_tx, master_rx),
       (jsrt_forwarder_tx, jsrt_forwarder_rx),
       (jsrt_tx, jsrt_rx),
-    ) = Self::_internal_new(cols, rows)?;
+    ) = Self::_internal_new(cols, rows, cli_opts.clone())?;
 
     let writer = StdoutWriterValue::editor();
 
@@ -334,29 +311,15 @@ impl EventLoop {
       startup_unix_epoch,
       master_tx.clone(),
       jsrt_rx,
-      cli_opts.clone(),
-      tree.clone(),
-      buffer_manager.clone(),
-      cmdline_text.clone(),
-      syntax_manager.clone(),
-      colorscheme_manager.clone(),
-      command_manager.clone(),
-      resource_table.clone(),
+      editor.clone(),
     );
 
     Ok(EventLoop {
       startup_moment,
       startup_unix_epoch,
-      cli_opts,
       canvas,
-      tree,
       state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
+      editor,
       writer,
       cancellation_token,
       detached_tracker,
@@ -383,14 +346,8 @@ impl EventLoop {
 
     let (
       canvas,
-      tree,
       state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
+      editor,
       cancellation_token,
       detached_tracker,
       blocked_tracker,
@@ -398,7 +355,7 @@ impl EventLoop {
       (master_tx, master_rx),
       (jsrt_forwarder_tx, jsrt_forwarder_rx),
       (jsrt_tx, jsrt_rx),
-    ) = Self::_internal_new(terminal_columns, terminal_rows)?;
+    ) = Self::_internal_new(terminal_columns, terminal_rows, cli_opts.clone())?;
 
     let startup_moment = Instant::now();
     let startup_unix_epoch = SystemTime::now()
@@ -414,29 +371,15 @@ impl EventLoop {
       startup_unix_epoch,
       master_tx.clone(),
       jsrt_rx,
-      cli_opts.clone(),
-      tree.clone(),
-      buffer_manager.clone(),
-      cmdline_text.clone(),
-      syntax_manager.clone(),
-      colorscheme_manager.clone(),
-      command_manager.clone(),
-      resource_table.clone(),
+      editor.clone(),
     );
 
     Ok(EventLoop {
       startup_moment,
       startup_unix_epoch,
-      cli_opts,
       canvas,
-      tree,
       state_machine,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
+      editor,
       writer,
       cancellation_token,
       detached_tracker,
@@ -465,10 +408,10 @@ impl EventLoop {
 
     // Flush logic UI to terminal, i.e. print UI to stdout
     let context = WidgetContext::new(
-      self.syntax_manager.clone(),
-      self.colorscheme_manager.clone(),
+      self.editor.syntax_manager.clone(),
+      self.editor.colorscheme_manager.clone(),
     );
-    lock!(self.tree).draw(self.canvas.clone(), &context);
+    lock!(self.editor.tree).draw(self.canvas.clone(), &context);
     self.writer.init_complete(&mut lock!(self.canvas))?;
 
     Ok(())
@@ -511,14 +454,17 @@ impl EventLoop {
     let canvas_size = lock!(self.canvas).size();
 
     // Create default buffer from `FILES` arguments from cli, or with an empty buffer.
-    let input_files = &self.cli_opts.file();
+    let input_files = &self.editor.cli_opts.file();
     if !input_files.is_empty() {
       for input_file in input_files.iter() {
-        let maybe_buf_id =
-          lock!(self.buffer_manager).new_file_buffer(canvas_size, input_file);
+        let maybe_buf_id = lock!(self.editor.buffer_manager)
+          .new_file_buffer(canvas_size, input_file);
         match maybe_buf_id {
           Ok(buf_id) => {
-            let buf = lock!(self.buffer_manager).get(&buf_id).unwrap().clone();
+            let buf = lock!(self.editor.buffer_manager)
+              .get(&buf_id)
+              .unwrap()
+              .clone();
             self._add_pending_syntax_edit(buf);
             trace!("Created file buffer {:?}:{:?}", input_file, buf_id);
           }
@@ -528,7 +474,7 @@ impl EventLoop {
 
             // Append error message to command line message history, wait for
             // print once TUI initialized.
-            let mut cmdline_text = lock!(self.cmdline_text);
+            let mut cmdline_text = lock!(self.editor.cmdline_text);
             cmdline_text
               .message_history_mut()
               .push_overwrite(e.to_string());
@@ -537,7 +483,7 @@ impl EventLoop {
       }
     } else {
       let (buf_id, buf) = {
-        let mut buffer_manager = lock!(self.buffer_manager);
+        let mut buffer_manager = lock!(self.editor.buffer_manager);
         let buf_id = buffer_manager.new_empty_buffer(canvas_size);
         let buf = buffer_manager.get(&buf_id).unwrap().clone();
         (buf_id, buf)
@@ -561,14 +507,14 @@ impl EventLoop {
         canvas_cursor.style(),
       )
     };
-    let mut tree = lock!(self.tree);
+    let mut tree = lock!(self.editor.tree);
     let (_buf_id, buf) = {
-      let buffer_manager = lock!(self.buffer_manager);
+      let buffer_manager = lock!(self.editor.buffer_manager);
       let (buf_id, buf) = buffer_manager.first_key_value().unwrap();
       (*buf_id, buf.clone())
     };
     let buf = Arc::downgrade(&buf);
-    let cmdline_text = Arc::downgrade(&self.cmdline_text);
+    let cmdline_text = Arc::downgrade(&self.editor.cmdline_text);
 
     ui::init_default_window(
       &mut tree,
@@ -594,8 +540,8 @@ impl EventLoop {
   //
   // And all messages will be print once the editor TUI is initialized.
   fn _init_pending_messages(&mut self) {
-    let mut cmdline_text = lock!(self.cmdline_text);
-    let mut tree = lock!(self.tree);
+    let mut cmdline_text = lock!(self.editor.cmdline_text);
+    let mut tree = lock!(self.editor.tree);
     cmdline_ops::cmdline_set_last_pending_message_on_initialize(
       &mut tree,
       &mut cmdline_text,
@@ -614,9 +560,9 @@ impl EventLoop {
       Some(Ok(event)) => {
         trace!("Polled terminal event ok: {:?}", event);
         let context = StateContext::new(
-          self.tree.clone(),
-          self.buffer_manager.clone(),
-          self.cmdline_text.clone(),
+          self.editor.tree.clone(),
+          self.editor.buffer_manager.clone(),
+          self.editor.cmdline_text.clone(),
           self.master_tx.clone(),
           self.jsrt_forwarder_tx.clone(),
         );
@@ -648,9 +594,9 @@ impl EventLoop {
         match op {
           MockOperation::Operation(op) => {
             let context = StateContext::new(
-              self.tree.clone(),
-              self.buffer_manager.clone(),
-              self.cmdline_text.clone(),
+              self.editor.tree.clone(),
+              self.editor.buffer_manager.clone(),
+              self.editor.cmdline_text.clone(),
               self.master_tx.clone(),
               self.jsrt_forwarder_tx.clone(),
             );
@@ -712,7 +658,7 @@ impl EventLoop {
         MasterMessage::FsOpenReq(req) => {
           trace!("Recv FsOpenReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
               fs_open_a(resource_table, req.path.as_path(), req.options).await;
@@ -731,7 +677,7 @@ impl EventLoop {
         }
         MasterMessage::FsReadReq(req) => {
           trace!("Recv FsReadReq:{:?}", req.task_id);
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
@@ -746,7 +692,7 @@ impl EventLoop {
         }
         MasterMessage::FsWriteReq(req) => {
           trace!("Recv FsWriteReq:{:?}", req.task_id);
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result =
@@ -767,7 +713,7 @@ impl EventLoop {
         MasterMessage::FsReadDirReq(req) => {
           trace!("Recv FsReadDirReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result =
               fs_read_dir_s(resource_table, req.path.as_path());
@@ -787,7 +733,7 @@ impl EventLoop {
         MasterMessage::FsReadDirNextReq(req) => {
           trace!("Recv FsReadDirNextReq:{:?}", req.task_id);
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result = fs_read_dir_next_s(resource_table, req.rid);
             jsrt_forwarder_tx
@@ -915,7 +861,9 @@ impl EventLoop {
         }
         MasterMessage::SyntaxEditReq(req) => {
           trace!("Recv SyntaxEditReq:{:?}", req.buffer_id);
-          if let Some(buf) = lock!(self.buffer_manager).get(&req.buffer_id) {
+          if let Some(buf) =
+            lock!(self.editor.buffer_manager).get(&req.buffer_id)
+          {
             let mut buf = lock!(buf);
 
             // Early quit if any below conditions are met:
@@ -957,7 +905,7 @@ impl EventLoop {
             // release lock on the buffer
             drop(buf);
 
-            let buffer_manager = self.buffer_manager.clone();
+            let buffer_manager = self.editor.buffer_manager.clone();
             let master_tx = self.master_tx.clone();
 
             self.detached_tracker.spawn_blocking(move || {
@@ -1007,7 +955,7 @@ impl EventLoop {
         }
         MasterMessage::LoadTreeSitterParserReq(req) => {
           trace!("Recv LoadTreeSitterGrammarReq:{:?}", req.task_id);
-          let syn_manager = self.syntax_manager.clone();
+          let syn_manager = self.editor.syntax_manager.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
 
           self.detached_tracker.spawn(async move {
@@ -1072,7 +1020,7 @@ impl EventLoop {
             req.task_id, req.rid
           );
 
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
 
           self.detached_tracker.spawn_blocking(move || {
@@ -1139,7 +1087,7 @@ impl EventLoop {
         MasterMessage::WaitChildProcessReq(req) => {
           trace!("Recv WaitChildProcessReq:{:?} rid:{}", req.task_id, req.rid);
 
-          let resource_table = self.resource_table.clone();
+          let resource_table = self.editor.resource_table.clone();
           let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
 
           self.detached_tracker.spawn_blocking(move || {
@@ -1262,10 +1210,10 @@ impl EventLoop {
 
       // Flush logic UI to terminal, i.e. print UI to stdout
       let context = WidgetContext::new(
-        self.syntax_manager.clone(),
-        self.colorscheme_manager.clone(),
+        self.editor.syntax_manager.clone(),
+        self.editor.colorscheme_manager.clone(),
       );
-      lock!(self.tree).draw(self.canvas.clone(), &context);
+      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
       self.writer.write(&mut lock!(self.canvas))?;
     }
 
@@ -1300,10 +1248,10 @@ impl EventLoop {
 
       // Flush logic UI to terminal, i.e. print UI to stdout
       let context = WidgetContext::new(
-        self.syntax_manager.clone(),
-        self.colorscheme_manager.clone(),
+        self.editor.syntax_manager.clone(),
+        self.editor.colorscheme_manager.clone(),
       );
-      lock!(self.tree).draw(self.canvas.clone(), &context);
+      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
       self.writer.write(&mut lock!(self.canvas))?;
     }
 
@@ -1335,10 +1283,10 @@ impl EventLoop {
 
       // Flush logic UI to terminal, i.e. print UI to stdout
       let context = WidgetContext::new(
-        self.syntax_manager.clone(),
-        self.colorscheme_manager.clone(),
+        self.editor.syntax_manager.clone(),
+        self.editor.colorscheme_manager.clone(),
       );
-      lock!(self.tree).draw(self.canvas.clone(), &context);
+      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
       self.writer.write(&mut lock!(self.canvas))?;
     }
 

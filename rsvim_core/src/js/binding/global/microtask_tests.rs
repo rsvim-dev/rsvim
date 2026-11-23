@@ -34,7 +34,7 @@ async fn test_queue_microtask1() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();
@@ -78,7 +78,7 @@ async fn test_queue_microtask2() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();
@@ -119,7 +119,7 @@ async fn test_queue_microtask_failed3() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();
@@ -162,7 +162,7 @@ async fn test_queue_microtask_failed4() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();
@@ -201,7 +201,7 @@ async fn test_report_error1() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();
@@ -242,7 +242,7 @@ async fn test_report_error2() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert!(n == 1);
     let actual = contents.message_history_mut().pop();

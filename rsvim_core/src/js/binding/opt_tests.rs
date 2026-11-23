@@ -33,7 +33,7 @@ mod tests_wrap {
 
     // Before running
     {
-      let tree = lock!(event_loop.tree);
+      let tree = lock!(event_loop.editor.tree);
       let global_local_options = tree.global_local_options();
       assert_eq!(global_local_options.wrap(), WRAP);
     }
@@ -46,7 +46,7 @@ mod tests_wrap {
 
     // After running
     {
-      let tree = lock!(event_loop.tree);
+      let tree = lock!(event_loop.editor.tree);
       let global_local_options = tree.global_local_options();
       assert!(!global_local_options.wrap());
     }
@@ -83,7 +83,7 @@ mod tests_tab_stop {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
     }
@@ -96,11 +96,11 @@ mod tests_tab_stop {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), 4);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -130,7 +130,7 @@ mod tests_tab_stop {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
     }
@@ -143,11 +143,11 @@ mod tests_tab_stop {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), 1);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(n, 0);
     }
@@ -177,7 +177,7 @@ mod tests_tab_stop {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
     }
@@ -190,11 +190,11 @@ mod tests_tab_stop {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
 
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(n, 1);
       let actual = contents.message_history_mut().pop();
@@ -237,7 +237,7 @@ mod tests_file_encoding {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
       assert_eq!(global_local_options.file_encoding(), FILE_ENCODING);
@@ -254,14 +254,14 @@ mod tests_file_encoding {
     {
       use crate::buf::opt::FileEncodingOption;
 
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(
         global_local_options.file_encoding(),
         FileEncodingOption::Utf8,
       );
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -291,7 +291,7 @@ mod tests_file_encoding {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.file_encoding(), FILE_ENCODING);
     }
@@ -304,11 +304,11 @@ mod tests_file_encoding {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.file_encoding(), FILE_ENCODING);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
@@ -347,7 +347,7 @@ mod tests_file_format {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.tab_stop(), TAB_STOP);
       assert_eq!(global_local_options.file_encoding(), FILE_ENCODING);
@@ -364,11 +364,11 @@ mod tests_file_format {
     {
       use crate::buf::opt::FileFormatOption;
 
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.file_format(), FileFormatOption::Mac);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -398,7 +398,7 @@ mod tests_file_format {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.file_format(), FILE_FORMAT);
     }
@@ -411,11 +411,11 @@ mod tests_file_format {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.file_format(), FILE_FORMAT);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
@@ -454,7 +454,7 @@ mod tests_fix_end_of_line {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.fix_end_of_line(), FIX_END_OF_LINE);
     }
@@ -467,11 +467,11 @@ mod tests_fix_end_of_line {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert!(!global_local_options.fix_end_of_line());
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -501,7 +501,7 @@ mod tests_fix_end_of_line {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.fix_end_of_line(), FIX_END_OF_LINE);
     }
@@ -514,11 +514,11 @@ mod tests_fix_end_of_line {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert!(global_local_options.fix_end_of_line());
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
@@ -557,7 +557,7 @@ mod tests_expand_tab {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.expand_tab(), EXPAND_TAB);
     }
@@ -570,11 +570,11 @@ mod tests_expand_tab {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert!(global_local_options.expand_tab());
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -604,7 +604,7 @@ mod tests_expand_tab {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.expand_tab(), EXPAND_TAB);
     }
@@ -617,11 +617,11 @@ mod tests_expand_tab {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.expand_tab(), EXPAND_TAB);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       let actual = actual.trim();
       info!("actual:{actual}");
@@ -660,7 +660,7 @@ mod tests_shift_width {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), SHIFT_WIDTH);
     }
@@ -673,11 +673,11 @@ mod tests_shift_width {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), 4);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let actual = contents.message().rope().to_string();
       assert!(actual.trim().is_empty());
     }
@@ -707,7 +707,7 @@ mod tests_shift_width {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), SHIFT_WIDTH);
     }
@@ -720,11 +720,11 @@ mod tests_shift_width {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), 255);
 
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(n, 0);
     }
@@ -754,7 +754,7 @@ mod tests_shift_width {
 
     // Before running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), SHIFT_WIDTH);
     }
@@ -767,11 +767,11 @@ mod tests_shift_width {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), SHIFT_WIDTH);
 
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(n, 1);
       let actual = contents.message_history_mut().pop();
@@ -820,7 +820,7 @@ mod tests_syntax_parser_lib_path {
 
     // Before running
     {
-      let syntax_manager = lock!(event_loop.syntax_manager);
+      let syntax_manager = lock!(event_loop.editor.syntax_manager);
       let lib_path = syntax_manager.treesitter_parser_lib_path();
       info!("parser_lib_path:{:?}", lib_path);
       assert!(lib_path.to_string_lossy().ends_with(TREE_SITTER_LIB));
@@ -834,7 +834,7 @@ mod tests_syntax_parser_lib_path {
 
     // After running
     {
-      let syntax_manager = lock!(event_loop.syntax_manager);
+      let syntax_manager = lock!(event_loop.editor.syntax_manager);
       let lib_path = syntax_manager.treesitter_parser_lib_path();
       info!("parser_lib_path:{:?}", lib_path);
       assert_eq!(lib_path.to_string_lossy(), ".");
@@ -865,7 +865,7 @@ mod tests_syntax_parser_lib_path {
 
     // Before running
     {
-      let syntax_manager = lock!(event_loop.syntax_manager);
+      let syntax_manager = lock!(event_loop.editor.syntax_manager);
       let lib_path = syntax_manager.treesitter_parser_lib_path();
       info!("parser_lib_path:{:?}", lib_path);
       assert!(lib_path.to_string_lossy().ends_with(TREE_SITTER_LIB));
@@ -879,11 +879,11 @@ mod tests_syntax_parser_lib_path {
 
     // After running
     {
-      let buffers = lock!(event_loop.buffer_manager);
+      let buffers = lock!(event_loop.editor.buffer_manager);
       let global_local_options = buffers.global_local_options();
       assert_eq!(global_local_options.shift_width(), SHIFT_WIDTH);
 
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(n, 1);
       let actual = contents.message_history_mut().pop();

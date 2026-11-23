@@ -14,7 +14,7 @@ pub fn current(
 ) {
   debug_assert!(_args.length() == 0);
   let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   match tree.current_window() {
     Some(current_window) => {
@@ -38,7 +38,7 @@ pub fn list(
 ) {
   debug_assert!(_args.length() == 0);
   let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   trace!("buf.list: {:?}", buffer_manager.keys());
 
@@ -63,7 +63,7 @@ pub fn write_sync<'s>(
 
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow();
-  let buffer_manager = state.buffer_manager.clone();
+  let buffer_manager = state.editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
 
   match buffer_manager.write_buffer(buf_id) {

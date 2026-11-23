@@ -55,7 +55,7 @@ async fn test_open_close1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -103,7 +103,7 @@ async fn test_open_close2() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -152,7 +152,7 @@ async fn test_open_close3() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
     assert!(tmpfile.exists());
@@ -202,7 +202,7 @@ async fn test_open_close4() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
     assert!(tmpfile.exists());
@@ -250,7 +250,7 @@ try {{
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -303,7 +303,7 @@ try {{
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -361,7 +361,7 @@ async fn test_read_write1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -416,7 +416,7 @@ async fn test_read_write2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -469,7 +469,7 @@ async fn test_read_write3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -526,7 +526,7 @@ async fn test_read_write4() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -581,7 +581,7 @@ async fn test_read_file1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -634,7 +634,7 @@ async fn test_read_file2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -686,7 +686,7 @@ async fn test_read_text_file1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -734,7 +734,7 @@ async fn test_read_text_file2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -784,7 +784,7 @@ async fn test_fs_stat1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -838,7 +838,7 @@ async fn test_fs_stat2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -895,7 +895,7 @@ async fn test_fs_stat3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -963,7 +963,7 @@ async fn test_fs_symlink1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1030,7 +1030,7 @@ async fn test_fs_symlink2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1089,7 +1089,7 @@ async fn test_fs_symlink3() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
 
@@ -1155,7 +1155,7 @@ async fn test_fs_link1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1208,7 +1208,7 @@ async fn test_fs_mkdir1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -1255,7 +1255,7 @@ async fn test_fs_mkdir2() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -1369,7 +1369,7 @@ async fn test_read_dir1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 28);
 
@@ -1426,7 +1426,7 @@ async fn test_read_dir2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 28);
 

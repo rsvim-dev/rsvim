@@ -51,7 +51,7 @@ mod tests_current1 {
 
     // After running
     {
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let payload = contents.message().rope().to_string();
       info!("After payload:{payload:?}");
       let payload = payload.trim();
@@ -120,7 +120,7 @@ mod tests_current1 {
 
     // After running
     {
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let payload = contents.message().rope().to_string();
       info!("After payload:{payload:?}");
       let payload = payload.trim();
@@ -187,7 +187,7 @@ mod tests_current1 {
       event_loop.shutdown()?;
 
       // After running
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let payload = contents.message().rope().to_string();
       info!("After payload-1:{payload:?}");
       let payload = payload.trim();
@@ -217,7 +217,7 @@ mod tests_current1 {
       event_loop.shutdown()?;
 
       // After running
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       let payload = contents.message().rope().to_string();
       info!("After payload-2:{payload:?}");
       let payload = payload.trim();

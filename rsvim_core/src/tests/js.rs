@@ -1,6 +1,7 @@
 use crate::buf::BufferManager;
 use crate::cli::CliOptions;
 use crate::cmdltext::CmdlineText;
+use crate::handles::EditorHandles;
 use crate::hl::ColorSchemeManager;
 use crate::js::JsRuntime;
 use crate::js::JsRuntimeOptions;
@@ -48,19 +49,23 @@ pub fn make_js_runtime() -> JsRuntime {
     .unwrap()
     .as_millis();
 
+  let editor = EditorHandles {
+    cli_opts,
+    tree,
+    buffer_manager: buffers_manager,
+    cmdline_text,
+    syntax_manager,
+    colorscheme_manager,
+    command_manager: ex_commands_manager,
+    resource_table,
+  };
+
   JsRuntime::new(
     JsRuntimeOptions::default(),
     startup_moment,
     startup_unix_epoch,
     master_tx,
     jsrt_rx,
-    cli_opts,
-    tree,
-    buffers_manager,
-    cmdline_text,
-    syntax_manager,
-    colorscheme_manager,
-    ex_commands_manager,
-    resource_table,
+    editor,
   )
 }

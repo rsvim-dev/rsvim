@@ -36,7 +36,7 @@ pub fn spawn_child<'s>(
   );
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match spawn_child_process(resource_table, &exec_path, &options) {
     Ok((child_rid, stdin_rid, stdout_rid, stderr_rid)) => {

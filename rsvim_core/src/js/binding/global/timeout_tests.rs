@@ -31,7 +31,7 @@ async fn test_timeout1() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -45,7 +45,7 @@ async fn test_timeout1() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
@@ -83,7 +83,7 @@ async fn test_timeout2() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -97,7 +97,7 @@ async fn test_timeout2() -> IoResult<()> {
 
   // Still remains the same value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -136,7 +136,7 @@ async fn test_timeout3() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -150,12 +150,12 @@ async fn test_timeout3() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
 
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(3, contents.message_history().len());
     let actual1 = contents.message_history_mut().pop();
     assert!(actual1.is_some());
@@ -209,7 +209,7 @@ async fn test_timeout4() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -223,12 +223,12 @@ async fn test_timeout4() -> IoResult<()> {
 
   // Still remains the same value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
 
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(0, contents.message_history().len());
   }
 
@@ -261,7 +261,7 @@ async fn test_timeout5() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -275,7 +275,7 @@ async fn test_timeout5() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
@@ -320,7 +320,7 @@ async fn test_interval1() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(3, contents.message_history().len());
     for i in 0..3 {
       let actual = contents.message_history_mut().pop();
@@ -370,7 +370,7 @@ async fn test_interval2() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     info!("n:{}", n);
     assert!(n >= 2);
@@ -427,7 +427,7 @@ async fn test_interval3() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     info!("n:{}", n);
     assert!(n >= 2);
@@ -488,7 +488,7 @@ async fn test_timeout6() -> IoResult<()> {
   event_loop.shutdown()?;
 
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     // The `1e10` delay is clamped to `2^31 - 1` millis, which is far beyond the
     // mocked sleep, so only the first two timers fire.
     assert_eq!(2, contents.message_history().len());

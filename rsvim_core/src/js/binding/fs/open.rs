@@ -181,7 +181,7 @@ pub fn open_sync<'s>(
   let (filename, options) = _get_args(scope, args);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let filename = Path::new(&filename);
   match fs_open_s(resource_table, filename, options) {

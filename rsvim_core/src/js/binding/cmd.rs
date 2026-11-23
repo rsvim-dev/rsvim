@@ -13,8 +13,8 @@ use compact_str::ToCompactString;
 
 pub fn send_cmdline_message(state: &JsRuntimeState, payload: String) {
   trace!("|cmd| send_cmdline_message:{:?}", payload);
-  let mut tree = lock!(state.tree);
-  let mut cmdline_text = lock!(state.cmdline_text);
+  let mut tree = lock!(state.editor.tree);
+  let mut cmdline_text = lock!(state.editor.cmdline_text);
   if tree.cmdline_id().is_some() {
     cmdline_ops::cmdline_set_message(&mut tree, &mut cmdline_text, payload);
   } else {
@@ -55,7 +55,7 @@ pub fn create<'s>(
 
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow_mut();
-  let mut command_manager = lock!(state.command_manager);
+  let mut command_manager = lock!(state.editor.command_manager);
 
   let result = command_manager
     .insert(def.name.to_compact_string(), CommandDefinition::to_rc(def));
@@ -80,7 +80,7 @@ pub fn list(
 
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow_mut();
-  let command_manager = lock!(state.command_manager);
+  let command_manager = lock!(state.editor.command_manager);
 
   let commands = command_manager
     .keys()
@@ -103,7 +103,7 @@ pub fn get<'s>(
 
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow_mut();
-  let command_manager = lock!(state.command_manager);
+  let command_manager = lock!(state.editor.command_manager);
   match command_manager.get(&name) {
     Some(def) => rv.set(def.to_v8(scope)),
     None => rv.set_undefined(),
@@ -123,7 +123,7 @@ pub fn remove<'s>(
 
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow_mut();
-  let mut command_manager = lock!(state.command_manager);
+  let mut command_manager = lock!(state.editor.command_manager);
   match command_manager.remove(&name) {
     Some(removed) => rv.set(removed.to_v8(scope)),
     None => rv.set_undefined(),

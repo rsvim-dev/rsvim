@@ -66,7 +66,7 @@ async fn test_new_command1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -106,7 +106,7 @@ async fn test_spawn1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -157,7 +157,7 @@ async fn test_spawn2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -220,7 +220,7 @@ async fn test_spawn3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 
@@ -289,7 +289,7 @@ async fn test_spawn4() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 
@@ -353,7 +353,7 @@ async fn test_spawn5() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 

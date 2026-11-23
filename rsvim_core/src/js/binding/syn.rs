@@ -34,8 +34,10 @@ pub fn load_parser_sync<'s>(
       let load_req = SyntaxLoadGrammarRequest {
         grammar_path: grammar_path.to_path_buf(),
       };
-      match syntax::load_syntax_grammar(state.syntax_manager.clone(), &load_req)
-      {
+      match syntax::load_syntax_grammar(
+        state.editor.syntax_manager.clone(),
+        &load_req,
+      ) {
         Ok(metainfo) => {
           let parser_names = metainfo
             .grammars
@@ -110,7 +112,7 @@ pub fn list_parsers<'s>(
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow();
 
-  let syntax_manager = state.syntax_manager.clone();
+  let syntax_manager = state.editor.syntax_manager.clone();
   let parser_names = lock!(syntax_manager).list_grammar_names();
   trace!("syn.listParsers result:{:?}", parser_names);
   let parser_names = parser_names.to_v8(scope);
@@ -130,7 +132,7 @@ pub fn get_parser_metadata<'s>(
   let state_rc = JsRuntime::state(scope);
   let state = state_rc.borrow();
 
-  let syntax_manager = state.syntax_manager.clone();
+  let syntax_manager = state.editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   match syntax_manager.get_metadata(&parser_name) {
     Some(metadata) => {

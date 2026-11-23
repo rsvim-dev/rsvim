@@ -238,7 +238,7 @@ pub fn create_stream_decoder<'s>(
   );
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let decoder_handle = create_decoder_impl(&label, ignore_bom);
   let decoder_rid = lock!(resource_table).add_text_decoder(decoder_handle);
@@ -276,7 +276,7 @@ pub fn decode_stream<'s>(
   );
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let decoder_handle = lock!(resource_table).get(&decoder_rid).cloned();
   debug_assert!(decoder_handle.is_some());
@@ -302,7 +302,7 @@ pub fn close_stream_decoder<'s>(
   trace!("|close_stream_decoder| decoder_rid:{:?}", decoder_rid);
 
   let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
+  let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let mut decoder_handle = lock!(resource_table).remove(&decoder_rid);
   debug_assert!(decoder_handle.is_some());
