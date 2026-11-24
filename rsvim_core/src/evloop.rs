@@ -140,7 +140,7 @@ pub struct Rsvim {
   pub canvas: CanvasArc,
 
   /// Finite-state machine for editing state.
-  pub state_machine: State,
+  pub state: State,
 
   /// Editor's shared data (buffers, UI tree, managers, resources, cli options).
   ///
@@ -442,7 +442,7 @@ impl Rsvim {
     cli_opts: CliOptions,
   ) -> IoResult<(
     /* canvas */ CanvasArc,
-    /* state_machine */ State,
+    /* state */ State,
     /* editor */ Editor,
     /* cancellation_token */ CancellationToken,
     /* detached_tracker */ TaskTracker,
@@ -491,7 +491,7 @@ impl Rsvim {
     let resource_table = ResourceTable::to_arc(ResourceTable::new());
 
     // State
-    let state_machine = State::default();
+    let state = State::default();
 
     // When implements `Promise`, `async`/`await` APIs for javascript runtime,
     // we need to leverage tokio's async runtime. i.e. first we send js task
@@ -547,7 +547,7 @@ impl Rsvim {
 
     Ok((
       canvas,
-      state_machine,
+      state,
       editor,
       CancellationToken::new(),
       TaskTracker::new(),
@@ -567,7 +567,7 @@ impl Rsvim {
     let (cols, rows) = crossterm::terminal::size()?;
     let (
       canvas,
-      state_machine,
+      state,
       editor,
       cancellation_token,
       detached_tracker,
@@ -590,7 +590,7 @@ impl Rsvim {
       startup_moment,
       startup_unix_epoch,
       canvas,
-      state_machine,
+      state,
       editor,
       writer,
       cancellation_token,
@@ -624,7 +624,7 @@ impl Rsvim {
 
     let (
       canvas,
-      state_machine,
+      state,
       editor,
       cancellation_token,
       detached_tracker,
@@ -652,7 +652,7 @@ impl Rsvim {
       startup_moment,
       startup_unix_epoch,
       canvas,
-      state_machine,
+      state,
       editor,
       writer,
       cancellation_token,
@@ -846,9 +846,9 @@ impl Rsvim {
         );
 
         // Handle by state machine
-        let stateful = self.state_machine;
+        let stateful = self.state;
         let next_stateful = stateful.handle(&context, event);
-        self.state_machine = next_stateful;
+        self.state = next_stateful;
       }
       Some(Err(e)) => {
         error!("Polled terminal event error: {:?}", e);
@@ -880,9 +880,9 @@ impl Rsvim {
             );
 
             // Handle by state machine
-            let stateful = self.state_machine;
+            let stateful = self.state;
             let next_stateful = stateful.handle_op(&context, op);
-            self.state_machine = next_stateful;
+            self.state = next_stateful;
           }
           MockOperation::Exit => {
             self.cancellation_token.cancel();
