@@ -108,7 +108,7 @@ pub struct Rsvim {
 
   /// Editor's shared data (buffers, UI tree, managers, resources, cli options).
   ///
-  /// The same `Arc`s are also cloned into [`JsKernel`], because v8 callbacks
+  /// The same `Arc`s are also cloned into [`crate::js::JsKernel`], because v8 callbacks
   /// can only reach the isolate slot.
   pub editor: EditorHandles,
 
@@ -141,7 +141,7 @@ pub struct Rsvim {
   ///
   /// The sender is cloned into the FSM (`StateContext`) and into every
   /// background task; the receiver is the `[A]` branch of
-  /// [`Rsvim::run_inner`], i.e. the only tick driver.
+  /// `Rsvim::run_inner`, i.e. the only tick driver.
   ///
   /// This used to be two channels with a forwarding hop in between. The hop
   /// is gone, and the two channels are folded into this one: a completion
@@ -151,10 +151,10 @@ pub struct Rsvim {
 
   /// Whether there is javascript work that can be advanced right now, i.e.
   /// the previous tick returned [`TickOutcome::MoreWork`]. Consumed at the
-  /// top of every [`Rsvim::run_inner`] iteration.
+  /// top of every `Rsvim::run_inner` iteration.
   pub js_tick_again: bool,
   /// How many consecutive self-driven ticks have been performed without
-  /// going back to the `select!`. Bounded by [`JS_SPIN_BUDGET`].
+  /// going back to the `select!`. Bounded by `JS_SPIN_BUDGET`.
   pub js_spin: usize,
   /// Whether the exhausted-budget warning has already been emitted for the
   /// current run of self-driven ticks, so a long microtask chain is reported
@@ -191,7 +191,7 @@ pub enum TickOutcome {
   /// There's still work that is ready *right now* (newly ready `JsFuture`s,
   /// newly arrived messages), it's worth ticking once more -- but the number
   /// of consecutive self-driven ticks must be bounded by
-  /// [`JS_SPIN_BUDGET`].
+  /// `JS_SPIN_BUDGET`.
   MoreWork,
 }
 
@@ -201,8 +201,8 @@ impl Rsvim {
   /// The order strictly follows Dune (`dune/src/runtime.rs:427-432`):
   ///   1. microtask checkpoint
   ///   2. consume the completion events, each followed by
-  ///      checkpoint + flush errors + the [`JsFuture`]s it just made ready
-  ///   3. run whatever [`JsFuture`] was pending before the tick started
+  ///      checkpoint + flush errors + the [`crate::js::JsFuture`]s it just made ready
+  ///   3. run whatever [`crate::js::JsFuture`] was pending before the tick started
   ///   4. flush the exceptions captured outside the two loops above
   ///   5. decide whether there's more work that can be advanced immediately
   ///
@@ -306,7 +306,7 @@ impl Rsvim {
     }
   }
 
-  /// Runs the [`JsFuture`]s that are ready *right now*, once.
+  /// Runs the [`crate::js::JsFuture`]s that are ready *right now*, once.
   ///
   /// `mem::take` first, so the borrow on `kernel` is released before the
   /// futures run and they are free to push new ones (which then land in the
@@ -352,7 +352,7 @@ impl Rsvim {
   ///
   /// This is the "one-shot" entry point, used by `_init_config` (to settle the
   /// imports of the config file) and by tests. The event loop proper does not
-  /// call it: [`Rsvim::run_inner`] drives [`Rsvim::tick_js`] directly, so that
+  /// call it: `Rsvim::run_inner` drives [`Rsvim::tick_js`] directly, so that
   /// the inbox drain and the tick happen inside a single `select!` iteration.
   pub fn tick_event_loop(&mut self) -> TickOutcome {
     let inbox = self.drain_js_inbox(None);
@@ -1617,11 +1617,11 @@ impl Rsvim {
     Ok(self.exit_code)
   }
 
-  /// One iteration of [`Rsvim::run_inner`].
+  /// One iteration of `Rsvim::run_inner`.
   ///
   /// Split out of the `loop` so tests can drive the loop one iteration at a
   /// time instead of racing against a real input stream. Production calls it
-  /// only from [`Rsvim::run_inner`], so the split changes no behaviour:
+  /// only from `Rsvim::run_inner`, so the split changes no behaviour:
   /// `run_inner` is exactly `loop { if step(..).is_break() { break } }`.
   pub(crate) async fn step<S, F, H>(
     &mut self,
