@@ -2,7 +2,7 @@
 
 use crate::chan;
 use crate::chan::MasterMessage;
-use crate::js::JsRuntimeState;
+use crate::js::JsKernel;
 use crate::js::TaskId;
 use crate::js::TimerId;
 use crate::js::binding::fs::mkdir::FsMkdirOptions;
@@ -16,7 +16,7 @@ pub type TimerCallback = Box<dyn FnMut() + 'static>;
 pub type TaskCallback = Box<dyn FnMut(Option<TheResult<Vec<u8>>>) + 'static>;
 
 pub fn create_timer(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   timer_id: TimerId,
   delay: u32,
   repeated: bool,
@@ -36,14 +36,14 @@ pub fn create_timer(
 }
 
 pub fn remove_timer(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   timer_id: TimerId,
 ) -> Option<TimerId> {
   state.pending_timers.remove(&timer_id).map(|_| timer_id)
 }
 
 pub fn create_fs_open(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   path: &Path,
   options: FsOpenOptions,
@@ -62,7 +62,7 @@ pub fn create_fs_open(
 }
 
 pub fn create_fs_read(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   file_rid: ResourceId,
   bufsize: usize,
@@ -80,7 +80,7 @@ pub fn create_fs_read(
 }
 
 pub fn create_fs_read_dir(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   path: &Path,
   cb: TaskCallback,
@@ -96,7 +96,7 @@ pub fn create_fs_read_dir(
 }
 
 pub fn create_fs_read_dir_next(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   rid: ResourceId,
   cb: TaskCallback,
@@ -109,7 +109,7 @@ pub fn create_fs_read_dir_next(
 }
 
 pub fn create_fs_read_file(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   path: &Path,
   cb: TaskCallback,
@@ -125,7 +125,7 @@ pub fn create_fs_read_file(
 }
 
 pub fn create_fs_read_text_file(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   path: &Path,
   cb: TaskCallback,
@@ -141,7 +141,7 @@ pub fn create_fs_read_text_file(
 }
 
 pub fn create_fs_write(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   file_rid: ResourceId,
   buf: Vec<u8>,
@@ -159,7 +159,7 @@ pub fn create_fs_write(
 }
 
 pub fn create_fs_stat(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   follow_symlink: bool,
   path: &Path,
@@ -177,7 +177,7 @@ pub fn create_fs_stat(
 }
 
 pub fn create_fs_symlink(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   oldpath: &Path,
   newpath: &Path,
@@ -197,7 +197,7 @@ pub fn create_fs_symlink(
 }
 
 pub fn create_fs_link(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   oldpath: &Path,
   newpath: &Path,
@@ -215,7 +215,7 @@ pub fn create_fs_link(
 }
 
 pub fn create_fs_mkdir(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   path: &Path,
   options: FsMkdirOptions,
@@ -233,7 +233,7 @@ pub fn create_fs_mkdir(
 }
 
 pub fn create_syn_load_parser(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   grammar_path: &Path,
   cb: TaskCallback,
@@ -249,7 +249,7 @@ pub fn create_syn_load_parser(
 }
 
 pub fn create_read_text_from_child_process_stdio(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   rid: ResourceId,
   cb: TaskCallback,
@@ -264,7 +264,7 @@ pub fn create_read_text_from_child_process_stdio(
 }
 
 pub fn create_wait_child_process(
-  state: &mut JsRuntimeState,
+  state: &mut JsKernel,
   task_id: TaskId,
   rid: ResourceId,
   cb: TaskCallback,

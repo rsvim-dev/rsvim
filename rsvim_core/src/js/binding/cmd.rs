@@ -1,8 +1,8 @@
 //! APIs for `cmd` module.
 
 use crate::is_v8_str;
+use crate::js::JsKernel;
 use crate::js::JsRuntime;
-use crate::js::JsRuntimeState;
 use crate::js::binding;
 use crate::js::command::def::CommandDefinition;
 use crate::js::converter::*;
@@ -11,7 +11,7 @@ use crate::state::ops::cmdline_ops;
 use compact_str::CompactString;
 use compact_str::ToCompactString;
 
-pub fn send_cmdline_message(state: &JsRuntimeState, payload: String) {
+pub fn send_cmdline_message(state: &JsKernel, payload: String) {
   trace!("|cmd| send_cmdline_message:{:?}", payload);
   let mut tree = lock!(state.editor.tree);
   let mut cmdline_text = lock!(state.editor.cmdline_text);

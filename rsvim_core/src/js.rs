@@ -185,8 +185,6 @@ pub mod boost {
     pub exceptions: ExceptionState,
     /// Runtime options.
     pub options: JsRuntimeOptions,
-    // /// Tracks wake event for current loop iteration.
-    // pub wake_event_queued: bool,
 
     // Data Access for RSVIM {
     pub master_tx: UnboundedSender<MasterMessage>,
@@ -194,12 +192,6 @@ pub mod boost {
     pub editor: Editor,
     // Data Access for RSVIM }
   }
-
-  /// Backward-compatible alias: `rsvim_core/src/js/pending.rs`,
-  /// `js/err.rs` and `js/binding/cmd.rs` keep using the old name.
-  pub type JsRuntimeState = JsKernel;
-  /// Backward-compatible alias of [`JsKernelRc`].
-  pub type JsRuntimeStateRc = JsKernelRc;
 
   /// Javascript runtime.
   ///
@@ -255,7 +247,6 @@ pub mod boost {
       // next_tick_queue: Vec::new(),
       exceptions: ExceptionState::new(),
       options,
-      // wake_event_queued: false,
       master_tx,
       editor,
     });

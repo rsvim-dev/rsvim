@@ -1,6 +1,6 @@
 //! Js error.
 
-use crate::js::JsRuntimeState;
+use crate::js::JsKernel;
 use crate::js::binding::cmd::send_cmdline_message;
 use crate::prelude::*;
 
@@ -161,6 +161,6 @@ impl std::fmt::Debug for JsError {
   }
 }
 
-pub fn report_js_error(state: &JsRuntimeState, e: TheErr) {
+pub fn report_js_error(state: &JsKernel, e: TheErr) {
   send_cmdline_message(state, e.to_string());
 }
