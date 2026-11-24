@@ -3,7 +3,6 @@
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::pending;
 use crate::prelude::*;
@@ -90,7 +89,7 @@ pub fn link_async<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let link_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();

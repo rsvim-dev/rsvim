@@ -4,7 +4,6 @@ pub mod load;
 pub mod metadata;
 
 use crate::js;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
@@ -26,7 +25,7 @@ pub fn load_parser_sync<'s>(
   let options = SynLoadTreeSitterParserOptions::from_v8(scope, args.get(0));
   trace!("syn.loadParserSync:{:?}", options);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   match Path::new(&options.grammar_path).absolutize() {
@@ -73,7 +72,7 @@ pub fn load_treesitter_parser<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let load_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();
@@ -109,7 +108,7 @@ pub fn list_parsers<'s>(
   debug_assert!(args.length() == 0);
   trace!("syn.listParsers");
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   let syntax_manager = state.editor.syntax_manager.clone();
@@ -129,7 +128,7 @@ pub fn get_parser_metadata<'s>(
   let parser_name = args.get(0).to_rust_string_lossy(scope);
   trace!("syn.getParserMetadata:{:?}", parser_name);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   let syntax_manager = state.editor.syntax_manager.clone();

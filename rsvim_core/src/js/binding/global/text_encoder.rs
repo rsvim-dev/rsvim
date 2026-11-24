@@ -3,7 +3,6 @@
 use crate::is_v8_bool;
 use crate::is_v8_int;
 use crate::is_v8_str;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::resource::Resource;
@@ -237,7 +236,7 @@ pub fn create_stream_decoder<'s>(
     label, ignore_bom
   );
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let decoder_handle = create_decoder_impl(&label, ignore_bom);
@@ -275,7 +274,7 @@ pub fn decode_stream<'s>(
     data, fatal, stream
   );
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let decoder_handle = lock!(resource_table).get(&decoder_rid).cloned();
@@ -301,7 +300,7 @@ pub fn close_stream_decoder<'s>(
   let decoder_rid = ResourceId::from(decoder_rid);
   trace!("|close_stream_decoder| decoder_rid:{:?}", decoder_rid);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let mut decoder_handle = lock!(resource_table).remove(&decoder_rid);

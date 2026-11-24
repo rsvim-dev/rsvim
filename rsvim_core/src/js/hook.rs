@@ -1,6 +1,5 @@
 //! Js runtime hooks: promise, import and import.meta, etc.
 
-use crate::js::JsRuntime;
 use crate::js::binding::throw_type_error;
 use crate::js::module::resolve_import;
 use crate::prelude::*;
@@ -19,7 +18,7 @@ pub fn module_resolve_cb<'a>(
 ) -> Option<v8::Local<'a, v8::Module>> {
   // Get `CallbackScope` from context.
   v8::callback_scope!(unsafe scope, context);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   let import_map = state.options.import_map.clone();
@@ -51,7 +50,7 @@ pub extern "C" fn host_initialize_import_meta_object_cb(
   // Get `CallbackScope` from context.
   v8::callback_scope!(unsafe scope, context);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   // Make the module global.
@@ -108,7 +107,7 @@ fn import_meta_resolve(
     return;
   }
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
   let base = args.data().to_rust_string_lossy(scope);
   let base = paths::maybe_parent(&base).to_string_lossy();
@@ -150,7 +149,7 @@ pub extern "C" fn promise_reject_cb(message: v8::PromiseRejectMessage) {
   let promise = message.get_promise();
   let promise = v8::Global::new(scope, promise);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let mut state = state_rc.borrow_mut();
 
   match event {

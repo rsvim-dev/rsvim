@@ -5,7 +5,6 @@ use crate::is_v8_func;
 use crate::is_v8_int;
 use crate::js;
 use crate::js::JsFuture;
-use crate::js::JsRuntime;
 use crate::js::TimerId;
 use crate::js::converter::*;
 use crate::js::pending;
@@ -36,7 +35,7 @@ impl JsFuture for TimeoutFuture {
     if tc_scope.has_caught() {
       let exception = tc_scope.exception().unwrap();
       let exception = v8::Global::new(tc_scope, exception);
-      let state_rc = JsRuntime::state(tc_scope);
+      let state_rc = crate::js::get_state(tc_scope);
       state_rc
         .borrow_mut()
         .exceptions
@@ -87,7 +86,7 @@ pub fn create_timer<'s>(
   let params = vec![];
   let params = Rc::new(params);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let timer_cb = {
     let state_rc = state_rc.clone();
     move || {
@@ -126,7 +125,7 @@ pub fn clear_timer<'s>(
   // Get timer ID, and remove it.
   debug_assert!(is_v8_int!(args.get(0)));
   let timer_id = TimerId::from_v8(scope, args.get(0));
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
 
   let mut state = state_rc.borrow_mut();
   pending::remove_timer(&mut state, timer_id);

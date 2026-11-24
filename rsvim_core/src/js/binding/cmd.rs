@@ -2,7 +2,6 @@
 
 use crate::is_v8_str;
 use crate::js::JsKernel;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::command::def::CommandDefinition;
 use crate::js::converter::*;
@@ -39,7 +38,7 @@ pub fn echo(
   let message = args.get(0).to_rust_string_lossy(scope);
   trace!("cmd.echo:{:?}", message);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
   send_cmdline_message(&state, message);
 }
@@ -53,7 +52,7 @@ pub fn create<'s>(
   let def = CommandDefinition::from_v8_callback_args(scope, args);
   trace!("cmd.create:{:?}", def);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow_mut();
   let mut command_manager = lock!(state.editor.command_manager);
 
@@ -78,7 +77,7 @@ pub fn list(
   debug_assert!(_args.length() == 0);
   trace!("cmd.list");
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow_mut();
   let command_manager = lock!(state.editor.command_manager);
 
@@ -101,7 +100,7 @@ pub fn get<'s>(
   let name = args.get(0).to_rust_string_lossy(scope);
   trace!("cmd.get:{:?}", name);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow_mut();
   let command_manager = lock!(state.editor.command_manager);
   match command_manager.get(&name) {
@@ -121,7 +120,7 @@ pub fn remove<'s>(
   let name = args.get(0).to_rust_string_lossy(scope);
   trace!("cmd.remove:{:?}", name);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow_mut();
   let mut command_manager = lock!(state.editor.command_manager);
   match command_manager.remove(&name) {

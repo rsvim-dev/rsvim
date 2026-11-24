@@ -92,7 +92,7 @@ use crossterm::event::KeyModifiers;
 ///
 /// It cannot be stored in a single place because v8 callbacks
 /// (`promise_reject_cb`, `module_resolve_cb`, all the bindings) reach the
-/// kernel through [`JsRuntime::state`](crate::js::JsRuntime::state), and have
+/// kernel through [`get_state`](crate::js::get_state), and have
 /// no way to reach the outer `Rsvim`.
 #[derive(Debug, Clone)]
 pub struct Editor {

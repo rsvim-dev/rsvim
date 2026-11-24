@@ -1,4 +1,4 @@
-//! Messages that are sent to [`JsRuntime`](crate::js::JsRuntime).
+//! Messages that are sent to the javascript runtime (see [`get_state`](crate::js::get_state)).
 
 use crate::buf::BufferId;
 use crate::js::TaskId;
@@ -10,7 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 
 #[derive(Debug)]
-/// Message sent to [`JsRuntime`](crate::js::JsRuntime).
+/// Message sent to the javascript runtime.
 pub enum JsMessage {
   /// Event loop notify Js runtime to shutdown this thread.
   TimeoutResp(TimeoutResp),

@@ -13,7 +13,6 @@ mod opt_tests;
 use crate::buf::unicode::char_is_whitespace;
 use crate::chan::ExCommandReq;
 use crate::js::JsFuture;
-use crate::js::JsRuntime;
 use crate::js::TaskId;
 use crate::js::command::ctx::CommandContext;
 use crate::js::command::ctx::CommandContextBuilder;
@@ -65,7 +64,7 @@ impl JsFuture for CommandFuture {
       if tc_scope.has_caught() {
         let exception = tc_scope.exception().unwrap();
         let exception = v8::Global::new(tc_scope, exception);
-        let state_rc = JsRuntime::state(tc_scope);
+        let state_rc = crate::js::get_state(tc_scope);
         state_rc
           .borrow_mut()
           .exceptions

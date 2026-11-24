@@ -3,7 +3,6 @@
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
@@ -144,7 +143,7 @@ pub fn open_async<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let open_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();
@@ -180,7 +179,7 @@ pub fn open_sync<'s>(
 ) {
   let (filename, options) = _get_args(scope, args);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   let filename = Path::new(&filename);

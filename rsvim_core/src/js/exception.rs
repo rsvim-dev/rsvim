@@ -1,6 +1,5 @@
 //! Js exceptions.
 
-use crate::js::JsRuntime;
 use crate::js::binding::set_function_to;
 
 pub type PromiseRejectionEntry =
@@ -117,7 +116,7 @@ fn set_uncaught_exception_callback(
     Err(_) => None,
   };
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let mut state = state_rc.borrow_mut();
 
   state.exceptions.set_uncaught_exception_callback(callback);
@@ -135,7 +134,7 @@ fn set_unhandled_rejection_callback(
     Err(_) => None,
   };
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let mut state = state_rc.borrow_mut();
 
   state.exceptions.set_unhandled_rejection_callback(callback);

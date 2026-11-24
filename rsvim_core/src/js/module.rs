@@ -33,7 +33,6 @@ pub mod module_map;
 #[cfg(test)]
 mod module_map_tests;
 
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::loader::CoreModuleLoader;
 use crate::js::loader::FsModuleLoader;
@@ -244,7 +243,7 @@ pub fn fetch_module_tree<'s>(
     }
   };
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
 
   // Subscribe module to the module-map.
   let module_id = module.get_identity_hash().get();

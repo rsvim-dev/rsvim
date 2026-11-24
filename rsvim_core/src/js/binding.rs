@@ -31,7 +31,7 @@ use crate::prelude::*;
 // use crate::perf_hooks;
 // use crate::process;
 // use crate::promise;
-// use crate::js::{check_exceptions, JsRuntime};
+// use crate::js::{check_exceptions, get_state};
 // use crate::signals;
 // use crate::stdio;
 // use crate::timers;

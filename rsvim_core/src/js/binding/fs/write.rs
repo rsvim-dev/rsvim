@@ -3,7 +3,6 @@
 use crate::is_v8_int;
 use crate::js;
 use crate::js::JsFuture;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
@@ -103,7 +102,7 @@ pub fn write_async<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let write_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();
@@ -138,7 +137,7 @@ pub fn write_sync<'s>(
 ) {
   let (file_rid, buf) = _get_args(scope, args);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match fs_write_s(resource_table, file_rid, buf) {

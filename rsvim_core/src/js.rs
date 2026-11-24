@@ -193,28 +193,10 @@ pub mod boost {
     // Data Access for RSVIM }
   }
 
-  /// Javascript runtime.
-  ///
-  /// This is a zero-sized namespace: all the state lives in
-  /// [`JsKernel`] (inside the v8 isolate slot) and in
-  /// [`Rsvim`](crate::evloop::Rsvim) (outside the isolate). It is kept as a
-  /// type only so that the ~70 call sites of `JsRuntime::state(scope)` stay
-  /// untouched.
-  ///
-  /// There are 3 most important concepts:
-  ///
-  /// - Isolate
-  /// - Context
-  /// - Handle Scope
-  ///
-  /// For more details, please see: <https://v8.dev/docs/embed>.
-  #[derive(Debug)]
-  pub struct JsRuntime;
-
   /// Creates a new v8 isolate, together with its [`JsKernel`].
   ///
   /// The kernel is stored inside the isolate's slot, so that v8 callbacks can
-  /// reach it with [`JsRuntime::state`]. The caller (i.e.
+  /// reach it with [`get_state`]. The caller (i.e.
   /// [`Rsvim`](crate::evloop::Rsvim)) is responsible for keeping both alive.
   pub fn new_isolate(
     options: JsRuntimeOptions,
@@ -263,14 +245,17 @@ pub mod boost {
     (isolate, kernel)
   }
 
-  impl JsRuntime {
-    /// Returns the runtime state stored in the given isolate.
-    pub fn state(isolate: &v8::Isolate) -> JsKernelRc {
-      isolate
-        .get_slot::<JsKernelRc>()
-        .expect("v8 isolate slot not initialized")
-        .clone()
-    }
+  /// Returns the runtime state stored in the given isolate's slot.
+  ///
+  /// Every callback runs with a scope but no other way back to the kernel, so
+  /// this is the single entry point from v8 into rsvim's state. The isolate is
+  /// owned by [`Rsvim`](crate::evloop::Rsvim) and the slot is set in
+  /// [`new_isolate`], long before any callback can run.
+  pub fn get_state(isolate: &v8::Isolate) -> JsKernelRc {
+    isolate
+      .get_slot::<JsKernelRc>()
+      .expect("v8 isolate slot not initialized")
+      .clone()
   }
 
   /// Handles a single message that has come back from the master (i.e. the
@@ -373,7 +358,7 @@ pub fn execute_module<'s, 'b>(
 ) {
   // trace!("Execute module, filename:{filename:?}, source:{source:?}");
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = get_state(scope);
 
   // The following code allows the runtime to execute code with no valid
   // location passed as parameter as an ES module.
@@ -448,7 +433,7 @@ pub fn execute_module<'s, 'b>(
     let exception = module.get_exception();
     let exception = v8::Global::new(tc_scope, exception);
 
-    let state_rc = JsRuntime::state(tc_scope);
+    let state_rc = get_state(tc_scope);
     let mut state = state_rc.borrow_mut();
 
     state.exceptions.capture_exception(exception.clone());
@@ -490,7 +475,7 @@ pub(crate) fn checkpoint(scope: &mut v8::PinScope) {
 pub fn check_exceptions(scope: &mut v8::PinScope) -> Vec<JsError> {
   let mut errors: Vec<JsError> = vec![];
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = get_state(scope);
   let maybe_exception = state_rc.borrow_mut().exceptions.exception.take();
 
   // Check for uncaught exceptions first.

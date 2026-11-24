@@ -1,7 +1,6 @@
 //! Microtask Queue APIs.
 
 use crate::js;
-use crate::js::JsRuntime;
 use crate::js::err::report_js_error;
 use crate::prelude::*;
 
@@ -11,7 +10,7 @@ pub fn report_error(
   _: v8::ReturnValue,
 ) {
   let exception = v8::Global::new(scope, args.get(0));
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let mut state = state_rc.borrow_mut();
 
   state.exceptions.capture_exception(exception);
@@ -30,7 +29,7 @@ pub fn queue_microtask(
   _: v8::ReturnValue,
 ) {
   let callback = v8::Local::<v8::Function>::try_from(args.get(0)).unwrap();
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
   let ctx = state.context.open(scope);
 

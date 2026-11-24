@@ -1,7 +1,6 @@
 //! Close file APIs.
 
 use crate::is_v8_int;
-use crate::js::JsRuntime;
 use crate::js::converter::*;
 use crate::js::resource::ResourceId;
 use crate::js::resource::ResourceTableArc;
@@ -27,7 +26,7 @@ pub fn close_sync<'s>(
   trace!("fs.close:{:?}", file_rid);
   let file_rid = ResourceId::from(file_rid);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   fs_close_s(resource_table, file_rid);

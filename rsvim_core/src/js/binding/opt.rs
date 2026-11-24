@@ -5,7 +5,6 @@ use crate::buf::opt::FileFormatOption;
 use crate::is_v8_bool;
 use crate::is_v8_int;
 use crate::is_v8_str;
-use crate::js::JsRuntime;
 use crate::js::converter::*;
 use crate::prelude::*;
 use compact_str::ToCompactString;
@@ -18,7 +17,7 @@ pub fn get_wrap(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().wrap();
@@ -36,7 +35,7 @@ pub fn set_wrap<'s>(
   debug_assert!(is_v8_bool!(args.get(0)));
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_wrap: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let tree = state_rc.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_wrap(value);
@@ -50,7 +49,7 @@ pub fn get_line_break(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().line_break();
@@ -68,7 +67,7 @@ pub fn set_line_break<'s>(
   debug_assert!(is_v8_bool!(args.get(0)));
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_line_break: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let tree = state_rc.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_line_break(value);
@@ -81,7 +80,7 @@ pub fn get_tab_stop(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().tab_stop();
@@ -99,7 +98,7 @@ pub fn set_tab_stop<'s>(
   debug_assert!(is_v8_int!(args.get(0)));
   let value = u32::from_v8(scope, args.get(0));
   trace!("set_tab_stop: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -116,7 +115,7 @@ pub fn get_expand_tab(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().expand_tab();
@@ -134,7 +133,7 @@ pub fn set_expand_tab<'s>(
   debug_assert!(is_v8_bool!(args.get(0)));
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_expand_tab: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -150,7 +149,7 @@ pub fn get_shift_width(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().shift_width();
@@ -168,7 +167,7 @@ pub fn set_shift_width<'s>(
   debug_assert!(is_v8_int!(args.get(0)));
   let value = u32::from_v8(scope, args.get(0));
   trace!("set_shift_width: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -185,7 +184,7 @@ pub fn get_file_encoding(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_encoding();
@@ -204,7 +203,7 @@ pub fn set_file_encoding<'s>(
   debug_assert!(is_v8_str!(args.get(0)));
   let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
   trace!("set_file_encoding: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -221,7 +220,7 @@ pub fn get_file_format(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_format();
@@ -240,7 +239,7 @@ pub fn set_file_format<'s>(
   debug_assert!(is_v8_str!(args.get(0)));
   let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
   trace!("set_file_format: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -257,7 +256,7 @@ pub fn get_fix_end_of_line(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().fix_end_of_line();
@@ -275,7 +274,7 @@ pub fn set_fix_end_of_line<'s>(
   debug_assert!(is_v8_bool!(args.get(0)));
   let value = bool::from_v8(scope, args.get(0));
   trace!("set_fix_end_of_line: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
 
@@ -290,7 +289,7 @@ pub fn get_syntax_parser_lib_path(
   _args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let syntax_manager = state_rc.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   let value = syntax_manager
@@ -313,7 +312,7 @@ pub fn set_syntax_parser_lib_path<'s>(
   debug_assert!(is_v8_str!(args.get(0)));
   let value = args.get(0).to_rust_string_lossy(scope);
   trace!("set_syntax_parser_lib_path: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let syntax_manager = state_rc.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   syntax_manager

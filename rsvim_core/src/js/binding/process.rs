@@ -8,7 +8,6 @@ use crate::chan::MasterMessage;
 use crate::is_v8_int;
 use crate::is_v8_str;
 use crate::js;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::binding::process::child_process::ReadTextFromChildProcessStdioFuture;
 use crate::js::binding::process::child_process::WaitChildFuture;
@@ -35,7 +34,7 @@ pub fn spawn_child<'s>(
     exec_path, options
   );
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let resource_table = state_rc.borrow().editor.resource_table.clone();
 
   match spawn_child_process(resource_table, &exec_path, &options) {
@@ -82,7 +81,7 @@ pub fn read_text_from_child<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let read_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();
@@ -123,7 +122,7 @@ pub fn wait_child<'s>(
   let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
   let promise = promise_resolver.get_promise(scope);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let wait_cb = {
     let promise = v8::Global::new(scope, promise_resolver);
     let state_rc = state_rc.clone();
@@ -160,7 +159,7 @@ pub fn exit<'s>(
   let exit_code = i32::from_v8(scope, args.get(0));
   trace!("exit: {:?}", exit_code);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
 
   chan::send_to_master(

@@ -1,7 +1,6 @@
 //! APIs for `buf` module.
 
 use crate::buf::BufferId;
-use crate::js::JsRuntime;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::prelude::*;
@@ -13,7 +12,7 @@ pub fn current(
   mut rv: v8::ReturnValue,
 ) {
   debug_assert!(_args.length() == 0);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let tree = state_rc.borrow().editor.tree.clone();
   let tree = lock!(tree);
   match tree.current_window() {
@@ -37,7 +36,7 @@ pub fn list(
   mut rv: v8::ReturnValue,
 ) {
   debug_assert!(_args.length() == 0);
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let buffer_manager = state_rc.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   trace!("buf.list: {:?}", buffer_manager.keys());
@@ -61,7 +60,7 @@ pub fn write_sync<'s>(
   let buf_id = BufferId::from_v8(scope, args.get(0));
   trace!("buf.writeSync: {:?}", buf_id);
 
-  let state_rc = JsRuntime::state(scope);
+  let state_rc = crate::js::get_state(scope);
   let state = state_rc.borrow();
   let buffer_manager = state.editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
