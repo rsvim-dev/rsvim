@@ -1,7 +1,7 @@
 use crate::buf::BufferManager;
 use crate::cli::CliOptions;
 use crate::cmdltext::CmdlineText;
-use crate::handles::EditorHandles;
+use crate::evloop::Editor;
 use crate::hl::ColorSchemeManager;
 use crate::js::JsKernelRc;
 use crate::js::JsRuntimeOptions;
@@ -60,7 +60,7 @@ pub fn make_js_runtime() -> TestJsRuntime {
   let ex_commands_manager = CommandManager::to_arc(CommandManager::default());
   let resource_table = ResourceTable::to_arc(ResourceTable::new());
 
-  let editor = EditorHandles {
+  let editor = Editor {
     cli_opts,
     tree,
     buffer_manager: buffers_manager,

@@ -28,7 +28,7 @@ mod module_tests;
 use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
-use crate::handles::EditorHandles;
+use crate::evloop::Editor;
 use crate::prelude::*;
 pub use boost::*;
 use err::JsError;
@@ -191,7 +191,7 @@ pub mod boost {
     // Data Access for RSVIM {
     pub master_tx: UnboundedSender<MasterMessage>,
     /// Editor's shared data (the same `Arc`s as `Rsvim.editor`).
-    pub editor: EditorHandles,
+    pub editor: Editor,
     // Data Access for RSVIM }
   }
 
@@ -227,7 +227,7 @@ pub mod boost {
   pub fn new_isolate(
     options: JsRuntimeOptions,
     master_tx: UnboundedSender<MasterMessage>,
-    editor: EditorHandles,
+    editor: Editor,
   ) -> (v8::OwnedIsolate, JsKernelRc) {
     // Fire up the v8 engine.
     init_v8_platform();

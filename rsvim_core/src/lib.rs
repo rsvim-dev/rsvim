@@ -8,7 +8,6 @@ pub mod cmdltext;
 pub mod coord;
 pub mod err;
 pub mod evloop;
-pub mod handles;
 pub mod hl;
 pub mod js;
 pub mod log;

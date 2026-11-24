@@ -5,14 +5,16 @@ pub mod writer;
 
 use crate::buf::BufferArc;
 use crate::buf::BufferManager;
+use crate::buf::BufferManagerArc;
 use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::chan;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
 use crate::cli::CliOptions;
 use crate::cmdltext::CmdlineText;
-use crate::handles::EditorHandles;
+use crate::cmdltext::CmdlineTextArc;
 use crate::hl::ColorSchemeManager;
+use crate::hl::ColorSchemeManagerArc;
 use crate::js::JsKernelRc;
 use crate::js::JsRuntimeOptions;
 use crate::js::binding::fs::link::fs_link_a;
@@ -28,8 +30,10 @@ use crate::js::binding::fs::stat::fs_stat_a;
 use crate::js::binding::fs::symlink::fs_symlink_s;
 use crate::js::binding::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
+use crate::js::command::CommandManagerArc;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceTable;
+use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
 use crate::state::State;
 use crate::state::StateContext;
@@ -40,6 +44,7 @@ use crate::syntax::SyntaxEdit;
 use crate::syntax::SyntaxEditNew;
 use crate::syntax::SyntaxLoadGrammarRequest;
 use crate::syntax::SyntaxManager;
+use crate::syntax::SyntaxManagerArc;
 use crate::ui::canvas::Canvas;
 use crate::ui::canvas::CanvasArc;
 use crate::ui::tree::*;
@@ -78,6 +83,37 @@ use crossterm::event::KeyEventKind;
 #[cfg(test)]
 use crossterm::event::KeyModifiers;
 
+/// The editor's shared data.
+///
+/// Every field is behind an `Arc`, and `Arc`s are what makes the split work:
+/// [`Rsvim`] owns the loop, while v8 callbacks can only reach the isolate
+/// slot, i.e. [`crate::js::JsKernel`]. Both hold a clone of this struct, and
+/// all the clones point to the very same `Arc`s.
+///
+/// It cannot be stored in a single place because v8 callbacks
+/// (`promise_reject_cb`, `module_resolve_cb`, all the bindings) reach the
+/// kernel through [`JsRuntime::state`](crate::js::JsRuntime::state), and have
+/// no way to reach the outer `Rsvim`.
+#[derive(Debug, Clone)]
+pub struct Editor {
+  /// Command line options.
+  pub cli_opts: CliOptions,
+  /// Widget tree for UI.
+  pub tree: TreeArc,
+  /// Vim buffers.
+  pub buffer_manager: BufferManagerArc,
+  /// Cmdline text.
+  pub cmdline_text: CmdlineTextArc,
+  /// Syntax and parsers.
+  pub syntax_manager: SyntaxManagerArc,
+  /// Colorschemes.
+  pub colorscheme_manager: ColorSchemeManagerArc,
+  /// Vim commands.
+  pub command_manager: CommandManagerArc,
+  /// Resources.
+  pub resource_table: ResourceTableArc,
+}
+
 /// The editor's owner: the v8 isolate, its kernel, and all the shared editor
 /// data in one place.
 ///
@@ -110,7 +146,7 @@ pub struct Rsvim {
   ///
   /// The same `Arc`s are also cloned into [`crate::js::JsKernel`], because v8 callbacks
   /// can only reach the isolate slot.
-  pub editor: EditorHandles,
+  pub editor: Editor,
 
   /// Cancellation token to notify the main loop to exit.
   pub cancellation_token: CancellationToken,
@@ -407,7 +443,7 @@ impl Rsvim {
   ) -> IoResult<(
     /* canvas */ CanvasArc,
     /* state_machine */ State,
-    /* editor */ EditorHandles,
+    /* editor */ Editor,
     /* cancellation_token */ CancellationToken,
     /* detached_tracker */ TaskTracker,
     /* blocked_tracker */ TaskTracker,
@@ -498,7 +534,7 @@ impl Rsvim {
     // Channel-2
     let (jsrt_tx, jsrt_rx) = unbounded_channel();
 
-    let editor = EditorHandles {
+    let editor = Editor {
       cli_opts,
       tree,
       buffer_manager,
