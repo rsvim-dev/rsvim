@@ -45,14 +45,14 @@ pub fn make_fsm(
   );
   let event = Event::Key(key_event);
 
-  let (jsrt_forwarder_tx, _jsrt_forwarder_rx) = unbounded_channel();
+  let (jsrt_tx, _jsrt_rx) = unbounded_channel();
   let (master_tx, _master_rx) = unbounded_channel();
   let context = StateContext::new(
     tree.clone(),
     bufs.clone(),
     cmdline_text.clone(),
     master_tx,
-    jsrt_forwarder_tx,
+    jsrt_tx,
   );
 
   (event, tree, bufs, buf, cmdline_text, context)
@@ -103,14 +103,14 @@ pub fn make_fsm_with_cmdline(
     KeyEventKind::Press,
   );
   let event = Event::Key(key_event);
-  let (jsrt_forwarder_tx, _jsrt_forwarder_rx) = unbounded_channel();
+  let (jsrt_tx, _jsrt_rx) = unbounded_channel();
   let (master_tx, _master_rx) = unbounded_channel();
   let context = StateContext::new(
     tree.clone(),
     bufs.clone(),
     cmdline_text.clone(),
     master_tx,
-    jsrt_forwarder_tx,
+    jsrt_tx,
   );
 
   (event, tree, bufs, buf, cmdline_text, context)

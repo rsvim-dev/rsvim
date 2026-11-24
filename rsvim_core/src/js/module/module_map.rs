@@ -109,6 +109,56 @@ impl ModuleMap {
     self.by_path.contains_key(path)
   }
 
+  /// Paths of the modules waiting on a top-level `await` that never settle.
+  ///
+  /// Note: a module parked on a top-level `await` reports
+  /// [`v8::ModuleStatus::Evaluated`], not `Evaluating` -- v8 sets `Evaluated`
+  /// as soon as evaluation returns, even when it returns a promise that is
+  /// still pending. The only reliable signal is
+  /// [`v8::Module::get_stalled_top_level_await_message`], which walks the
+  /// module's whole request graph.
+  ///
+  /// When the process is about to exit those ticks will never happen, so this
+  /// is exactly the set worth naming in a diagnostic -- silently doing nothing
+  /// is the failure mode a user cannot debug.
+  pub fn pending_paths(&self, scope: &mut v8::PinScope) -> Vec<ModulePath> {
+    // Collect the ids of the modules that are actually parked. v8 reports
+    // these through the module's *request graph*, so a single `rsvim.js` can
+    // point at a stalled module somewhere deeper in the tree.
+    let mut stalled: Vec<i32> = vec![];
+    for module in self.by_path.values() {
+      let module = module.open(scope);
+      if module.get_status() != v8::ModuleStatus::Evaluated {
+        continue;
+      }
+      for (pending, _message) in
+        module.get_stalled_top_level_await_message(scope)
+      {
+        if let Some(id) = pending.script_id() {
+          stalled.push(id);
+        }
+      }
+    }
+    stalled.sort_unstable();
+    stalled.dedup();
+
+    if stalled.is_empty() {
+      return vec![];
+    }
+
+    let mut paths = vec![];
+    for (path, module) in self.by_path.iter() {
+      if module
+        .open(scope)
+        .script_id()
+        .is_some_and(|id| stalled.binary_search(&id).is_ok())
+      {
+        paths.push(path.clone());
+      }
+    }
+    paths
+  }
+
   #[cfg(test)]
   /// Whether a v8 module already resolved, compare by key suffix.
   pub fn get_by_suffix(

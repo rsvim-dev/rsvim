@@ -31,7 +31,7 @@ impl TestJsRuntime {
   pub fn tick_event_loop(&mut self) {
     let context = self.context();
     v8::scope_with_context!(scope, &mut self.isolate, context);
-    crate::js::run_next_tick_callbacks(scope);
+    crate::js::checkpoint(scope);
   }
 }
 

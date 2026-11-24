@@ -42,7 +42,7 @@ pub struct StateContext {
   pub buffer_manager: BufferManagerArc,
   pub cmdline_text: CmdlineTextArc,
   pub master_tx: UnboundedSender<MasterMessage>,
-  pub jsrt_forwarder_tx: UnboundedSender<JsMessage>,
+  pub jsrt_tx: UnboundedSender<JsMessage>,
 }
 
 impl StateContext {
@@ -51,14 +51,14 @@ impl StateContext {
     buffer_manager: BufferManagerArc,
     cmdline_text: CmdlineTextArc,
     master_tx: UnboundedSender<MasterMessage>,
-    jsrt_forwarder_tx: UnboundedSender<JsMessage>,
+    jsrt_tx: UnboundedSender<JsMessage>,
   ) -> Self {
     StateContext {
       tree,
       buffer_manager,
       cmdline_text,
       master_tx,
-      jsrt_forwarder_tx,
+      jsrt_tx,
     }
   }
 }

@@ -21,9 +21,6 @@ pub enum MasterMessage {
   /// Js runtime ask master to exit
   ExitReq(ExitReq),
 
-  /// Js runtime ask master to tick loop again.
-  TickAgainReq,
-
   /// Js runtime ask master to open file.
   FsOpenReq(FsOpenReq),
 
@@ -193,5 +190,5 @@ pub fn send_to_master(
   master_tx: UnboundedSender<MasterMessage>,
   message: MasterMessage,
 ) {
-  master_tx.send(message).unwrap();
+  let _ = master_tx.send(message);
 }

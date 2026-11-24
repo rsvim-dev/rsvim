@@ -83,7 +83,7 @@ pub fn init_v8_platform() {
 
 fn init_v8_isolate(isolate: &mut v8::OwnedIsolate) {
   // NOTE: Set microtasks policy to explicit, this requires we invoke `perform_microtask_checkpoint` API on each tick.
-  // See: [`run_next_tick_callbacks`].
+  // See: [`checkpoint`].
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 10);
   isolate.set_promise_reject_callback(hook::promise_reject_cb);
@@ -282,110 +282,95 @@ pub mod boost {
     }
   }
 
-  /// Runs pending javascript tasks which have received results from master.
+  /// Handles a single message that has come back from the master (i.e. the
+  /// completion of a task that was previously spawned into the tokio runtime).
   ///
-  /// The caller owns the inbox: it drains `jsrt_rx` and passes the messages
-  /// in, so that this function never touches the receiver.
-  pub(crate) fn run_pending_futures(
+  /// The `pending_tasks` entry is looked up with `if let Some` rather than
+  /// `debug_assert!` + `unwrap()`: the message can come from a task whose
+  /// future was already dropped, and a `panic!` in release builds is not an
+  /// acceptable answer to that.
+  pub(crate) fn process_js_message(
     kernel: &JsKernelRc,
-    scope: &mut v8::PinScope,
-    messages: Vec<JsMessage>,
+    _scope: &mut v8::PinScope,
+    msg: JsMessage,
   ) {
-    let state_rc = kernel;
-
     macro_rules! process_message {
       ($variant:ident, $resp:expr) => {{
         trace!("Recv {}:{:?}", stringify!($variant), $resp.task_id);
-        debug_assert!(
-          state_rc.borrow().pending_tasks.contains_key(&$resp.task_id)
-        );
-        let mut cb = state_rc
-          .borrow_mut()
-          .pending_tasks
-          .remove(&$resp.task_id)
-          .unwrap();
-        cb($resp.maybe_result);
+        let maybe_cb = kernel.borrow_mut().pending_tasks.remove(&$resp.task_id);
+        match maybe_cb {
+          Some(mut cb) => cb($resp.maybe_result),
+          None => {
+            warn!(
+              "Received {} for an unknown task id:{:?}, the task future is \
+               probably already dropped, ignore it",
+              stringify!($variant),
+              $resp.task_id,
+            );
+          }
+        }
       }};
     }
 
-    for msg in messages {
-      match msg {
-        JsMessage::TimeoutResp(resp) => {
-          trace!("Recv TimeResp:{:?}", resp.timer_id);
-          let maybe_timer_cb =
-            state_rc.borrow_mut().pending_timers.remove(&resp.timer_id);
-          if let Some(mut timer_cb) = maybe_timer_cb {
-            timer_cb();
-            if resp.repeated {
-              let mut state = state_rc.borrow_mut();
-              pending::create_timer(
-                &mut state,
-                resp.timer_id,
-                resp.delay,
-                resp.repeated,
-                timer_cb,
-              );
-            }
-          }
-          // Otherwise the 'timer_cb' is already been removed by the
-          // `clear_timeout` API.
-        }
-        JsMessage::ExCommandReq(req) => {
-          trace!("Recv ExCommandReq:{:?}", req.payload);
-          let mut state = state_rc.borrow_mut();
-          let command_manager = state.editor.command_manager.clone();
-          let command_manager = lock!(command_manager);
-          if let Some(command_cb) = command_manager.parse(&req) {
-            state.pending_futures.push(Box::new(command_cb));
-          } else {
-            // Print error message
-            report_js_error(&state, TheErr::CommandNotFound(req.payload));
+    match msg {
+      JsMessage::TimeoutResp(resp) => {
+        trace!("Recv TimeResp:{:?}", resp.timer_id);
+        let maybe_timer_cb =
+          kernel.borrow_mut().pending_timers.remove(&resp.timer_id);
+        if let Some(mut timer_cb) = maybe_timer_cb {
+          timer_cb();
+          if resp.repeated {
+            let mut state = kernel.borrow_mut();
+            pending::create_timer(
+              &mut state,
+              resp.timer_id,
+              resp.delay,
+              resp.repeated,
+              timer_cb,
+            );
           }
         }
-        JsMessage::TickAgainResp => trace!("Recv TickAgainResp"),
-        JsMessage::FsOpenResp(resp) => process_message!(FsOpenResp, resp),
-        JsMessage::FsReadResp(resp) => process_message!(FsReadResp, resp),
-        JsMessage::FsWriteResp(resp) => process_message!(FsWriteResp, resp),
-        JsMessage::FsReadDirResp(resp) => {
-          process_message!(FsReadDirResp, resp)
-        }
-        JsMessage::FsReadDirNextResp(resp) => {
-          process_message!(FsReadDirNextResp, resp)
-        }
-        JsMessage::FsReadFileResp(resp) => {
-          process_message!(FsReadFileResp, resp)
-        }
-        JsMessage::FsReadTextFileResp(resp) => {
-          process_message!(FsReadTextFileResp, resp)
-        }
-        JsMessage::FsStatResp(resp) => process_message!(FsStatResp, resp),
-        JsMessage::FsSymlinkResp(resp) => {
-          process_message!(FsSymlinkResp, resp)
-        }
-        JsMessage::FsLinkResp(resp) => process_message!(FsLinkResp, resp),
-        JsMessage::FsMkdirResp(resp) => process_message!(FsMkdirResp, resp),
-        JsMessage::LoadTreeSitterParserResp(resp) => {
-          process_message!(LoadTreeSitterParserResp, resp)
-        }
-        JsMessage::ReadTextFromChildProcessStdioResp(resp) => {
-          process_message!(ReadTextFromChildProcessStdioResp, resp)
-        }
-        JsMessage::WaitChildProcessResp(resp) => {
-          process_message!(WaitChildProcessResp, resp)
+        // Otherwise the 'timer_cb' is already been removed by the
+        // `clear_timeout` API.
+      }
+      JsMessage::ExCommandReq(req) => {
+        trace!("Recv ExCommandReq:{:?}", req.payload);
+        let mut state = kernel.borrow_mut();
+        let command_manager = state.editor.command_manager.clone();
+        let command_manager = lock!(command_manager);
+        if let Some(command_cb) = command_manager.parse(&req) {
+          state.pending_futures.push(Box::new(command_cb));
+        } else {
+          // Print error message
+          report_js_error(&state, TheErr::CommandNotFound(req.payload));
         }
       }
-    }
-
-    let futures: Vec<Box<dyn JsFuture>> =
-      std::mem::take(&mut state_rc.borrow_mut().pending_futures);
-    for mut fut in futures {
-      fut.run(scope);
-      if let Some(exception) = check_exceptions(scope) {
-        trace!("Got exceptions when running pending futures: {exception:?}");
-        let state = state_rc.borrow();
-        report_js_error(&state, TheErr::JsError(Box::new(exception)));
+      JsMessage::FsOpenResp(resp) => process_message!(FsOpenResp, resp),
+      JsMessage::FsReadResp(resp) => process_message!(FsReadResp, resp),
+      JsMessage::FsWriteResp(resp) => process_message!(FsWriteResp, resp),
+      JsMessage::FsReadDirResp(resp) => process_message!(FsReadDirResp, resp),
+      JsMessage::FsReadDirNextResp(resp) => {
+        process_message!(FsReadDirNextResp, resp)
       }
-      run_next_tick_callbacks(scope);
+      JsMessage::FsReadFileResp(resp) => {
+        process_message!(FsReadFileResp, resp)
+      }
+      JsMessage::FsReadTextFileResp(resp) => {
+        process_message!(FsReadTextFileResp, resp)
+      }
+      JsMessage::FsStatResp(resp) => process_message!(FsStatResp, resp),
+      JsMessage::FsSymlinkResp(resp) => process_message!(FsSymlinkResp, resp),
+      JsMessage::FsLinkResp(resp) => process_message!(FsLinkResp, resp),
+      JsMessage::FsMkdirResp(resp) => process_message!(FsMkdirResp, resp),
+      JsMessage::LoadTreeSitterParserResp(resp) => {
+        process_message!(LoadTreeSitterParserResp, resp)
+      }
+      JsMessage::ReadTextFromChildProcessStdioResp(resp) => {
+        process_message!(ReadTextFromChildProcessStdioResp, resp)
+      }
+      JsMessage::WaitChildProcessResp(resp) => {
+        process_message!(WaitChildProcessResp, resp)
+      }
     }
   }
 }
@@ -450,14 +435,25 @@ pub fn execute_module<'s, 'b>(
     return;
   }
 
-  let _ = module.evaluate(tc_scope);
+  let maybe_evaluated = module.evaluate(tc_scope);
+  let status = module.get_status();
   trace!(
     "|execute_module| ModuleMap evaluated {:?}, status {:?}",
-    path,
-    module.get_status()
+    path, status
   );
 
-  if module.get_status() == v8::ModuleStatus::Errored {
+  // A module that is still `Evaluating` after `evaluate()` returned is waiting
+  // on a top-level await. Give it an explicit state instead of leaving it
+  // silently stuck: the pending promise will be driven by the microtask queue,
+  // and if it never settles we report it at shutdown.
+  if maybe_evaluated.is_none() && status == v8::ModuleStatus::Evaluating {
+    trace!(
+      "|execute_module| Module {:?} is pending on a top-level await",
+      path
+    );
+  }
+
+  if status == v8::ModuleStatus::Errored {
     let exception = module.get_exception();
     let exception = v8::Global::new(tc_scope, exception);
 
@@ -469,7 +465,7 @@ pub fn execute_module<'s, 'b>(
 
     drop(state);
 
-    if let Some(error) = check_exceptions(tc_scope) {
+    for error in check_exceptions(tc_scope) {
       let state = state_rc.borrow();
       report_js_error(&state, TheErr::JsError(Box::new(error)));
     }
@@ -480,45 +476,29 @@ pub fn execute_module<'s, 'b>(
   }
 }
 
-/// Runs callbacks stored in the next-tick queue.
-pub(crate) fn run_next_tick_callbacks(scope: &mut v8::PinScope) {
-  // let state_rc = JsRuntime::state(scope);
-  // let callbacks: NextTickQueue = state_rc.borrow_mut().next_tick_queue.drain(..).collect();
-
-  // let undefined = v8::undefined(scope);
+/// Performs a microtask checkpoint.
+///
+/// The isolate is created with the `explicit` microtasks policy
+/// (`js.rs:85`), so the embedder is responsible for draining the microtask
+/// queue: this must be called after every step that may have queued jobs.
+pub(crate) fn checkpoint(scope: &mut v8::PinScope) {
+  // NOTE: the next-tick queue was never wired up, `run_next_tick_callbacks`
+  // only ever performed the microtask checkpoint. The dead code was removed;
+  // if a next-tick queue is ever added back, it belongs here, before the
+  // checkpoint.
   v8::tc_scope!(let tc_scope, scope);
-  //
-  // for (cb, params) in callbacks {
-  //   // Create a local handle for the callback and its parameters.
-  //   let cb = v8::Local::new(tc_scope, cb);
-  //   let args: Vec<v8::Local<v8::Value>> = params
-  //     .iter()
-  //     .map(|arg| v8::Local::new(tc_scope, arg))
-  //     .collect();
-  //
-  //   cb.call(tc_scope, undefined.into(), &args);
-  //
-  //   // On exception, report it and handle the error.
-  //   if tc_scope.has_caught() {
-  //     let exception = tc_scope.exception().unwrap();
-  //     let exception = v8::Global::new(tc_scope, exception);
-  //     let mut state = state_rc.borrow_mut();
-  //     state.exceptions.capture_exception(exception);
-  //
-  //     drop(state);
-  //
-  //     // Check for uncaught errors (capture callbacks might be in place).
-  //     if let Some(error) = check_exceptions(tc_scope) {
-  //       report_and_exit(error);
-  //     }
-  //   }
-  // }
-
   tc_scope.perform_microtask_checkpoint();
 }
 
-// Returns an error if an uncaught exception or unhandled rejection has been captured.
-pub fn check_exceptions(scope: &mut v8::PinScope) -> Option<JsError> {
+/// Returns the errors of every uncaught exception and unhandled rejection that
+/// has been captured.
+///
+/// Note that this returns **all** of them: the previous `Option<JsError>`
+/// signature took the whole `promise_rejections` vector but then returned only
+/// the first entry, silently dropping the rest.
+pub fn check_exceptions(scope: &mut v8::PinScope) -> Vec<JsError> {
+  let mut errors: Vec<JsError> = vec![];
+
   let state_rc = JsRuntime::state(scope);
   let maybe_exception = state_rc.borrow_mut().exceptions.exception.take();
 
@@ -541,14 +521,15 @@ pub fn check_exceptions(scope: &mut v8::PinScope) -> Option<JsError> {
         let exception = tc_scope.exception().unwrap();
         let exception = v8::Local::new(tc_scope, exception);
         let error = JsError::from_v8_exception(tc_scope, exception, None);
-        return Some(error);
+        errors.push(error);
       }
 
-      return None;
+      return errors;
     }
 
     let error = JsError::from_v8_exception(scope, exception, None);
-    return Some(error);
+    errors.push(error);
+    return errors;
   }
 
   let promise_rejections: Vec<PromiseRejectionEntry> =
@@ -575,7 +556,7 @@ pub fn check_exceptions(scope: &mut v8::PinScope) -> Option<JsError> {
         let exception = tc_scope.exception().unwrap();
         let exception = v8::Local::new(tc_scope, exception);
         let error = JsError::from_v8_exception(tc_scope, exception, None);
-        return Some(error);
+        errors.push(error);
       }
 
       continue;
@@ -597,7 +578,7 @@ pub fn check_exceptions(scope: &mut v8::PinScope) -> Option<JsError> {
         let exception = tc_scope.exception().unwrap();
         let exception = v8::Local::new(tc_scope, exception);
         let error = JsError::from_v8_exception(tc_scope, exception, None);
-        return Some(error);
+        errors.push(error);
       }
 
       continue;
@@ -606,8 +587,8 @@ pub fn check_exceptions(scope: &mut v8::PinScope) -> Option<JsError> {
     let prefix = Some("(in promise) ");
     let error = JsError::from_v8_exception(scope, exception, prefix);
 
-    return Some(error);
+    errors.push(error);
   }
 
-  None
+  errors
 }

@@ -47,10 +47,13 @@ use crate::ui::widget::WidgetContext;
 use compact_str::ToCompactString;
 use crossterm::event::Event;
 use crossterm::event::EventStream;
+use futures::Stream;
 use futures::StreamExt;
 use itertools::Itertools;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use taffy::Style;
+use tokio::sync::Notify;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -75,6 +78,12 @@ use crossterm::event::KeyEventKind;
 #[cfg(test)]
 use crossterm::event::KeyModifiers;
 
+/// The editor's owner: the v8 isolate, its kernel, and all the shared editor
+/// data in one place.
+///
+/// This used to be named `EventLoop`; the alias [`EventLoop`] is kept so that
+/// the binary and the doc links don't have to change.
+///
 /// For slow tasks that are suitable to put in the background, this event loop
 /// will spawn them in tokio's async tasks and let them sync back data once
 /// they are done. The event loop controls all the tasks with
@@ -82,7 +91,7 @@ use crossterm::event::KeyModifiers;
 ///
 /// Js runtime and event loop also communicate via channels, since js runtime
 /// is based on v8 engine, all v8 APIs are not thread-safe.
-pub struct EventLoop {
+pub struct Rsvim {
   /// Indicates the start time of the process.
   pub startup_moment: Instant,
   /// Specifies the timestamp which the current process began in Unix time.
@@ -128,53 +137,226 @@ pub struct EventLoop {
   pub master_tx: UnboundedSender<MasterMessage>,
   pub master_rx: UnboundedReceiver<MasterMessage>,
 
-  /// Channel-2
-  pub jsrt_forwarder_tx: UnboundedSender<JsMessage>,
-  pub jsrt_forwarder_rx: UnboundedReceiver<JsMessage>,
-
-  /// Channel-3
+  /// Channel-2, the single javascript channel.
+  ///
+  /// The sender is cloned into the FSM (`StateContext`) and into every
+  /// background task; the receiver is the `[A]` branch of
+  /// [`Rsvim::run_inner`], i.e. the only tick driver.
+  ///
+  /// This used to be two channels with a forwarding hop in between. The hop
+  /// is gone, and the two channels are folded into this one: a completion
+  /// event is both the result and the trigger to advance the isolate.
   pub jsrt_tx: UnboundedSender<JsMessage>,
   pub jsrt_rx: UnboundedReceiver<JsMessage>,
+
+  /// Whether there is javascript work that can be advanced right now, i.e.
+  /// the previous tick returned [`TickOutcome::MoreWork`]. Consumed at the
+  /// top of every [`Rsvim::run_inner`] iteration.
+  pub js_tick_again: bool,
+  /// How many consecutive self-driven ticks have been performed without
+  /// going back to the `select!`. Bounded by [`JS_SPIN_BUDGET`].
+  pub js_spin: usize,
+  /// Whether the exhausted-budget warning has already been emitted for the
+  /// current run of self-driven ticks, so a long microtask chain is reported
+  /// once instead of once per retry.
+  pub js_spin_warned: bool,
+  /// Whether the terminal needs to be repainted. Replaces the old
+  /// "redraw after every select iteration" behaviour, which turned a busy
+  /// javascript loop into a full repaint per tick.
+  pub dirty: bool,
+  /// Wakes the loop up for javascript work that has no payload.
+  ///
+  /// One producer exists today: when the self-driving budget is exhausted
+  /// while `pending_futures` is still non-empty, a short delayed
+  /// `notify_one` is scheduled, so that work is retried instead of being
+  /// stranded forever. A custom v8 platform would be the second producer.
+  pub js_wake: Arc<Notify>,
+  /// Bounded backoff for [`v8::Isolate::has_pending_background_tasks`].
+  ///
+  /// "A v8 background task is still running" is a *waiting* state, not a
+  /// *runnable* one, so it must not drive the self-driving tick (see
+  /// `evloop-plan.md` §5.4(b)). But nothing else notifies us either, so the
+  /// loop would never re-check. This interval does exactly that: it is only
+  /// armed while that predicate is true, it doubles `1ms -> 2ms -> ... ->
+  /// 16ms`, and it is reset by any real progress.
+  pub js_backoff: std::time::Duration,
 }
 
-impl EventLoop {
-  /// Runs a single tick of the event loop.
-  ///
-  /// This is a thin wrapper that keeps the scheduling untouched; the real
-  /// `tick_js` lands in a later step.
-  pub fn tick_event_loop(&mut self) {
-    let mut messages: Vec<JsMessage> = vec![];
-    while let Ok(msg) = self.jsrt_rx.try_recv() {
-      messages.push(msg);
-    }
+/// The self-assessment of a single javascript tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TickOutcome {
+  /// There's no javascript work that can be advanced right now, it's safe to
+  /// go back to the `select!` and wait.
+  Idle,
+  /// There's still work that is ready *right now* (newly ready `JsFuture`s,
+  /// newly arrived messages), it's worth ticking once more -- but the number
+  /// of consecutive self-driven ticks must be bounded by
+  /// [`JS_SPIN_BUDGET`].
+  MoreWork,
+}
 
+impl Rsvim {
+  /// Advances the javascript event loop by a single tick.
+  ///
+  /// The order strictly follows Dune (`dune/src/runtime.rs:427-432`):
+  ///   1. microtask checkpoint
+  ///   2. consume the completion events, each followed by
+  ///      checkpoint + flush errors + the [`JsFuture`]s it just made ready
+  ///   3. run whatever [`JsFuture`] was pending before the tick started
+  ///   4. flush the exceptions captured outside the two loops above
+  ///   5. decide whether there's more work that can be advanced immediately
+  ///
+  /// Fixes P0-1: step 2 and step 3 flush the errors after **each** item,
+  /// instead of only calling `check_exceptions` for `JsFuture`s like the old
+  /// `run_pending_futures` did.
+  ///
+  /// The `inbox` is owned by the caller: the select branches drain `jsrt_rx`
+  /// and pass the messages in, so that this function never touches the
+  /// receiver (which would be a double borrow of `self` while `isolate` is
+  /// borrowed by the scope).
+  pub fn tick_js(&mut self, inbox: Vec<JsMessage>) -> TickOutcome {
+    // Split the borrow: `isolate` and `kernel` are two disjoint fields, this
+    // is the keystone of the whole merged design.
     let Self {
       ref mut isolate,
       ref kernel,
       ..
     } = *self;
+    let context = kernel.borrow().context.clone();
 
-    {
-      let context = kernel.borrow().context.clone();
+    let mut worked = false;
+
+    let more = {
       v8::scope_with_context!(scope, isolate, context);
-      crate::js::run_next_tick_callbacks(scope);
-      crate::js::run_pending_futures(kernel, scope, messages);
+
+      // 1) microtask checkpoint
+      Self::checkpoint(scope);
+
+      // 2) consume the completion events, running the `JsFuture`s each one
+      // produces **before** the next event is observed.
+      //
+      // NOTE: the whole inbox is drained up-front (`Rsvim::drain_js_inbox`)
+      // because the event loop owns whatever already landed in the channel.
+      // But a completion event's *consequences* must be applied before the
+      // next event is looked at, otherwise the callbacks observe an ordering
+      // that cannot happen in Node. Concrete case: `setInterval(3ms)` plus
+      // `setTimeout(20ms, () => clearInterval(id))`; when both `TimeoutResp`s
+      // are in the same inbox, running all the messages first and the futures
+      // afterwards makes the interval callback fire *after* the `clearInterval`
+      // that was supposed to cancel it, so an extra tick shows up on the
+      // command line.
+      for msg in inbox {
+        crate::js::process_js_message(kernel, scope, msg);
+        Self::flush_js_errors(kernel, scope);
+        Self::checkpoint(scope);
+        Self::run_ready_futures(kernel, scope);
+        worked = true;
+      }
+
+      // 3) the futures that were already pending when the tick started.
+      //
+      // This is a no-op when the inbox was non-empty (step 2 already ran
+      // them) and the actual work when it was empty. It keeps the old
+      // `run_pending_futures` behaviour for the "no message, only futures"
+      // case.
+      worked |= Self::run_ready_futures(kernel, scope);
+
+      // 4) report whatever was captured by the js engine outside of the two
+      // loops above -- typically a rejection raised while evaluating a module
+      // (`execute_module`), which has no message and no future to hang the
+      // flush on. `check_exceptions` takes the captured vector, so this is
+      // idempotent: a second tick reports nothing.
+      Self::flush_js_errors(kernel, scope);
+
+      // 5) work that can be advanced immediately (**excluding**
+      // `has_pending_background_tasks`, see §5.4)
+      Self::has_runnable_js_work(kernel)
+    };
+
+    // A tick that executed javascript may have touched the editor -- a
+    // `cmd.echo`, an option, a buffer. A tick that executed nothing cannot
+    // have, so it must not buy itself a full repaint: that is exactly the
+    // "busy javascript loop turns into a repaint per tick" problem the dirty
+    // flag exists to solve.
+    if worked {
+      self.dirty = true;
     }
 
-    let has_promise_rejections =
-      kernel.borrow().exceptions.has_promise_rejection();
-    let has_pending_background_tasks = isolate.has_pending_background_tasks();
-
-    trace!(
-      "|EventLoop::tick_event_loop| has_promise_rejections:{:?}, has_pending_background_tasks:{:?}",
-      has_promise_rejections, has_pending_background_tasks,
-    );
-    if has_promise_rejections || has_pending_background_tasks {
-      chan::send_to_master(
-        kernel.borrow().master_tx.clone(),
-        MasterMessage::TickAgainReq,
-      );
+    if more {
+      TickOutcome::MoreWork
+    } else {
+      TickOutcome::Idle
     }
+  }
+
+  fn checkpoint(scope: &mut v8::PinScope) {
+    crate::js::checkpoint(scope);
+  }
+
+  /// Turns the "captured exceptions" into "reported exceptions".
+  ///
+  /// Fixes P0-1: `check_exceptions` used to `mem::take` the whole
+  /// `promise_rejections` vector but then `return Some(error)` from every
+  /// branch, so N rejections only reported the first one. It now returns a
+  /// `Vec<JsError>` and we report all of them.
+  fn flush_js_errors(kernel: &JsKernelRc, scope: &mut v8::PinScope) {
+    for err in crate::js::check_exceptions(scope) {
+      let state = kernel.borrow();
+      crate::js::err::report_js_error(&state, TheErr::JsError(Box::new(err)));
+    }
+  }
+
+  /// Runs the [`JsFuture`]s that are ready *right now*, once.
+  ///
+  /// `mem::take` first, so the borrow on `kernel` is released before the
+  /// futures run and they are free to push new ones (which then land in the
+  /// *next* tick, matching the old `run_pending_futures`).
+  /// Runs every `JsFuture` that was pending when the tick reached this point.
+  ///
+  /// Returns whether anything actually ran: `tick_js` uses that to decide if
+  /// the terminal has to be repainted, so an idle tick must not repaint.
+  ///
+  /// NOTE: `mem::take` releases the borrow before the futures run, so a
+  /// future that pushes a new `JsFuture` into `pending_futures` lands in the
+  /// *next* tick. That matches the old `run_pending_futures` behaviour.
+  fn run_ready_futures(kernel: &JsKernelRc, scope: &mut v8::PinScope) -> bool {
+    let futures: Vec<Box<dyn crate::js::JsFuture>> =
+      std::mem::take(&mut kernel.borrow_mut().pending_futures);
+    let ran = !futures.is_empty();
+    for mut fut in futures {
+      fut.run(scope);
+      Self::flush_js_errors(kernel, scope);
+      Self::checkpoint(scope);
+    }
+    ran
+  }
+
+  /// The work that is ready *right now*.
+  ///
+  /// This is **not** the same thing as "is there pending work" (which is what
+  /// keeps the runtime alive).
+  ///
+  /// NOTE: this deliberately only looks at `pending_futures` and ignores
+  /// `pending_tasks`. `pending_futures` is a Dune-style "ready completion
+  /// queue" (see the `JsFuture` trait: `fn run(&mut self, scope)` -- no
+  /// poll/Waker), so a non-empty queue means "it can run now". `pending_tasks`
+  /// on the other hand holds the waiters of tasks that were already dispatched
+  /// but whose result hasn't come back: non-empty only means "there's work in
+  /// flight", not "it can be advanced now". Counting it as runnable is the
+  /// same class of bug as P0-1 (mistaking *waiting* for *runnable*).
+  fn has_runnable_js_work(kernel: &JsKernelRc) -> bool {
+    !kernel.borrow().pending_futures.is_empty()
+  }
+
+  /// Drains the javascript inbox and advances the runtime by one tick.
+  ///
+  /// This is the "one-shot" entry point, used by `_init_config` (to settle the
+  /// imports of the config file) and by tests. The event loop proper does not
+  /// call it: [`Rsvim::run_inner`] drives [`Rsvim::tick_js`] directly, so that
+  /// the inbox drain and the tick happen inside a single `select!` iteration.
+  pub fn tick_event_loop(&mut self) -> TickOutcome {
+    let inbox = self.drain_js_inbox(None);
+    self.tick_js(inbox)
   }
 
   /// Executes javascript source code as ES module, i.e. ECMA standard.
@@ -190,14 +372,17 @@ impl EventLoop {
   }
 }
 
-impl std::fmt::Debug for EventLoop {
+impl std::fmt::Debug for Rsvim {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("EventLoop").finish_non_exhaustive()
+    f.debug_struct("Rsvim").finish_non_exhaustive()
   }
 }
 
+/// The editor's owner, under its former name.
+pub type EventLoop = Rsvim;
+
 #[cfg(test)]
-fn is_ctrl_d(event: &Option<IoResult<Event>>) -> bool {
+pub(crate) fn is_ctrl_d(event: &Option<IoResult<Event>>) -> bool {
   match event {
     Some(Ok(Event::Key(key_event)))
       if key_event.code == KeyCode::Char('d')
@@ -213,7 +398,7 @@ fn is_ctrl_d(event: &Option<IoResult<Event>>) -> bool {
   }
 }
 
-impl EventLoop {
+impl Rsvim {
   #[allow(clippy::type_complexity)]
   pub fn _internal_new(
     terminal_cols: u16,
@@ -230,10 +415,6 @@ impl EventLoop {
     (
       /* master_tx */ UnboundedSender<MasterMessage>,
       /* master_rx */ UnboundedReceiver<MasterMessage>,
-    ),
-    (
-      /* jsrt_forwarder_tx */ UnboundedSender<JsMessage>,
-      /* jsrt_forwarder_rx */ UnboundedReceiver<JsMessage>,
     ),
     (
       /* jsrt_tx */ UnboundedSender<JsMessage>,
@@ -297,25 +478,24 @@ impl EventLoop {
     // The request/response data flow uses below message channels:
     //
     // - Channel-1 `master_tx` => `master_rx` on `MasterMessage`.
-    // - Channel-2 `jsrt_forwarder_tx` => `jsrt_forwarder_rx` on `JsMessage`.
-    // - Channel-3 `jsrt_tx` => `jsrt_rx` on `JsMessage`.
+    // - Channel-2 `jsrt_tx` => `jsrt_rx` on `JsMessage`.
     //
     // The dataflow follows below steps:
     //
     // 1. Js runtime --- [`MasterMessage`] (channel-1) --> Event loop
     // 2. Event loop handles js requests with tokio async tasks
-    // 3. Event loop --- JsMessage (channel-2) --> Event loop
-    // 4. Event loop --- JsMessage (channel-3) --> Js runtime
-    // 5. Js runtime completes all async results.
+    // 3. Background tasks --- JsMessage (channel-2) --> Event loop
+    // 4. Event loop advances the js runtime in-place, it already owns the
+    //    isolate.
     //
-    // NOTE: You must notice, the step-3 and channel-2 seems unnecessary. Yes,
-    // they're simply for trigger the `tokio::select!` loop.
+    // NOTE: there used to be a third channel that carried the results from
+    // channel-2 into the js runtime, plus a forwarding hop. Both are gone: the
+    // event loop *is* the js runtime now, so the completion event is also the
+    // tick trigger.
 
     // Channel-1
     let (master_tx, master_rx) = unbounded_channel();
     // Channel-2
-    let (jsrt_forwarder_tx, jsrt_forwarder_rx) = unbounded_channel();
-    // Channel-3
     let (jsrt_tx, jsrt_rx) = unbounded_channel();
 
     let editor = EditorHandles {
@@ -338,7 +518,6 @@ impl EventLoop {
       TaskTracker::new(),
       0,
       (master_tx, master_rx),
-      (jsrt_forwarder_tx, jsrt_forwarder_rx),
       (jsrt_tx, jsrt_rx),
     ))
   }
@@ -359,7 +538,6 @@ impl EventLoop {
       blocked_tracker,
       exit_code,
       (master_tx, master_rx),
-      (jsrt_forwarder_tx, jsrt_forwarder_rx),
       (jsrt_tx, jsrt_rx),
     ) = Self::_internal_new(cols, rows, cli_opts.clone())?;
 
@@ -372,7 +550,7 @@ impl EventLoop {
       editor.clone(),
     );
 
-    Ok(EventLoop {
+    Ok(Rsvim {
       startup_moment,
       startup_unix_epoch,
       canvas,
@@ -387,10 +565,14 @@ impl EventLoop {
       kernel,
       master_tx,
       master_rx,
-      jsrt_forwarder_tx,
-      jsrt_forwarder_rx,
       jsrt_tx,
       jsrt_rx,
+      js_tick_again: false,
+      js_spin: 0,
+      js_spin_warned: false,
+      dirty: false,
+      js_wake: Arc::new(Notify::new()),
+      js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
 
@@ -413,7 +595,6 @@ impl EventLoop {
       blocked_tracker,
       exit_code,
       (master_tx, master_rx),
-      (jsrt_forwarder_tx, jsrt_forwarder_rx),
       (jsrt_tx, jsrt_rx),
     ) = Self::_internal_new(terminal_columns, terminal_rows, cli_opts.clone())?;
 
@@ -431,7 +612,7 @@ impl EventLoop {
       editor.clone(),
     );
 
-    Ok(EventLoop {
+    Ok(Rsvim {
       startup_moment,
       startup_unix_epoch,
       canvas,
@@ -446,10 +627,14 @@ impl EventLoop {
       kernel,
       master_tx,
       master_rx,
-      jsrt_forwarder_tx,
-      jsrt_forwarder_rx,
       jsrt_tx,
       jsrt_rx,
+      js_tick_again: false,
+      js_spin: 0,
+      js_spin_warned: false,
+      dirty: false,
+      js_wake: Arc::new(Notify::new()),
+      js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
 
@@ -612,7 +797,7 @@ impl EventLoop {
     Ok(())
   }
 
-  async fn process_event(&mut self, event: Option<IoResult<Event>>) {
+  fn process_event(&mut self, event: Option<IoResult<Event>>) {
     match event {
       Some(Ok(event)) => {
         trace!("Polled terminal event ok: {:?}", event);
@@ -621,7 +806,7 @@ impl EventLoop {
           self.editor.buffer_manager.clone(),
           self.editor.cmdline_text.clone(),
           self.master_tx.clone(),
-          self.jsrt_forwarder_tx.clone(),
+          self.jsrt_tx.clone(),
         );
 
         // Handle by state machine
@@ -641,7 +826,7 @@ impl EventLoop {
   }
 
   #[cfg(test)]
-  async fn _process_mocked_operations(
+  fn _process_mocked_operations(
     &mut self,
     op: Option<IoResult<MockOperation>>,
   ) {
@@ -655,7 +840,7 @@ impl EventLoop {
               self.editor.buffer_manager.clone(),
               self.editor.cmdline_text.clone(),
               self.master_tx.clone(),
-              self.jsrt_forwarder_tx.clone(),
+              self.jsrt_tx.clone(),
             );
 
             // Handle by state machine
@@ -680,8 +865,8 @@ impl EventLoop {
     }
   }
 
-  async fn process_master_message(&mut self, message: Option<MasterMessage>) {
-    if let Some(message) = message {
+  fn process_master_message(&mut self, message: MasterMessage) {
+    {
       match message {
         MasterMessage::ExitReq(req) => {
           trace!("Recv ExitReq:{:?}", req.exit_code);
@@ -690,92 +875,77 @@ impl EventLoop {
         }
         MasterMessage::TimeoutReq(req) => {
           trace!("Recv TimeoutReq:{:?}", req.timer_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let expire_at = req.start_at
               + tokio::time::Duration::from_millis(req.delay as u64);
             tokio::time::sleep_until(expire_at).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::TimeoutResp(chan::TimeoutResp {
-                timer_id: req.timer_id,
-                expire_at,
-                delay: req.delay,
-                repeated: req.repeated,
-              }))
-              .unwrap();
-          });
-        }
-        MasterMessage::TickAgainReq => {
-          trace!("Recv TickAgainReq");
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          self.detached_tracker.spawn(async move {
-            jsrt_forwarder_tx.send(JsMessage::TickAgainResp).unwrap();
+            let _ = jsrt_tx.send(JsMessage::TimeoutResp(chan::TimeoutResp {
+              timer_id: req.timer_id,
+              expire_at,
+              delay: req.delay,
+              repeated: req.repeated,
+            }));
           });
         }
         MasterMessage::FsOpenReq(req) => {
           trace!("Recv FsOpenReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
               fs_open_a(resource_table, req.path.as_path(), req.options).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::FsOpenResp(chan::FsOpenResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsOpenResp(chan::FsOpenResp {
+              task_id: req.task_id,
+              maybe_result: match maybe_result {
+                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
+                Err(e) => Some(Err(e)),
+              },
+            }));
           });
         }
         MasterMessage::FsReadReq(req) => {
           trace!("Recv FsReadReq:{:?}", req.task_id);
           let resource_table = self.editor.resource_table.clone();
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
               fs_read_s(resource_table, req.file_rid, req.bufsize);
-            jsrt_forwarder_tx
-              .send(JsMessage::FsReadResp(chan::FsReadResp {
-                task_id: req.task_id,
-                maybe_result: Some(maybe_result),
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsReadResp(chan::FsReadResp {
+              task_id: req.task_id,
+              maybe_result: Some(maybe_result),
+            }));
           });
         }
         MasterMessage::FsWriteReq(req) => {
           trace!("Recv FsWriteReq:{:?}", req.task_id);
           let resource_table = self.editor.resource_table.clone();
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
-          self.detached_tracker.spawn_blocking(move || {
+          let jsrt_tx = self.jsrt_tx.clone();
+          // A write is not abortable: the bytes are already promised to the
+          // user. Run it on `blocked_tracker`, which `close_trackers` waits
+          // for on every exit path, so quitting right after
+          // `await file.write(buf)` cannot silently drop the tail of the file.
+          self.blocked_tracker.spawn_blocking(move || {
             let maybe_result =
               fs_write_s(resource_table, req.file_rid, req.buf);
-            jsrt_forwarder_tx
-              .send(JsMessage::FsWriteResp(chan::FsWriteResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsWriteResp(chan::FsWriteResp {
+              task_id: req.task_id,
+              maybe_result: match maybe_result {
+                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
+                Err(e) => Some(Err(e)),
+              },
+            }));
           });
         }
         MasterMessage::FsReadDirReq(req) => {
           trace!("Recv FsReadDirReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result =
               fs_read_dir_s(resource_table, req.path.as_path());
-            jsrt_forwarder_tx
-              .send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
+            let _ =
+              jsrt_tx.send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Ok(result) => {
@@ -783,18 +953,17 @@ impl EventLoop {
                   }
                   Err(e) => Some(Err(e)),
                 },
-              }))
-              .unwrap();
+              }));
           });
         }
         MasterMessage::FsReadDirNextReq(req) => {
           trace!("Recv FsReadDirNextReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           let resource_table = self.editor.resource_table.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result = fs_read_dir_next_s(resource_table, req.rid);
-            jsrt_forwarder_tx
-              .send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
+            let _ =
+              jsrt_tx.send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Some(Ok(result)) => {
@@ -803,33 +972,31 @@ impl EventLoop {
                   Some(Err(e)) => Some(Err(e)),
                   None => None,
                 },
-              }))
-              .unwrap();
+              }));
           });
         }
         MasterMessage::FsReadFileReq(req) => {
           trace!("Recv FsReadFileReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result = fs_read_file_a(req.path.as_path()).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::FsReadFileResp(chan::FsReadFileResp {
+            let _ =
+              jsrt_tx.send(JsMessage::FsReadFileResp(chan::FsReadFileResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Ok(result) => Some(Ok(result)),
                   Err(e) => Some(Err(e)),
                 },
-              }))
-              .unwrap();
+              }));
           });
         }
         MasterMessage::FsReadTextFileReq(req) => {
           trace!("Recv FsReadTextFileReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result = fs_read_text_file_a(req.path.as_path()).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::FsReadTextFileResp(chan::FsReadTextFileResp {
+            let _ = jsrt_tx.send(JsMessage::FsReadTextFileResp(
+              chan::FsReadTextFileResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Ok(result) => {
@@ -837,83 +1004,74 @@ impl EventLoop {
                   }
                   Err(e) => Some(Err(e)),
                 },
-              }))
-              .unwrap();
+              },
+            ));
           });
         }
         MasterMessage::FsStatReq(req) => {
           trace!("Recv FsStatReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result = if req.follow_symlink {
               fs_stat_a(req.path.as_path()).await
             } else {
               fs_lstat_a(req.path.as_path()).await
             };
-            jsrt_forwarder_tx
-              .send(JsMessage::FsStatResp(chan::FsStatResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsStatResp(chan::FsStatResp {
+              task_id: req.task_id,
+              maybe_result: match maybe_result {
+                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
+                Err(e) => Some(Err(e)),
+              },
+            }));
           });
         }
         MasterMessage::FsSymlinkReq(req) => {
           trace!("Recv FsSymlinkReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result = fs_symlink_s(
               req.oldpath.as_path(),
               req.newpath.as_path(),
               req.options,
             );
-            jsrt_forwarder_tx
-              .send(JsMessage::FsSymlinkResp(chan::FsSymlinkResp {
+            let _ =
+              jsrt_tx.send(JsMessage::FsSymlinkResp(chan::FsSymlinkResp {
                 task_id: req.task_id,
                 maybe_result: match maybe_result {
                   Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
                   Err(e) => Some(Err(e)),
                 },
-              }))
-              .unwrap();
+              }));
           });
         }
         MasterMessage::FsLinkReq(req) => {
           trace!("Recv FsLinkReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn(async move {
             let maybe_result =
               fs_link_a(req.oldpath.as_path(), req.newpath.as_path()).await;
-            jsrt_forwarder_tx
-              .send(JsMessage::FsLinkResp(chan::FsLinkResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
-                  Err(e) => Some(Err(e)),
-                },
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsLinkResp(chan::FsLinkResp {
+              task_id: req.task_id,
+              maybe_result: match maybe_result {
+                Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
+                Err(e) => Some(Err(e)),
+              },
+            }));
           });
         }
         MasterMessage::FsMkdirReq(req) => {
           trace!("Recv FsMkdirReq:{:?}", req.task_id);
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
           self.detached_tracker.spawn_blocking(move || {
             let maybe_result = fs_mkdir_s(req.path.as_path(), req.options);
-            jsrt_forwarder_tx
-              .send(JsMessage::FsMkdirResp(chan::FsMkdirResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
-                  Err(e) => Some(Err(e)),
-                },
-              }))
-              .unwrap();
+            let _ = jsrt_tx.send(JsMessage::FsMkdirResp(chan::FsMkdirResp {
+              task_id: req.task_id,
+              maybe_result: match maybe_result {
+                Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
+                Err(e) => Some(Err(e)),
+              },
+            }));
           });
         }
         MasterMessage::SyntaxEditReq(req) => {
@@ -1013,7 +1171,7 @@ impl EventLoop {
         MasterMessage::LoadTreeSitterParserReq(req) => {
           trace!("Recv LoadTreeSitterGrammarReq:{:?}", req.task_id);
           let syn_manager = self.editor.syntax_manager.clone();
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
 
           self.detached_tracker.spawn(async move {
             match req.grammar_path.absolutize() {
@@ -1032,26 +1190,22 @@ impl EventLoop {
                       .map(|grammar| grammar.name.to_string())
                       .collect_vec();
                     trace!("Load tree-sitter grammars:{:?}", grammar_names);
-                    jsrt_forwarder_tx
-                      .send(JsMessage::LoadTreeSitterParserResp(
-                        chan::LoadTreeSitterParserResp {
-                          task_id: req.task_id,
-                          maybe_result: Some(Ok(
-                            postcard::to_allocvec(&grammar_names).unwrap(),
-                          )),
-                        },
-                      ))
-                      .unwrap();
+                    let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
+                      chan::LoadTreeSitterParserResp {
+                        task_id: req.task_id,
+                        maybe_result: Some(Ok(
+                          postcard::to_allocvec(&grammar_names).unwrap(),
+                        )),
+                      },
+                    ));
                   }
                   Err(e) => {
-                    jsrt_forwarder_tx
-                      .send(JsMessage::LoadTreeSitterParserResp(
-                        chan::LoadTreeSitterParserResp {
-                          task_id: req.task_id,
-                          maybe_result: Some(Err(e)),
-                        },
-                      ))
-                      .unwrap();
+                    let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
+                      chan::LoadTreeSitterParserResp {
+                        task_id: req.task_id,
+                        maybe_result: Some(Err(e)),
+                      },
+                    ));
                   }
                 }
               }
@@ -1059,14 +1213,12 @@ impl EventLoop {
                 let e = TheErr::TreeSitterParserNotFound(
                   req.grammar_path.to_string_lossy().to_compact_string(),
                 );
-                jsrt_forwarder_tx
-                  .send(JsMessage::LoadTreeSitterParserResp(
-                    chan::LoadTreeSitterParserResp {
-                      task_id: req.task_id,
-                      maybe_result: Some(Err(e)),
-                    },
-                  ))
-                  .unwrap();
+                let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
+                  chan::LoadTreeSitterParserResp {
+                    task_id: req.task_id,
+                    maybe_result: Some(Err(e)),
+                  },
+                ));
               }
             }
           });
@@ -1078,11 +1230,11 @@ impl EventLoop {
           );
 
           let resource_table = self.editor.resource_table.clone();
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
 
           self.detached_tracker.spawn_blocking(move || {
             let handle_read = |result, payload| match result {
-              Ok(_n) => jsrt_forwarder_tx
+              Ok(_n) => jsrt_tx
                 .send(JsMessage::ReadTextFromChildProcessStdioResp(
                   chan::ReadTextFromChildProcessStdioResp {
                     task_id: req.task_id,
@@ -1092,7 +1244,7 @@ impl EventLoop {
                   },
                 ))
                 .unwrap(),
-              Err(e) => jsrt_forwarder_tx
+              Err(e) => jsrt_tx
                 .send(JsMessage::ReadTextFromChildProcessStdioResp(
                   chan::ReadTextFromChildProcessStdioResp {
                     task_id: req.task_id,
@@ -1127,16 +1279,15 @@ impl EventLoop {
               },
               None => {
                 // Child process (stdio) not found
-                jsrt_forwarder_tx
-                  .send(JsMessage::ReadTextFromChildProcessStdioResp(
+                let _ =
+                  jsrt_tx.send(JsMessage::ReadTextFromChildProcessStdioResp(
                     chan::ReadTextFromChildProcessStdioResp {
                       task_id: req.task_id,
                       maybe_result: Some(Err(TheErr::ChildProcessNotFound(
                         req.rid,
                       ))),
                     },
-                  ))
-                  .unwrap();
+                  ));
               }
             }
           });
@@ -1145,7 +1296,7 @@ impl EventLoop {
           trace!("Recv WaitChildProcessReq:{:?} rid:{}", req.task_id, req.rid);
 
           let resource_table = self.editor.resource_table.clone();
-          let jsrt_forwarder_tx = self.jsrt_forwarder_tx.clone();
+          let jsrt_tx = self.jsrt_tx.clone();
 
           self.detached_tracker.spawn_blocking(move || {
             let child = lock!(resource_table).get(&req.rid).cloned();
@@ -1169,31 +1320,27 @@ impl EventLoop {
                           None
                         }
                       };
-                      jsrt_forwarder_tx
-                        .send(JsMessage::WaitChildProcessResp(
-                          chan::WaitChildProcessResp {
-                            task_id: req.task_id,
-                            maybe_result: Some(Ok(
-                              postcard::to_allocvec(&(
-                                success, exit_code, signal,
-                              ))
-                              .unwrap(),
-                            )),
-                          },
-                        ))
-                        .unwrap();
+                      let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
+                        chan::WaitChildProcessResp {
+                          task_id: req.task_id,
+                          maybe_result: Some(Ok(
+                            postcard::to_allocvec(&(
+                              success, exit_code, signal,
+                            ))
+                            .unwrap(),
+                          )),
+                        },
+                      ));
                     }
                     Err(e) => {
-                      jsrt_forwarder_tx
-                        .send(JsMessage::WaitChildProcessResp(
-                          chan::WaitChildProcessResp {
-                            task_id: req.task_id,
-                            maybe_result: Some(Err(
-                              TheErr::WaitChildProcessFailed(req.rid, e),
-                            )),
-                          },
-                        ))
-                        .unwrap();
+                      let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
+                        chan::WaitChildProcessResp {
+                          task_id: req.task_id,
+                          maybe_result: Some(Err(
+                            TheErr::WaitChildProcessFailed(req.rid, e),
+                          )),
+                        },
+                      ));
                     }
                   }
                 }
@@ -1201,16 +1348,14 @@ impl EventLoop {
               },
               None => {
                 // Child process not found
-                jsrt_forwarder_tx
-                  .send(JsMessage::WaitChildProcessResp(
-                    chan::WaitChildProcessResp {
-                      task_id: req.task_id,
-                      maybe_result: Some(Err(TheErr::ChildProcessNotFound(
-                        req.rid,
-                      ))),
-                    },
-                  ))
-                  .unwrap();
+                let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
+                  chan::WaitChildProcessResp {
+                    task_id: req.task_id,
+                    maybe_result: Some(Err(TheErr::ChildProcessNotFound(
+                      req.rid,
+                    ))),
+                  },
+                ));
               }
             }
           });
@@ -1219,19 +1364,181 @@ impl EventLoop {
     }
   }
 
-  async fn forward_js_message(&mut self, message: Option<JsMessage>) {
-    if let Some(message) = message {
-      trace!("Process resp msg:{:?}", message);
-      self.jsrt_tx.send(message).unwrap();
-      self.tick_event_loop();
-    }
+  pub(crate) async fn process_cancellation_notify(&mut self) {
+    trace!("Receive cancellation token, exit loop");
+    self.close_trackers().await;
   }
 
-  async fn process_cancellation_notify(&mut self) {
-    trace!("Receive cancellation token, exit loop");
+  /// Stops accepting background work and waits for the part of it that cannot
+  /// be abandoned.
+  ///
+  /// `detached_tracker` holds work whose result nobody would see anyway once
+  /// the loop is gone (parser loading, colorscheme parsing, read-only fs
+  /// calls), so it is only closed. `blocked_tracker` holds work whose result
+  /// was promised to the user -- a write, a child-process wait -- and dropping
+  /// it silently is exactly the bug this stage is about, so we wait.
+  ///
+  /// Idempotent: `[D]` closes the trackers, and `[A]`/`[C]` reach the same
+  /// place on their own exit paths, so every way out funnels through here.
+  async fn close_trackers(&mut self) {
     self.detached_tracker.close();
     self.blocked_tracker.close();
     self.blocked_tracker.wait().await;
+  }
+
+  /// Reports what the js side was still holding when the loop ended, then
+  /// lets it all be dropped.
+  ///
+  /// Three things happen here, and only these three:
+  ///
+  /// 1. A last [`Rsvim::flush_js_errors`]. A rejection raised while a module is
+  ///    being evaluated never gets a tick to be flushed in, so without this it
+  ///    would vanish without a word.
+  /// 2. A one-shot diagnostic when a module is still sitting on a top-level
+  ///    `await`. Pending timers and pending [`crate::js::JsFuture`]s are
+  ///    dropped silently, which matches Node and Deno: `setTimeout(..., 10000)`
+  ///    must not keep the process alive. A never-settling top-level await is a
+  ///    different animal -- the user wrote code that was supposed to run, so
+  ///    exiting 0 in silence is a trap. We still do not block the exit (the
+  ///    user asked to quit), we just say what got skipped.
+  ///
+  /// NOTE: the trackers are deliberately *not* touched here.
+  /// [`Rsvim::process_cancellation_notify`] already closes and waits for them
+  /// on every exit path; doing it a second time would only lean on
+  /// `TaskTracker::close` being idempotent.
+  ///
+  /// Consequently there is nothing left to `.await`, which is why this is not
+  /// an `async fn`.
+  pub(crate) fn shutdown_js(&mut self) {
+    let Self {
+      ref mut isolate,
+      ref kernel,
+      ..
+    } = *self;
+    let context = kernel.borrow().context.clone();
+
+    v8::scope_with_context!(scope, isolate, context);
+
+    Self::flush_js_errors(kernel, scope);
+
+    let pending = kernel.borrow().module_map.pending_paths(scope);
+    if !pending.is_empty() {
+      warn!(
+        "Exiting with {} module(s) still pending on a top-level await: {}",
+        pending.len(),
+        pending.iter().join(", ")
+      );
+    }
+  }
+
+  /// How many consecutive self-driven ticks are allowed before the loop
+  /// insists on going back to the `select!`.
+  ///
+  /// A self-driven tick means: the previous [`Rsvim::tick_js`] returned
+  /// [`TickOutcome::MoreWork`], so there is javascript work that can be
+  /// advanced *right now* -- running it in the same iteration is both faster
+  /// and more correct than bouncing through a channel. The budget bounds the
+  /// pathological case (a promise chain that keeps queueing more work), so
+  /// that terminal input and cancellation always get a chance to be polled.
+  pub(crate) const JS_SPIN_BUDGET: usize = 8;
+
+  /// Delay before retrying self-driven work whose budget was exhausted.
+  ///
+  /// Long enough that a pathological microtask chain cannot spin the CPU, short
+  /// enough that a legitimate chain (e.g. a long `await`-free loop building a
+  /// buffer) completes without a visible stall.
+  pub(crate) const JS_RETRY_DELAY: std::time::Duration =
+    std::time::Duration::from_millis(1);
+
+  /// Lower bound of the background-task backoff, see [`Rsvim::js_backoff`].
+  pub(crate) const JS_BACKOFF_MIN: std::time::Duration =
+    std::time::Duration::from_millis(1);
+  /// Upper bound of the background-task backoff. 16ms is one frame at 60Hz:
+  /// above that a v8 background task would visibly delay the UI.
+  pub(crate) const JS_BACKOFF_MAX: std::time::Duration =
+    std::time::Duration::from_millis(16);
+
+  /// The backoff to arm for this iteration, or `None` when nothing is
+  /// waiting on a v8 background task.
+  fn js_backoff_deadline(&self) -> Option<Instant> {
+    if !self.isolate.has_pending_background_tasks() {
+      return None;
+    }
+    Some(Instant::now() + self.js_backoff)
+  }
+
+  /// Resolves at `deadline`, or never when there is no deadline.
+  ///
+  /// `select!` needs a branch that is always present, so "disabled" is
+  /// expressed as a future that never resolves instead of a conditional arm.
+  async fn js_backoff_tick(deadline: Option<Instant>) {
+    match deadline {
+      Some(deadline) => tokio::time::sleep_until(deadline).await,
+      None => std::future::pending::<()>().await,
+    }
+  }
+
+  /// Doubles the backoff up to [`Rsvim::JS_BACKOFF_MAX`].
+  fn grow_js_backoff(&mut self) {
+    self.js_backoff =
+      std::cmp::min(self.js_backoff.saturating_mul(2), Self::JS_BACKOFF_MAX);
+  }
+
+  /// Any real progress means the next background-task check can be prompt
+  /// again.
+  fn reset_js_backoff(&mut self) {
+    self.js_backoff = Self::JS_BACKOFF_MIN;
+  }
+
+  /// Diagnostics for an exhausted self-driving budget.
+  ///
+  /// Deliberately *not* calling `v8::Isolate::terminate_execution()`: that
+  /// leaves the isolate in an unrecoverable state and there is no reset path.
+  fn report_js_spin_warning(&self) {
+    warn!(
+      "js self-driving tick budget ({}) exhausted; pending_futures={}, \
+       has_pending_background_tasks={}",
+      Self::JS_SPIN_BUDGET,
+      self.kernel.borrow().pending_futures.len(),
+      self.isolate.has_pending_background_tasks(),
+    );
+  }
+
+  /// Takes every javascript message that has already arrived.
+  ///
+  /// `first` is the message the `[A]` branch already `recv`ed, so it does not
+  /// have to travel through the channel twice.
+  ///
+  /// This is the only source of [`Rsvim::tick_js`]'s inbox, which is what
+  /// keeps `tick_js` from ever touching `self.jsrt_rx` -- otherwise the
+  /// receiver borrow would collide with the isolate borrow inside the tick.
+  fn drain_js_inbox(&mut self, first: Option<JsMessage>) -> Vec<JsMessage> {
+    let mut inbox: Vec<JsMessage> = first.into_iter().collect();
+    while let Ok(msg) = self.jsrt_rx.try_recv() {
+      inbox.push(msg);
+    }
+    inbox
+  }
+
+  /// Repaints the terminal, but only if something actually changed.
+  ///
+  /// The loop used to draw and write on every iteration, which meant a busy
+  /// javascript tick turned into a full repaint per tick.
+  pub(crate) fn render_if_dirty(&mut self) -> IoResult<()> {
+    if !self.dirty {
+      return Ok(());
+    }
+    self.dirty = false;
+    self.render()
+  }
+
+  fn render(&mut self) -> IoResult<()> {
+    let context = WidgetContext::new(
+      self.editor.syntax_manager.clone(),
+      self.editor.colorscheme_manager.clone(),
+    );
+    lock!(self.editor.tree).draw(self.canvas.clone(), &context);
+    self.writer.write(&mut lock!(self.canvas))
   }
 
   /// Running the loop, it repeatedly do following steps:
@@ -1241,112 +1548,227 @@ impl EventLoop {
   ///    2. Received messages.
   ///    3. Cancellation request (which tells this event loop to quit).
   /// 2. Use the editing state (FSM) to handle the event.
-  /// 3. Render the terminal.
+  /// 3. Render the terminal, if anything changed.
   pub async fn run(&mut self) -> IoResult<i32> {
-    let mut reader = EventStream::new();
-    loop {
-      tokio::select! {
-        // Receive keyboard/mouse events
-        event = reader.next() => {
-          self.process_event(event).await;
-        }
-        // Receive master message
-        master_msg = self.master_rx.recv() => {
-          self.process_master_message(master_msg).await;
-        }
-        // Receive loopback js message (should be sent to js runtime)
-        js_msg = self.jsrt_forwarder_rx.recv() => {
-          self.forward_js_message(js_msg).await;
-        }
-        // Receive cancellation notify
-        _ = self.cancellation_token.cancelled() => {
-          self.process_cancellation_notify().await;
-          break;
-        }
-      }
-
-      // Flush logic UI to terminal, i.e. print UI to stdout
-      let context = WidgetContext::new(
-        self.editor.syntax_manager.clone(),
-        self.editor.colorscheme_manager.clone(),
-      );
-      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
-      self.writer.write(&mut lock!(self.canvas))?;
-    }
-
-    Ok(self.exit_code)
+    self
+      .run_inner(EventStream::new(), |_| false, Rsvim::process_event)
+      .await
   }
 
   #[cfg(test)]
   pub async fn run_with_mock_events(
     &mut self,
-    mut reader: MockEventReader,
+    reader: MockEventReader,
   ) -> IoResult<i32> {
-    loop {
-      tokio::select! {
-        // Receive mocked keyboard/mouse events
-        event = reader.next() => {
-          if is_ctrl_d(&event) {
-            break;
-          }
-          self.process_event(event).await;
-        }
-        master_msg = self.master_rx.recv() => {
-          self.process_master_message(master_msg).await;
-        }
-        js_msg = self.jsrt_forwarder_rx.recv() => {
-          self.forward_js_message(js_msg).await;
-        }
-        _ = self.cancellation_token.cancelled() => {
-          self.process_cancellation_notify().await;
-          break;
-        }
-      }
-
-      // Flush logic UI to terminal, i.e. print UI to stdout
-      let context = WidgetContext::new(
-        self.editor.syntax_manager.clone(),
-        self.editor.colorscheme_manager.clone(),
-      );
-      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
-      self.writer.write(&mut lock!(self.canvas))?;
-    }
-
-    Ok(self.exit_code)
+    self
+      .run_inner(reader, is_ctrl_d, Rsvim::process_event)
+      .await
   }
 
   #[cfg(test)]
   pub async fn run_with_mock_operations(
     &mut self,
-    mut reader: MockOperationReader,
+    reader: MockOperationReader,
   ) -> IoResult<i32> {
+    // `MockOperation::Exit` keeps its current meaning: it cancels the token
+    // (`_process_mocked_operations`), and the `[D]` branch breaks the loop.
+    self
+      .run_inner(reader, |_| false, Rsvim::_process_mocked_operations)
+      .await
+  }
+
+  /// The single event loop.
+  ///
+  /// The three entry points above differ in exactly two ways: where the input
+  /// stream comes from, and which input item means "quit". Everything else --
+  /// the javascript tick, the cancellation, the rendering -- is shared.
+  async fn run_inner<S, F, H>(
+    &mut self,
+    mut io: S,
+    is_exit: F,
+    on_input: H,
+  ) -> IoResult<i32>
+  where
+    S: Stream + Unpin,
+    F: Fn(&Option<S::Item>) -> bool,
+    H: Fn(&mut Rsvim, Option<S::Item>),
+  {
+    // The first frame is not drawn here: `initialize()` already did
+    // `lock!(tree).draw(...)` + `writer.init_complete(...)`; drawing again
+    // would flash two frames on startup.
     loop {
-      tokio::select! {
-        // Receive mocked keyboard/mouse events
-        op = reader.next() => {
-          self._process_mocked_operations(op).await;
+      if self.step(&mut io, &is_exit, &on_input).await?.is_break() {
+        break;
+      }
+    }
+
+    // The loop can stop for three different reasons -- Ctrl-D, cancellation,
+    // or the javascript channel closing -- and only the cancellation branch
+    // used to wait for the trackers. Every way out funnels through here so
+    // that quitting right after `await file.write(buf)` cannot drop the bytes
+    // that were already promised to the user. `close_trackers` is idempotent,
+    // so the cancellation branch having done it already costs nothing.
+    self.close_trackers().await;
+
+    // Everything that the js side was still holding is reported and dropped
+    // here, before the caller (`rsvim_cli`) reaches `std::process::exit`.
+    self.shutdown_js();
+
+    Ok(self.exit_code)
+  }
+
+  /// One iteration of [`Rsvim::run_inner`].
+  ///
+  /// Split out of the `loop` so tests can drive the loop one iteration at a
+  /// time instead of racing against a real input stream. Production calls it
+  /// only from [`Rsvim::run_inner`], so the split changes no behaviour:
+  /// `run_inner` is exactly `loop { if step(..).is_break() { break } }`.
+  pub(crate) async fn step<S, F, H>(
+    &mut self,
+    io: &mut S,
+    is_exit: &F,
+    on_input: &H,
+  ) -> IoResult<ControlFlow<()>>
+  where
+    S: Stream + Unpin,
+    F: Fn(&Option<S::Item>) -> bool,
+    H: Fn(&mut Rsvim, Option<S::Item>),
+  {
+    // Self-drive: advance the work that is ready *right now* in this very
+    // iteration instead of manufacturing a message to come back through the
+    // select.
+    if self.js_tick_again {
+      // NOTE: don't write `self.tick_js(self.drain_js_inbox(None))` -- both
+      // take `&mut self`, nesting them is E0499. Drain first, then tick.
+      let inbox = self.drain_js_inbox(None);
+      let outcome = self.tick_js(inbox);
+      match outcome {
+        TickOutcome::MoreWork => {
+          self.js_spin += 1;
+          if self.js_spin <= Self::JS_SPIN_BUDGET {
+            // Yield without blocking: IO tasks and background tasks get a
+            // chance to make progress, while the next tick needs no channel.
+            tokio::task::yield_now().await;
+            self.render_if_dirty()?;
+            return Ok(ControlFlow::Continue(()));
+          }
+          // Budget exhausted: the js side is sustaining itself (typically an
+          // endless microtask chain). Stop self-driving so the select regains
+          // control, and report once rather than once per retry.
+          if !self.js_spin_warned {
+            self.report_js_spin_warning();
+            self.js_spin_warned = true;
+          }
+          self.js_tick_again = false;
+          // Exhausting the budget does **not** mean the work is gone:
+          // `MoreWork` means `pending_futures` is still non-empty. Without a
+          // nudge, that chain would be stranded forever -- no new message
+          // will arrive for it. Schedule one bounded retry (at most one per
+          // exhaustion, so this cannot become a hot loop) through the same
+          // `js_wake` the `[E]` branch consumes.
+          let wake = self.js_wake.clone();
+          self.detached_tracker.spawn(async move {
+            tokio::time::sleep(Self::JS_RETRY_DELAY).await;
+            wake.notify_one();
+          });
         }
-        master_msg = self.master_rx.recv() => {
-          self.process_master_message(master_msg).await;
+        TickOutcome::Idle => {
+          self.js_spin = 0;
+          self.js_spin_warned = false;
+          self.js_tick_again = false;
         }
-        js_msg = self.jsrt_forwarder_rx.recv() => {
-          self.forward_js_message(js_msg).await;
-        }
-        _ = self.cancellation_token.cancelled() => {
-          self.process_cancellation_notify().await;
-          break;
+      }
+      self.render_if_dirty()?;
+    }
+
+    let mut flow = ControlFlow::Continue(());
+
+    // Armed only while v8 still has background tasks: those are *waiting*
+    // work, so they must not self-drive (that was P0-1), but nothing else
+    // would ever come back to check them.
+    let backoff = self.js_backoff_deadline();
+
+    // NOTE: deliberately **not** `biased;`. `biased` polls the branches in
+    // source order and lets the first ready one win, which is the opposite of
+    // fairness: with `[A]` first, a steady stream of javascript completions
+    // would starve terminal input (`[C]`) and master messages (`[B]`) -- the
+    // user could press keys and see nothing. Tokio's default random choice is
+    // what provides fairness here; `JS_SPIN_BUDGET` governs the self-driving
+    // loop *outside* `select!` and cannot compensate for branch order.
+    tokio::select! {
+
+      // [A] JS completion -- the only tick driver.
+      msg = self.jsrt_rx.recv() => {
+        match msg {
+          Some(first) => {
+            self.reset_js_backoff();
+            let inbox = self.drain_js_inbox(Some(first));
+            let outcome = self.tick_js(inbox);
+            self.js_tick_again = outcome == TickOutcome::MoreWork;
+          }
+          // Every sender is gone, so no javascript result can ever arrive.
+          // This must not happen on the normal exit path (`jsrt_tx`
+          // is owned by `Rsvim`), so bail out instead of hanging silently.
+          None => flow = ControlFlow::Break(()),
         }
       }
 
-      // Flush logic UI to terminal, i.e. print UI to stdout
-      let context = WidgetContext::new(
-        self.editor.syntax_manager.clone(),
-        self.editor.colorscheme_manager.clone(),
-      );
-      lock!(self.editor.tree).draw(self.canvas.clone(), &context);
-      self.writer.write(&mut lock!(self.canvas))?;
+      // [B] A javascript-initiated IO request.
+      req = self.master_rx.recv() => {
+        if let Some(req) = req {
+          self.process_master_message(req);
+          self.dirty = true;
+        }
+      }
+
+      // [C] Terminal input, or the mocked equivalent.
+      item = io.next() => {
+        if is_exit(&item) {
+          flow = ControlFlow::Break(());
+        } else {
+          on_input(self, item);
+          self.dirty = true;
+        }
+      }
+
+      // [D] Cancellation.
+      _ = self.cancellation_token.cancelled() => {
+        self.process_cancellation_notify().await;
+        flow = ControlFlow::Break(());
+      }
+
+      // [E] A javascript wake-up with no payload (a v8 background task
+      // finished, or an external interrupt). Nothing notifies it yet; it is
+      // kept as the precise-wakeup slot for a `post_task` hook.
+      _ = self.js_wake.notified() => {
+        self.reset_js_backoff();
+        // Resetting the budget here is what makes the retry path useful: the
+        // wake means "real progress may be possible again", so the next eight
+        // ticks are allowed. A pathological microtask chain therefore runs in
+        // bounded bursts separated by `JS_RETRY_DELAY`, instead of either hot
+        // spinning or being stranded.
+        self.js_spin = 0;
+        self.js_spin_warned = false;
+        let inbox = self.drain_js_inbox(None);
+        let outcome = self.tick_js(inbox);
+        self.js_tick_again = outcome == TickOutcome::MoreWork;
+      }
+
+      // [F] Bounded backoff for v8 background tasks, see `js_backoff`.
+      //
+      // A false tick here means "nothing happened yet", so the interval
+      // doubles. It stays `waiting`, never `runnable`: this branch does not
+      // set `js_tick_again`.
+      _ = Self::js_backoff_tick(backoff) => {
+        self.grow_js_backoff();
+        let inbox = self.drain_js_inbox(None);
+        let outcome = self.tick_js(inbox);
+        self.js_tick_again = outcome == TickOutcome::MoreWork;
+      }
     }
 
-    Ok(self.exit_code)
+    self.render_if_dirty()?;
+
+    Ok(flow)
   }
 }

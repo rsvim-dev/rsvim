@@ -9,11 +9,21 @@ use crate::ui::canvas::ShaderCommand;
 /// The `/dev/null` mode writer, it eats everything and print nothing.
 pub struct DevNullWriter {
   shaders: Vec<ShaderCommand>,
+  /// How many times [`StdoutWritable::write`] was actually called.
+  ///
+  /// Counting the calls (instead of the shader commands) is deliberate:
+  /// [`Canvas::shade`] legitimately yields an empty command list when nothing
+  /// on screen changed, so counting commands would conflate "did not repaint"
+  /// with "repainted an identical frame".
+  write_count: usize,
 }
 
 impl DevNullWriter {
   pub fn new() -> Self {
-    Self { shaders: vec![] }
+    Self {
+      shaders: vec![],
+      write_count: 0,
+    }
   }
 }
 
@@ -31,6 +41,7 @@ impl StdoutWritable for DevNullWriter {
   }
 
   fn write(&mut self, canvas: &mut Canvas) -> IoResult<()> {
+    self.write_count += 1;
     let shaders = canvas.shade();
     let shaders = lock!(shaders);
     self.shaders.extend_from_slice(&shaders);
@@ -41,5 +52,10 @@ impl StdoutWritable for DevNullWriter {
 impl DevNullWriter {
   pub fn shaders(&self) -> &Vec<ShaderCommand> {
     &self.shaders
+  }
+
+  /// How many times the writer was asked to repaint.
+  pub fn write_count(&self) -> usize {
+    self.write_count
   }
 }

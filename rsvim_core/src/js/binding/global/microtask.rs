@@ -17,7 +17,7 @@ pub fn report_error(
   state.exceptions.capture_exception(exception);
   drop(state);
 
-  if let Some(error) = js::check_exceptions(scope) {
+  for error in js::check_exceptions(scope) {
     let state = state_rc.borrow();
     report_js_error(&state, TheErr::JsError(Box::new(error)));
   }

@@ -18,9 +18,6 @@ pub enum JsMessage {
   /// Event loop send ex command to js runtime to run.
   ExCommandReq(ExCommandReq),
 
-  /// Master send js runtime the result of tick again
-  TickAgainResp,
-
   /// Master send js runtime the result of fs open
   FsOpenResp(FsOpenResp),
 
@@ -192,6 +189,10 @@ pub struct WaitChildProcessResp {
 }
 
 /// Send js message in sync/blocking way, with tokio's "current_runtime".
-pub fn send_to_jsrt(master_tx: UnboundedSender<JsMessage>, message: JsMessage) {
-  master_tx.send(message).unwrap();
+///
+/// Unlike the old implementation this ignores a closed receiver: the only
+/// way `send` fails is that the event loop is already gone, and aborting the
+/// process with a panic turns a clean shutdown into a crash report.
+pub fn send_to_jsrt(jsrt_tx: UnboundedSender<JsMessage>, message: JsMessage) {
+  let _ = jsrt_tx.send(message);
 }
