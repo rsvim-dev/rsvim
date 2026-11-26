@@ -8,7 +8,6 @@
 //! - V8 API Reference: <https://v8docs.nodesource.com/node-24.1/index.html>.
 
 pub mod binding;
-pub mod command;
 pub mod converter;
 pub mod err;
 pub mod exception;
@@ -19,8 +18,6 @@ pub mod pending;
 pub mod resource;
 
 #[cfg(test)]
-mod command_tests;
-#[cfg(test)]
 mod converter_tests;
 #[cfg(test)]
 mod module_tests;
@@ -29,6 +26,8 @@ use crate::cfg::path_cfg::PATH_CONFIG;
 use crate::chan::JsMessage;
 use crate::chan::MasterMessage;
 use crate::evloop::Editor;
+use crate::js::TaskId;
+use crate::js::TimerId;
 use crate::prelude::*;
 pub use boost::*;
 use err::JsError;
@@ -58,18 +57,6 @@ pub fn v8_version() -> &'static str {
 pub trait JsFuture {
   fn run(&mut self, scope: &mut v8::PinScope);
 }
-
-// TimerId start from 1.
-#[derive(
-  Copy, Clone, rsvim_macro::IncrementalId, serde::Serialize, serde::Deserialize,
-)]
-pub struct TimerId(#[start_from(1)] i32);
-
-// TaskId start from 1.
-#[derive(
-  Copy, Clone, rsvim_macro::IncrementalId, serde::Serialize, serde::Deserialize,
-)]
-pub struct TaskId(#[start_from(1)] usize);
 
 pub fn init_v8_platform() {
   static V8_INIT: Once = Once::new();

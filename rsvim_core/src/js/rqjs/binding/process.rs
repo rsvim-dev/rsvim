@@ -160,7 +160,7 @@ pub fn exit<'js>(ctx: Ctx<'js>, exit_code: i32) -> JsResult<()> {
 /// Installs the `process_*` built-ins on `internal`.
 pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "process_exit", exit)?;
-  set_function_to(ctx, internal, "process_spawn", spawn_child)?;
+  set_function_to(ctx, internal, "process_spawn_child", spawn_child)?;
   Ok(())
 }
 
@@ -222,7 +222,7 @@ mod tests {
     test_log_init();
     with_kernel(|ctx, _kernel, _master_rx| {
       let result = ctx.eval::<rquickjs::Object, _>(
-        "__InternalRsvimGlobalObject.process_spawn('/nonexistent/rsvim-test-binary', {})",
+        "__InternalRsvimGlobalObject.process_spawn_child('/nonexistent/rsvim-test-binary', {})",
       );
       assert!(result.is_err());
     });
@@ -239,7 +239,7 @@ mod tests {
         .eval(
           r#"
           (() => {
-            const r = __InternalRsvimGlobalObject.process_spawn('/bin/true', {});
+            const r = __InternalRsvimGlobalObject.process_spawn_child('/bin/true', {});
             return typeof r.rid === 'number' && typeof r.stdoutRid === 'number';
           })()
           "#,

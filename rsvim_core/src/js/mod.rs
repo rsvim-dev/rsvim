@@ -28,11 +28,15 @@ compile_error!(
 );
 
 pub mod cmdline;
+pub mod command;
 pub mod core_modules;
 pub mod fs;
+pub mod ids;
 pub mod process_command;
 
 pub use core_modules::CORE_MODULES;
+pub use ids::TaskId;
+pub use ids::TimerId;
 
 #[cfg(feature = "js-v8")]
 pub mod v8;

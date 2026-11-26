@@ -5,18 +5,25 @@ pub mod ctx;
 pub mod def;
 pub mod opt;
 
-#[cfg(test)]
+// These drive javascript through the v8 test runtime, so they only build with
+// the v8 backend. Porting them is part of the flip, not of the move.
+#[cfg(all(test, feature = "js-v8"))]
 mod attr_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "js-v8"))]
 mod opt_tests;
+#[cfg(all(test, feature = "js-v8"))]
+mod tests;
 
 use crate::buf::unicode::char_is_whitespace;
 use crate::chan::ExCommandReq;
+#[cfg(feature = "js-v8")]
 use crate::js::JsFuture;
 use crate::js::TaskId;
 use crate::js::command::ctx::CommandContext;
 use crate::js::command::ctx::CommandContextBuilder;
+#[cfg(feature = "js-v8")]
 use crate::js::converter::*;
+#[cfg(feature = "js-v8")]
 use crate::js::execute_module;
 use crate::prelude::*;
 use compact_str::CompactString;
@@ -35,6 +42,7 @@ pub struct CommandFuture {
   pub definition: Option<CommandDefinitionRc>,
 }
 
+#[cfg(feature = "js-v8")]
 impl JsFuture for CommandFuture {
   fn run(&mut self, scope: &mut v8::PinScope) {
     trace!(
@@ -53,7 +61,7 @@ impl JsFuture for CommandFuture {
     } else {
       let def = self.definition.clone().unwrap();
       let undefined = v8::undefined(scope).into();
-      let callback = v8::Local::new(scope, (*def.callback).clone());
+      let callback = v8::Local::new(scope, (**def.callback.as_v8()).clone());
       let args: Vec<v8::Local<v8::Value>> = vec![self.context.to_v8(scope)];
 
       v8::tc_scope!(let tc_scope, scope);
@@ -101,6 +109,17 @@ impl CommandManager {
 
   pub fn remove(&mut self, name: &str) -> Option<CommandDefinitionRc> {
     self.commands.remove(name)
+  }
+
+  /// Drops every registered command.
+  ///
+  /// Each definition owns a javascript callback handle, and a QuickJS
+  /// `Persistent` must die before its runtime does — the runtime aborts the
+  /// process otherwise. Anything that tears a runtime down while the editor is
+  /// still alive has to call this first.
+  pub fn clear(&mut self) {
+    self.commands.clear();
+    self.aliases.clear();
   }
 
   /// Insert new command definition.

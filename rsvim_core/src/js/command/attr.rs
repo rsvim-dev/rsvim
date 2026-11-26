@@ -1,6 +1,8 @@
 //! Ex command attributes.
 
+#[cfg(feature = "js-v8")]
 use crate::js::converter::*;
+#[cfg(feature = "js-v8")]
 use std::str::FromStr;
 
 #[derive(
@@ -37,6 +39,7 @@ pub enum CommandNargs {
   Any,
 }
 
+#[cfg(feature = "js-v8")]
 impl FromV8 for CommandNargs {
   fn from_v8<'s>(
     scope: &mut v8::PinScope<'s, '_>,
@@ -48,6 +51,7 @@ impl FromV8 for CommandNargs {
   }
 }
 
+#[cfg(feature = "js-v8")]
 impl ToV8 for CommandNargs {
   fn to_v8<'s>(
     &self,
@@ -57,15 +61,8 @@ impl ToV8 for CommandNargs {
   }
 }
 
-#[derive(
-  Debug,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_builder::Builder)]
+#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 pub struct CommandAttributes {
   #[builder(default = false)]
   pub bang: bool,
