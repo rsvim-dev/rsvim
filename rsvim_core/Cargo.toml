@@ -18,9 +18,14 @@ version.workspace = true
 doctest = false
 
 [features]
-default = ["unicode", "simd"]
+# `js-v8` is the engine that ships. `js-quickjs` is the QuickJS-ng port: it is
+# buildable and tested in isolation, but v8 is what default builds select until
+# the port reaches parity (see `quickjs-plan.md`).
+default = ["unicode", "simd", "js-v8"]
 simd = ["ropey/simd"]
 unicode = ["ropey/unicode_lines"]
+js-v8 = ["dep:v8"]
+js-quickjs = ["dep:rquickjs"]
 
 [dependencies]
 rsvim_macro = { workspace = true }
@@ -90,10 +95,11 @@ tree-sitter = { workspace = true }
 tree-sitter-loader = { workspace = true }
 
 # js engine
-v8 = { workspace = true, default-features = false, features = [
+v8 = { workspace = true, optional = true, default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
+rquickjs = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_fs = { workspace = true }

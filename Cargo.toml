@@ -105,6 +105,13 @@ v8 = { version = "=150.4.0", default-features = false, features = [
   "use_custom_libcxx",
   "simdutf",
 ] }
+rquickjs = { version = "0.14", default-features = false, features = [
+  "std",
+  "futures",
+  "loader",
+  "array-buffer",
+  "classes",
+] }
 
 [workspace.lints.clippy]
 collapsible_else_if = "allow"

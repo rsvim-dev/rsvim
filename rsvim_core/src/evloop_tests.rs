@@ -637,3 +637,55 @@ async fn master_request_is_served_in_the_same_tick() -> IoResult<()> {
 
   Ok(())
 }
+
+/// Regression test for the reason the whole backoff mechanism exists.
+///
+/// `WebAssembly.compile` runs on a v8 background task. When it finishes it does
+/// not call into the embedder: it posts a task onto the platform's foreground
+/// task runner. Waiting for it with the backoff alone is correct but useless --
+/// the queue only drains when someone calls
+/// `v8::Platform::pump_message_loop`, so without that call
+/// `has_pending_background_tasks` stays true forever, the interval climbs to its
+/// ceiling, and the promise never settles.
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn wasm_compile_settles_while_backing_off() -> IoResult<()> {
+  test_log_init();
+
+  let src: &str = r#"
+  import cmd from "rsvim:cmd";
+  const bytes = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
+  WebAssembly.compile(bytes).then(() => { cmd.echo("compiled"); });
+  cmd.echo("requested");
+"#;
+  let _tp = make_configs(vec![(Path::new("rsvim.js"), src)]);
+
+  let mut event_loop = make_event_loop(10, 10, CliOptions::empty());
+  event_loop.initialize()?;
+
+  assert!(
+    event_loop.isolate.has_pending_background_tasks(),
+    "the compile must still be in flight, otherwise this test proves nothing",
+  );
+
+  let started = std::time::Instant::now();
+  event_loop
+    .run_with_mock_events(MockEventReader::new(vec![MockEvent::SleepFor(
+      Duration::from_millis(200),
+    )]))
+    .await?;
+
+  let messages = cmdline_messages(&event_loop);
+  assert!(
+    messages.iter().any(|m| m.contains("requested")),
+    "the module itself must have run, got {messages:?}",
+  );
+  assert!(
+    messages.iter().any(|m| m.contains("compiled")),
+    "the compile's completion must be drained from v8's foreground queue, got {messages:?} after {:?}",
+    started.elapsed(),
+  );
+
+  event_loop.shutdown()?;
+  Ok(())
+}

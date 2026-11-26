@@ -1504,6 +1504,23 @@ impl Rsvim {
     self.js_backoff = Self::JS_BACKOFF_MIN;
   }
 
+  /// Drains v8's foreground task queue.
+  ///
+  /// A v8 background task does not call back into the embedder when it
+  /// finishes: it posts a task onto the platform's foreground task runner. That
+  /// queue is only drained by [`v8::Platform::pump_message_loop`], and v8 does
+  /// not do it behind our back. Without this call
+  /// [`v8::Isolate::has_pending_background_tasks`] stays true forever, the
+  /// backoff climbs to its ceiling, and the completion never runs -- the
+  /// waiting is correct but nothing ever arrives.
+  ///
+  /// `wait_for_work: false` because the loop's scheduling decision is already
+  /// made elsewhere: this must never block.
+  pub(crate) fn pump_v8_message_loop(&self) {
+    let platform = v8::V8::get_current_platform();
+    v8::Platform::pump_message_loop(&platform, &self.isolate, false);
+  }
+
   /// Takes every javascript message that has already arrived.
   ///
   /// `first` is the message the `[A]` branch already `recv`ed, so it does not
@@ -1764,11 +1781,18 @@ impl Rsvim {
 
       // [E] Bounded backoff for v8 background tasks, see `js_backoff`.
       //
+      // Waiting alone is not enough: a finished background task does not call
+      // back into the embedder, it only enqueues a task on the foreground task
+      // runner, and nothing in rsvim ever drained that queue. So the deadline
+      // is where the queue gets drained, which is what actually lets the
+      // completion run. See `pump_v8_message_loop`.
+      //
       // A false tick means "nothing happened yet", so the interval doubles. The
       // branch does not tick: Phase A of the next iteration does, which keeps a
       // single place where javascript is advanced.
       _ = Self::js_backoff_tick(backoff) => {
         self.grow_js_backoff();
+        self.pump_v8_message_loop();
       }
     }
 
