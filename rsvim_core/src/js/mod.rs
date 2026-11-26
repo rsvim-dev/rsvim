@@ -56,6 +56,22 @@ pub use runtime::get_state;
 pub use runtime::set_state;
 pub use runtime::to_io_error;
 
+/// Get the bundled QuickJS-ng engine version string (e.g. `2024-01-13`).
+///
+/// This is the successor of the old V8-era `v8_version()`. The version
+/// lives in the vendored quickjs C sources and is exposed through
+/// `JS_GetVersion`, which returns a pointer to a compile-time constant.
+pub fn quickjs_version() -> &'static str {
+  unsafe {
+    let ptr = rquickjs::qjs::JS_GetVersion();
+    if ptr.is_null() {
+      "unknown"
+    } else {
+      std::ffi::CStr::from_ptr(ptr).to_str().unwrap_or("unknown")
+    }
+  }
+}
+
 #[cfg(test)]
 mod buf_tests;
 #[cfg(test)]

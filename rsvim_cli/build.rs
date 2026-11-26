@@ -1,4 +1,4 @@
-use rsvim_core::js::v8_version;
+use rsvim_core::js::quickjs_version;
 use rsvim_core::prelude::*;
 
 // pub const LOG: &str = "[RSVIM]";
@@ -43,16 +43,16 @@ fn make_version_info() {
     }
   };
 
-  let v8_version = v8_version();
+  let quickjs_version = quickjs_version();
 
   println!(
-    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, v8={:?}",
-    profile, host, version, git_commit, v8_version
+    "{LOG} Resolved: profile={:?}, host={:?}, version={:?}, git_commit={:?}, quickjs={:?}",
+    profile, host, version, git_commit, quickjs_version
   );
 
   let mut resolved = format!(
-    "version={}\nprofile={}\nhost={}\nv8={}\n",
-    version, profile, host, v8_version
+    "version={}\nprofile={}\nhost={}\nquickjs={}\n",
+    version, profile, host, quickjs_version
   );
   if let Some(git_commit) = git_commit {
     resolved = format!("{}git_commit={}\n", resolved, git_commit);
