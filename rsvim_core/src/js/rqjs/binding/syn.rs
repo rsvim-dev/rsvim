@@ -1,16 +1,21 @@
 //! Syntax APIs.
 //!
-//! Only the synchronous half lives here so far: `listParsers` and
-//! `getParserMetadata`. `loadParserSync` and the promise-returning `loadParser`
-//! need the pending-task machinery, which lands with the async bindings.
+//! `syn.listParsers`, `syn.getParserMetadata`, `syn.loadParserSync` and
+//! `syn.loadParser`. The last one returns a promise and needs the pending-task
+//! machinery, so it lands with the async bindings.
 
 use crate::js::rqjs::binding::set_function_to;
 use crate::js::rqjs::get_state;
+use crate::js::syn::SynLoadTreeSitterParserOptions;
 use crate::prelude::*;
+use crate::syntax;
+use crate::syntax::SyntaxLoadGrammarRequest;
 use rquickjs::Ctx;
 use rquickjs::Exception;
 use rquickjs::Object;
 use rquickjs::Result as JsResult;
+use rquickjs::Value;
+use rquickjs::function::Opt;
 
 /// Builds the javascript object `getParserMetadata` hands back.
 ///
@@ -95,6 +100,65 @@ pub fn get_parser_metadata<'js>(
   }
 }
 
+/// Reads `{grammarPath}`.
+///
+/// `syn.min.js` defaults the whole object, so a missing argument only happens
+/// for a caller that skips the wrapper; an empty path then fails to absolutize
+/// and surfaces as `TreeSitterParserNotFound`, which is the right error.
+fn options_from<'js>(
+  value: Option<Value<'js>>,
+) -> JsResult<SynLoadTreeSitterParserOptions> {
+  let Some(object) = value.and_then(|v| v.as_object().cloned()) else {
+    return Ok(SynLoadTreeSitterParserOptions {
+      grammar_path: "".into(),
+    });
+  };
+  let path: String = object.get("grammarPath").unwrap_or_default();
+  Ok(SynLoadTreeSitterParserOptions {
+    grammar_path: path.into(),
+  })
+}
+
+/// `syn.loadParserSync(options)`.
+///
+/// Loads a tree-sitter grammar and returns the parser names it provides. The
+/// engine-neutral part — absolutizing the path and asking the syntax manager —
+/// is the same call the v8 backend makes.
+pub fn load_parser_sync<'js>(
+  ctx: Ctx<'js>,
+  options: Opt<Value<'js>>,
+) -> JsResult<Vec<String>> {
+  let options = options_from(options.0)?;
+  trace!("syn.loadParserSync:{:?}", options);
+
+  let path = match Path::new(&options.grammar_path).absolutize() {
+    Ok(p) => p.to_path_buf(),
+    Err(_) => {
+      return Err(Exception::throw_message(
+        &ctx,
+        &TheErr::TreeSitterParserNotFound(options.grammar_path.clone())
+          .to_string(),
+      ));
+    }
+  };
+
+  let kernel = get_state(&ctx).ok_or_else(|| {
+    Exception::throw_message(&ctx, "js kernel is not initialised")
+  })?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
+  let req = SyntaxLoadGrammarRequest { grammar_path: path };
+  match syntax::load_syntax_grammar(syntax_manager, &req) {
+    Ok(metainfo) => Ok(
+      metainfo
+        .grammars
+        .iter()
+        .map(|g| g.name.to_string())
+        .collect(),
+    ),
+    Err(e) => Err(Exception::throw_message(&ctx, &e.to_string())),
+  }
+}
+
 /// Installs the `syn_*` built-ins on `internal`.
 pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "syn_list_parsers", list_parsers)?;
@@ -104,6 +168,7 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
     "syn_get_parser_metadata",
     get_parser_metadata,
   )?;
+  set_function_to(ctx, internal, "syn_load_parser_sync", load_parser_sync)?;
   Ok(())
 }
 
@@ -161,6 +226,59 @@ mod tests {
         )
         .unwrap();
       assert_eq!(kind, "undefined");
+    });
+  }
+
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  fn load_parser_sync_reports_an_empty_path() {
+    test_log_init();
+    with_kernel(|ctx, _kernel| {
+      // An empty path cannot be absolutized, so the binding has to surface the
+      // same `TreeSitterParserNotFound` the v8 backend throws.
+      let message: String = ctx
+        .eval(
+          r#"
+          (() => {
+            try {
+              __InternalRsvimGlobalObject.syn_load_parser_sync({});
+              return "no error";
+            } catch (e) {
+              return String(e);
+            }
+          })()
+          "#,
+        )
+        .unwrap();
+      assert!(
+        message.contains("Tree-sitter parser not found"),
+        "got: {message}"
+      );
+    });
+  }
+
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  fn load_parser_sync_accepts_a_missing_argument() {
+    test_log_init();
+    with_kernel(|ctx, _kernel| {
+      // `syn.min.js` defaults the options object, so both call shapes reach the
+      // binding; neither may blow up with a parameter-count error.
+      let kind: String = ctx
+        .eval(
+          r#"
+          (() => {
+            try {
+              __InternalRsvimGlobalObject.syn_load_parser_sync();
+              return "returned";
+            } catch (e) {
+              return "threw";
+            }
+          })()
+          "#,
+        )
+        .unwrap();
+      assert_eq!(kind, "threw");
     });
   }
 }

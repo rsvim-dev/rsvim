@@ -33,6 +33,7 @@ pub mod core_modules;
 pub mod fs;
 pub mod ids;
 pub mod process_command;
+pub mod syn;
 
 pub use core_modules::CORE_MODULES;
 pub use ids::TaskId;

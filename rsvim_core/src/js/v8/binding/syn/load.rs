@@ -4,22 +4,10 @@ use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::prelude::*;
-use compact_str::CompactString;
-use compact_str::ToCompactString;
 
-#[derive(
-  Debug,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
-)]
-pub struct SynLoadTreeSitterParserOptions {
-  #[builder(default = "".to_compact_string())]
-  pub grammar_path: CompactString,
-}
+// The definition lives in `crate::js::syn`; re-exported so the module path
+// `binding::syn::SynLoadTreeSitterParserOptions` keeps working.
+pub use crate::js::syn::SynLoadTreeSitterParserOptions;
 
 pub struct SynLoadTreeSitterParserFuture {
   pub promise: v8::Global<v8::PromiseResolver>,
