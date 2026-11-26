@@ -9,10 +9,13 @@
 pub mod buf;
 pub mod cmd;
 pub mod fs;
+pub mod fs_async;
 pub mod global;
 pub mod opt;
 pub mod process;
+pub mod process_async;
 pub mod syn;
+pub mod timer;
 
 use rquickjs::Ctx;
 use rquickjs::Function;
@@ -66,10 +69,13 @@ pub fn install_bindings<'js>(ctx: &Ctx<'js>) -> JsResult<()> {
   buf::install(ctx, &internal)?;
   cmd::install(ctx, &internal)?;
   fs::install(ctx, &internal)?;
+  fs_async::install(ctx, &internal)?;
   global::install(ctx, &internal)?;
   opt::install(ctx, &internal)?;
   process::install(ctx, &internal)?;
+  process_async::install(ctx, &internal)?;
   syn::install(ctx, &internal)?;
+  timer::install(ctx, &internal)?;
   Ok(())
 }
 

@@ -191,6 +191,7 @@ mod tests {
       options: JsRuntimeOptions::default(),
       master_tx,
       editor,
+      blocked_tracker: tokio_util::task::TaskTracker::new(),
     });
     let rt = AsyncRuntime::new().unwrap();
     let ctx = futures::executor::block_on(AsyncContext::full(&rt)).unwrap();

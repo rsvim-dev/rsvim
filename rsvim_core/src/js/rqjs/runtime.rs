@@ -6,6 +6,7 @@ use rquickjs::Ctx;
 use rquickjs::JsLifetime;
 use rquickjs::Result as JsResult;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::task::TaskTracker;
 
 /// The QuickJS-ng counterpart of the v8 kernel.
 ///
@@ -19,6 +20,17 @@ pub struct JsKernel {
   pub master_tx: UnboundedSender<MasterMessage>,
   /// Editor's shared data (the same `Arc`s as `Rsvim::editor`).
   pub editor: Editor,
+  /// The tracker for work whose result was already promised to the user.
+  ///
+  /// This is a clone of `Rsvim::blocked_tracker`, not a separate tracker: the
+  /// two handles share one counter, so `Rsvim::close_trackers` waiting on its
+  /// copy also waits for every blocking job a js callback started here.
+  ///
+  /// It has to live in the kernel because a promise-producing callback cannot
+  /// reach `Rsvim` at all -- rquickjs futures are `'js`, and `Rsvim` is not
+  /// reachable from an isolate. `TaskTracker` is `Clone + Send + Sync`, so
+  /// sharing it costs one clone.
+  pub blocked_tracker: TaskTracker,
 }
 
 // The kernel holds no `'js` types, so its lifetime is trivially unchanged.
@@ -67,6 +79,7 @@ pub(crate) mod tests {
       options: JsRuntimeOptions::default(),
       master_tx,
       editor: make_editor(),
+      blocked_tracker: TaskTracker::new(),
     })
   }
 

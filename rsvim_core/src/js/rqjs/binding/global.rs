@@ -239,7 +239,10 @@ pub fn report_error<'js>(ctx: Ctx<'js>, error: Value<'js>) -> JsResult<()> {
 }
 
 /// Best-effort human readable form of a thrown value.
-fn describe_exception<'js>(ctx: &Ctx<'js>, error: Value<'js>) -> String {
+pub(super) fn describe_exception<'js>(
+  ctx: &Ctx<'js>,
+  error: Value<'js>,
+) -> String {
   if let Some(object) = error.as_object() {
     if let Some(exception) = rquickjs::Exception::from_object(object.clone()) {
       let message = exception.message().unwrap_or_default();
@@ -321,6 +324,7 @@ mod tests {
       options: JsRuntimeOptions::default(),
       master_tx,
       editor,
+      blocked_tracker: tokio_util::task::TaskTracker::new(),
     });
     let rt = AsyncRuntime::new().unwrap();
     let ctx = futures::executor::block_on(AsyncContext::full(&rt)).unwrap();

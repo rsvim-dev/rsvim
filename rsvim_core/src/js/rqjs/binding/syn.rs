@@ -1,8 +1,7 @@
 //! Syntax APIs.
 //!
 //! `syn.listParsers`, `syn.getParserMetadata`, `syn.loadParserSync` and
-//! `syn.loadParser`. The last one returns a promise and needs the pending-task
-//! machinery, so it lands with the async bindings.
+//! `syn.loadParser`.
 
 use crate::js::rqjs::binding::set_function_to;
 use crate::js::rqjs::get_state;
@@ -13,6 +12,7 @@ use crate::syntax::SyntaxLoadGrammarRequest;
 use rquickjs::Ctx;
 use rquickjs::Exception;
 use rquickjs::Object;
+use rquickjs::Promise;
 use rquickjs::Result as JsResult;
 use rquickjs::Value;
 use rquickjs::function::Opt;
@@ -159,6 +159,51 @@ pub fn load_parser_sync<'js>(
   }
 }
 
+/// `syn.loadParser(options)` -> `Promise<string[]>`.
+///
+/// The grammar load is already a coroutine (`syntax::async_load_syntax_grammar`),
+/// so unlike `fs.read` there is nothing to hand off to a blocking pool: the
+/// future is awaited straight inside the promise. The v8 backend reaches the
+/// same code through `MasterMessage::LoadTreeSitterParserReq`.
+pub fn load_parser<'js>(
+  ctx: Ctx<'js>,
+  options: Opt<Value<'js>>,
+) -> JsResult<Promise<'js>> {
+  let options = options_from(options.0)?;
+  trace!("syn.loadParser:{:?}", options);
+
+  let path = match Path::new(&options.grammar_path).absolutize() {
+    Ok(p) => p.to_path_buf(),
+    Err(_) => {
+      return Err(Exception::throw_message(
+        &ctx,
+        &TheErr::TreeSitterParserNotFound(options.grammar_path.clone())
+          .to_string(),
+      ));
+    }
+  };
+
+  let kernel = get_state(&ctx).ok_or_else(|| {
+    Exception::throw_message(&ctx, "js kernel is not initialised")
+  })?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
+
+  let ctx_err = ctx.clone();
+  Promise::wrap_future(&ctx, async move {
+    let req = SyntaxLoadGrammarRequest { grammar_path: path };
+    let metainfo = syntax::async_load_syntax_grammar(syntax_manager, &req)
+      .await
+      .map_err(|e| Exception::throw_message(&ctx_err, &e.to_string()))?;
+    Ok::<Vec<String>, rquickjs::Error>(
+      metainfo
+        .grammars
+        .iter()
+        .map(|g| g.name.to_string())
+        .collect(),
+    )
+  })
+}
+
 /// Installs the `syn_*` built-ins on `internal`.
 pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "syn_list_parsers", list_parsers)?;
@@ -169,6 +214,7 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
     get_parser_metadata,
   )?;
   set_function_to(ctx, internal, "syn_load_parser_sync", load_parser_sync)?;
+  set_function_to(ctx, internal, "syn_load_parser", load_parser)?;
   Ok(())
 }
 
@@ -193,6 +239,7 @@ mod tests {
       options: JsRuntimeOptions::default(),
       master_tx,
       editor,
+      blocked_tracker: tokio_util::task::TaskTracker::new(),
     });
     let rt = AsyncRuntime::new().unwrap();
     let ctx = futures::executor::block_on(AsyncContext::full(&rt)).unwrap();
@@ -226,6 +273,33 @@ mod tests {
         )
         .unwrap();
       assert_eq!(kind, "undefined");
+    });
+  }
+
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  fn load_parser_returns_a_thenable() {
+    test_log_init();
+    with_kernel(|ctx, _kernel| {
+      // The async variant has to hand javascript something to `await`; the v8
+      // backend gets this from a `PromiseResolver`, QuickJS from
+      // `Promise::wrap_future`.
+      let is_thenable: bool = ctx
+        .eval(
+          r#"
+          (() => {
+            let p;
+            try {
+              p = __InternalRsvimGlobalObject.syn_load_parser({ grammarPath: "nope" });
+            } catch (e) {
+              return false;
+            }
+            return typeof p === "object" && p !== null && typeof p.then === "function";
+          })()
+          "#,
+        )
+        .unwrap();
+      assert!(is_thenable, "syn_load_parser must return a promise");
     });
   }
 
