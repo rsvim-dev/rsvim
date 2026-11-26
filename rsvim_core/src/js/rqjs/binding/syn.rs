@@ -43,7 +43,10 @@ fn metadata_to_object<'js>(
   object.set("highlightsQuery", metadata.highlights_query.clone())?;
   object.set(
     "tagsPath",
-    metadata.tags_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+    metadata
+      .tags_path
+      .as_ref()
+      .map(|p| p.to_string_lossy().to_string()),
   )?;
   object.set("tagsQuery", metadata.tags_query.clone())?;
   object.set(
@@ -95,7 +98,12 @@ pub fn get_parser_metadata<'js>(
 /// Installs the `syn_*` built-ins on `internal`.
 pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "syn_list_parsers", list_parsers)?;
-  set_function_to(ctx, internal, "syn_get_parser_metadata", get_parser_metadata)?;
+  set_function_to(
+    ctx,
+    internal,
+    "syn_get_parser_metadata",
+    get_parser_metadata,
+  )?;
   Ok(())
 }
 

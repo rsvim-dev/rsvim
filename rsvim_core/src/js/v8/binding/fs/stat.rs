@@ -1,46 +1,25 @@
 //! File stat.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{
+  FsMetadata, fs_lstat_a, fs_lstat_s, fs_stat_a, fs_stat_s,
+};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
-use crate::js::binding::fs::metadata;
-use crate::js::binding::fs::metadata::FsMetadata;
 use crate::js::converter::*;
 use crate::js::pending;
 use crate::prelude::*;
 
 // lstat doesn't follow symlink
-pub fn fs_lstat_s(path: &Path) -> TheResult<FsMetadata> {
-  match std::fs::symlink_metadata(path) {
-    Ok(meta) => Ok(metadata::convert(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 // lstat doesn't follow symlink
-pub async fn fs_lstat_a(path: &Path) -> TheResult<FsMetadata> {
-  match tokio::fs::symlink_metadata(path).await {
-    Ok(meta) => Ok(metadata::convert(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 // stat follows symlink
-pub fn fs_stat_s(path: &Path) -> TheResult<FsMetadata> {
-  match std::fs::metadata(path) {
-    Ok(meta) => Ok(metadata::convert(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 // stat follows symlink
-pub async fn fs_stat_a(path: &Path) -> TheResult<FsMetadata> {
-  match tokio::fs::metadata(path).await {
-    Ok(meta) => Ok(metadata::convert(meta)),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 pub struct FsStatFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

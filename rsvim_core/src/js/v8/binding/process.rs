@@ -10,13 +10,13 @@ use crate::js;
 use crate::js::binding;
 use crate::js::binding::process::child_process::ReadTextFromChildProcessStdioFuture;
 use crate::js::binding::process::child_process::WaitChildFuture;
-use crate::js::process_command::spawn_child_process;
 use crate::js::converter::*;
 use crate::js::pending;
+use crate::js::process_command::ProcessCommandOptions;
+use crate::js::process_command::spawn_child_process;
 use crate::js::resource::ResourceId;
 use crate::prelude::*;
 use compact_str::ToCompactString;
-use crate::js::process_command::ProcessCommandOptions;
 
 /// The `spawn()` method in `process.Command`.
 pub fn spawn_child<'s>(

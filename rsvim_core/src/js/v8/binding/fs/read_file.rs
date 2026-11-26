@@ -1,31 +1,14 @@
 //! Read file APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{fs_read_file_a, fs_read_file_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::pending;
 use crate::prelude::*;
-
-pub fn fs_read_file_s(path: &Path) -> TheResult<Vec<u8>> {
-  match std::fs::read(path) {
-    Ok(buf) => {
-      trace!("path:{:?},buf.len:{}", path, buf.len());
-      Ok(buf)
-    }
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
-
-pub async fn fs_read_file_a(path: &Path) -> TheResult<Vec<u8>> {
-  match tokio::fs::read(path).await {
-    Ok(buf) => {
-      trace!("path:{:?},buf.len:{}", path, buf.len());
-      Ok(buf)
-    }
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 pub struct FsReadFileFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

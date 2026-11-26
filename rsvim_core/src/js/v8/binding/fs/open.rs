@@ -1,5 +1,8 @@
 //! Open file APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{FsOpenOptions, fs_open_a, fs_open_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
@@ -7,85 +10,9 @@ use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
 use crate::js::resource::ResourceId;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
 
-#[derive(
-  Debug,
-  Copy,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
-)]
 // See: <https://doc.rust-lang.org/std/fs/struct.OpenOptions.html>.
-pub struct FsOpenOptions {
-  #[builder(default = false)]
-  pub append: bool,
-
-  #[builder(default = false)]
-  pub create: bool,
-
-  #[builder(default = false)]
-  pub create_new: bool,
-
-  #[builder(default = false)]
-  pub read: bool,
-
-  #[builder(default = false)]
-  pub truncate: bool,
-
-  #[builder(default = false)]
-  pub write: bool,
-}
-
-pub fn fs_open_s(
-  resource_table: ResourceTableArc,
-  path: &Path,
-  opts: FsOpenOptions,
-) -> TheResult<ResourceId> {
-  match std::fs::OpenOptions::new()
-    .append(opts.append)
-    .create(opts.create)
-    .create_new(opts.create_new)
-    .read(opts.read)
-    .truncate(opts.truncate)
-    .write(opts.write)
-    .open(path)
-  {
-    Ok(file) => {
-      let mut resource_table = lock!(resource_table);
-      Ok(resource_table.add_file(file))
-    }
-    Err(e) => Err(TheErr::OpenFileFailed(path.to_path_buf(), e)),
-  }
-}
-
-pub async fn fs_open_a(
-  resource_table: ResourceTableArc,
-  path: &Path,
-  opts: FsOpenOptions,
-) -> TheResult<ResourceId> {
-  match tokio::fs::OpenOptions::new()
-    .append(opts.append)
-    .create(opts.create)
-    .create_new(opts.create_new)
-    .read(opts.read)
-    .truncate(opts.truncate)
-    .write(opts.write)
-    .open(path)
-    .await
-  {
-    Ok(file) => {
-      let file = file.into_std().await;
-      let mut resource_table = lock!(resource_table);
-      Ok(resource_table.add_file(file))
-    }
-    Err(e) => Err(TheErr::OpenFileFailed(path.to_path_buf(), e)),
-  }
-}
 
 struct FsOpenFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

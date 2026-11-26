@@ -51,10 +51,7 @@ pub fn list<'js>(ctx: Ctx<'js>) -> JsResult<Vec<i32>> {
 }
 
 /// `buf.writeSync(bufId)`.
-pub fn write_sync<'js>(
-  ctx: Ctx<'js>,
-  buf_id: Coerced<i32>,
-) -> JsResult<i32> {
+pub fn write_sync<'js>(ctx: Ctx<'js>, buf_id: Coerced<i32>) -> JsResult<i32> {
   let buf_id = BufferId::from(buf_id.0);
   trace!("buf.writeSync: {:?}", buf_id);
 
@@ -122,8 +119,9 @@ mod tests {
     with_kernel(|ctx, _kernel| {
       // `make_editor` builds no window, so both calls report emptiness rather
       // than raising. The js wrapper turns this into `undefined` / `[]`.
-      let current: Option<i32> =
-        ctx.eval("__InternalRsvimGlobalObject.buf_current()").unwrap();
+      let current: Option<i32> = ctx
+        .eval("__InternalRsvimGlobalObject.buf_current()")
+        .unwrap();
       assert_eq!(current, None);
 
       let list: Vec<i32> =

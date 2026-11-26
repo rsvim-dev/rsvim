@@ -29,6 +29,7 @@ compile_error!(
 
 pub mod cmdline;
 pub mod core_modules;
+pub mod fs;
 pub mod process_command;
 
 pub use core_modules::CORE_MODULES;

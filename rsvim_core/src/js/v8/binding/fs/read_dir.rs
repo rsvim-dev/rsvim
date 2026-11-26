@@ -1,5 +1,10 @@
 //! Read directory APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{
+  FsDirEntry, fs_read_dir_close_s, fs_read_dir_next_s, fs_read_dir_s,
+};
+
 use crate::is_v8_int;
 use crate::is_v8_str;
 use crate::js;
@@ -8,47 +13,7 @@ use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
 use crate::js::resource::ResourceId;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
-
-#[derive(
-  Debug,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  serde::Serialize,
-  serde::Deserialize,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
-)]
-pub struct FsDirEntry {
-  #[builder(default = "".to_string())]
-  pub name: String,
-
-  #[builder(default = false)]
-  pub is_dir: bool,
-
-  #[builder(default = false)]
-  pub is_file: bool,
-
-  #[builder(default = false)]
-  pub is_symlink: bool,
-}
-
-pub fn fs_read_dir_s(
-  resource_table: ResourceTableArc,
-  path: &Path,
-) -> TheResult<ResourceId> {
-  match std::fs::read_dir(path) {
-    Ok(rd) => {
-      let mut resource_table = lock!(resource_table);
-      let rid = resource_table.add_read_dir(rd);
-      Ok(rid)
-    }
-    Err(e) => Err(TheErr::ReadDirectoryByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 pub struct FsReadDirFuture {
   pub promise: v8::Global<v8::PromiseResolver>,
@@ -148,34 +113,6 @@ pub fn read_dir_sync<'s>(
     Err(e) => {
       binding::throw_exception(scope, &e);
     }
-  }
-}
-
-pub fn fs_read_dir_next_s(
-  resource_table: ResourceTableArc,
-  rid: ResourceId,
-) -> Option<TheResult<FsDirEntry>> {
-  let resource_table = lock!(resource_table);
-  let res = resource_table.get(&rid).unwrap();
-  match res {
-    js::resource::Resource::ReadDirResource(rd) => {
-      let rd = rd.data();
-      let mut rd = lock!(rd);
-      match rd.next() {
-        Some(Ok(entry)) => match entry.file_type() {
-          Ok(entry_ft) => Some(Ok(FsDirEntry {
-            name: entry.file_name().to_string_lossy().to_string(),
-            is_file: entry_ft.is_file(),
-            is_dir: entry_ft.is_dir(),
-            is_symlink: entry_ft.is_symlink(),
-          })),
-          Err(e) => Some(Err(TheErr::ReadDirectoryByRidFailed(rid, e))),
-        },
-        Some(Err(e)) => Some(Err(TheErr::ReadDirectoryByRidFailed(rid, e))),
-        None => None,
-      }
-    }
-    _ => unreachable!(),
   }
 }
 

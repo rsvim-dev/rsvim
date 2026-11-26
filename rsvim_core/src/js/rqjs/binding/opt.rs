@@ -351,8 +351,9 @@ mod tests {
   fn wrap_round_trips_through_the_binding() {
     test_log_init();
     with_kernel(|ctx, kernel| {
-      let before: bool =
-        ctx.eval("__InternalRsvimGlobalObject.opt_get_wrap()").unwrap();
+      let before: bool = ctx
+        .eval("__InternalRsvimGlobalObject.opt_get_wrap()")
+        .unwrap();
       assert_eq!(
         before,
         lock!(kernel.borrow().editor.tree.clone())
@@ -368,8 +369,9 @@ mod tests {
           .global_local_options()
           .wrap()
       );
-      let after: bool =
-        ctx.eval("__InternalRsvimGlobalObject.opt_get_wrap()").unwrap();
+      let after: bool = ctx
+        .eval("__InternalRsvimGlobalObject.opt_get_wrap()")
+        .unwrap();
       assert!(after);
     });
   }
@@ -387,8 +389,9 @@ mod tests {
         .tab_stop();
       assert_eq!(value, 6);
 
-      let back: i32 =
-        ctx.eval("__InternalRsvimGlobalObject.opt_get_tab_stop()").unwrap();
+      let back: i32 = ctx
+        .eval("__InternalRsvimGlobalObject.opt_get_tab_stop()")
+        .unwrap();
       assert_eq!(back, 6);
     });
   }
@@ -413,8 +416,9 @@ mod tests {
   fn file_format_round_trips() {
     test_log_init();
     with_kernel(|ctx, kernel| {
-      let format: String =
-        ctx.eval("__InternalRsvimGlobalObject.opt_get_file_format()").unwrap();
+      let format: String = ctx
+        .eval("__InternalRsvimGlobalObject.opt_get_file_format()")
+        .unwrap();
       assert_eq!(
         format,
         lock!(kernel.borrow().editor.buffer_manager.clone())

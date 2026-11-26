@@ -1,42 +1,17 @@
 //! Write file APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::fs_write_s;
+
 use crate::is_v8_int;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
-use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
 use itertools::Itertools;
-
-pub fn fs_write_s(
-  resource_table: ResourceTableArc,
-  rid: ResourceId,
-  buf: Vec<u8>,
-) -> TheResult<usize> {
-  use std::io::Write;
-
-  let res = lock!(resource_table).get(&rid).cloned();
-  debug_assert!(res.is_some());
-  match res.unwrap() {
-    Resource::File(res) => {
-      let handle = res.data();
-      let mut handle = lock!(handle);
-      let n = match handle.write(&buf) {
-        Ok(n) => n,
-        Err(e) => return Err(TheErr::WriteFileByRidFailed(rid, e)),
-      };
-      debug_assert!(n <= buf.len());
-      trace!("|fs_write| n:{},buf:{:?}", n, buf);
-
-      Ok(n)
-    }
-    _ => unreachable!(),
-  }
-}
 
 pub struct FsWriteFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

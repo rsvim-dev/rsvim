@@ -1,18 +1,12 @@
 //! Close file APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::fs_close_s;
+
 use crate::is_v8_int;
 use crate::js::converter::*;
 use crate::js::resource::ResourceId;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
-
-pub fn fs_close_s(resource_table: ResourceTableArc, rid: ResourceId) {
-  let mut resource_table = lock!(resource_table);
-  let mut handle = resource_table.remove(&rid);
-  debug_assert!(handle.is_some());
-  // Drop file handle, i.e. close the file
-  handle.take();
-}
 
 /// `fs.close` API.
 pub fn close_sync<'s>(

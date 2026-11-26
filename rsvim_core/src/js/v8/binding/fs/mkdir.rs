@@ -1,5 +1,8 @@
 //! Make directory.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{FsMkdirOptions, fs_mkdir_a, fs_mkdir_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
@@ -7,41 +10,6 @@ use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
 use crate::prelude::*;
-
-#[derive(
-  Debug,
-  Copy,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
-)]
-pub struct FsMkdirOptions {
-  #[builder(default = false)]
-  pub recursive: bool,
-
-  #[builder(default = 0o777)]
-  pub mode: u32,
-}
-
-pub fn fs_mkdir_s(path: &Path, options: FsMkdirOptions) -> TheResult<()> {
-  let mut builder = std::fs::DirBuilder::new();
-
-  builder.recursive(options.recursive);
-
-  #[cfg(target_family = "unix")]
-  {
-    use std::os::unix::fs::DirBuilderExt;
-    builder.mode(options.mode);
-  }
-
-  match builder.create(path) {
-    Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateDirectoryFailed(path.to_path_buf(), e)),
-  }
-}
 
 pub struct FsMkdirFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

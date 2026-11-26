@@ -1,25 +1,14 @@
 //! Read Text file APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{fs_read_text_file_a, fs_read_text_file_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::pending;
 use crate::prelude::*;
-
-pub fn fs_read_text_file_s(path: &Path) -> TheResult<String> {
-  match std::fs::read_to_string(path) {
-    Ok(buf) => Ok(buf),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
-
-pub async fn fs_read_text_file_a(path: &Path) -> TheResult<String> {
-  match tokio::fs::read_to_string(path).await {
-    Ok(buf) => Ok(buf),
-    Err(e) => Err(TheErr::ReadFileByPathFailed(path.to_path_buf(), e)),
-  }
-}
 
 pub struct FsReadTextFileFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

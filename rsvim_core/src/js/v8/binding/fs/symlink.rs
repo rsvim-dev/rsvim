@@ -1,5 +1,8 @@
 //! File symbolic link.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{FsSymlinkOptions, fs_symlink_a, fs_symlink_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
@@ -7,83 +10,6 @@ use crate::js::binding;
 use crate::js::pending;
 use crate::prelude::*;
 use std::str::FromStr;
-
-#[derive(
-  Debug,
-  Copy,
-  Clone,
-  PartialEq,
-  Eq,
-  PartialOrd,
-  Ord,
-  Hash,
-  strum_macros::Display,
-  strum_macros::EnumString,
-)]
-pub enum FsSymlinkOptions {
-  #[strum(serialize = "file")]
-  File,
-
-  #[strum(serialize = "dir")]
-  Dir,
-
-  #[strum(serialize = "junction")]
-  Junction,
-}
-
-#[cfg(target_family = "unix")]
-pub fn fs_symlink_s(
-  oldpath: &Path,
-  newpath: &Path,
-  _options: FsSymlinkOptions,
-) -> TheResult<()> {
-  match std::os::unix::fs::symlink(oldpath, newpath) {
-    Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateSymlinkFailed(
-      oldpath.to_path_buf(),
-      newpath.to_path_buf(),
-      e,
-    )),
-  }
-}
-
-#[cfg(target_family = "windows")]
-pub fn fs_symlink_s(
-  oldpath: &Path,
-  newpath: &Path,
-  options: FsSymlinkOptions,
-) -> TheResult<()> {
-  match options {
-    FsSymlinkOptions::File => {
-      match std::os::windows::fs::symlink_file(oldpath, newpath) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(TheErr::CreateSymlinkFailed(
-          oldpath.to_path_buf(),
-          newpath.to_path_buf(),
-          e,
-        )),
-      }
-    }
-    FsSymlinkOptions::Dir => {
-      match std::os::windows::fs::symlink_dir(oldpath, newpath) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(TheErr::CreateSymlinkFailed(
-          oldpath.to_path_buf(),
-          newpath.to_path_buf(),
-          e,
-        )),
-      }
-    }
-    FsSymlinkOptions::Junction => match junction::create(oldpath, newpath) {
-      Ok(_) => Ok(()),
-      Err(e) => Err(TheErr::CreateSymlinkFailed(
-        oldpath.to_path_buf(),
-        newpath.to_path_buf(),
-        e,
-      )),
-    },
-  }
-}
 
 pub struct FsSymlinkFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

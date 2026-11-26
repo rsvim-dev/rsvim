@@ -28,9 +28,7 @@ use crate::js::process_command::spawn_child_process;
 ///
 /// Every field is optional in javascript — `process.spawn("ls")` must work — so
 /// a missing property keeps the builder default instead of raising.
-fn options_from_object(
-  object: &Object<'_>,
-) -> JsResult<ProcessCommandOptions> {
+fn options_from_object(object: &Object<'_>) -> JsResult<ProcessCommandOptions> {
   let mut builder = ProcessCommandOptionsBuilder::default();
 
   if let Some(args) = object.get::<&str, Option<Vec<String>>>("args")? {
@@ -95,7 +93,7 @@ pub fn spawn_child<'js>(
 
   let (child_rid, stdin_rid, stdout_rid, stderr_rid) =
     spawn_child_process(resource_table, &exec_path, &options)
-    .map_err(|e| Exception::throw_message(&ctx, &e.to_string()))?;
+      .map_err(|e| Exception::throw_message(&ctx, &e.to_string()))?;
 
   let result = Object::new(ctx.clone())?;
   result.set("execPath", exec_path.to_compact_string().to_string())?;
@@ -123,7 +121,14 @@ fn options_to_object<'js>(
   options: &ProcessCommandOptions,
 ) -> JsResult<Object<'js>> {
   let object = Object::new(ctx.clone())?;
-  object.set("args", options.args.iter().map(|a| a.to_string()).collect::<Vec<String>>())?;
+  object.set(
+    "args",
+    options
+      .args
+      .iter()
+      .map(|a| a.to_string())
+      .collect::<Vec<String>>(),
+  )?;
   object.set("cwd", options.cwd.as_ref().map(|c| c.to_string()))?;
   object.set("clearEnv", options.clear_env)?;
   object.set("detached", options.detached)?;
@@ -174,7 +179,11 @@ mod tests {
   use tokio::sync::mpsc::UnboundedReceiver;
 
   fn with_kernel<R>(
-    f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc, UnboundedReceiver<MasterMessage>) -> R,
+    f: impl FnOnce(
+      rquickjs::Ctx<'_>,
+      runtime::JsKernelRc,
+      UnboundedReceiver<MasterMessage>,
+    ) -> R,
   ) -> R {
     let editor = make_editor();
     let (master_tx, master_rx) = tokio::sync::mpsc::unbounded_channel();

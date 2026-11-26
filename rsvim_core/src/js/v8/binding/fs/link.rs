@@ -1,33 +1,14 @@
 //! File hard link.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::{fs_link_a, fs_link_s};
+
 use crate::is_v8_str;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::pending;
 use crate::prelude::*;
-
-pub fn fs_link_s(oldpath: &Path, newpath: &Path) -> TheResult<()> {
-  match std::fs::hard_link(oldpath, newpath) {
-    Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateLinkFailed(
-      oldpath.to_path_buf(),
-      newpath.to_path_buf(),
-      e,
-    )),
-  }
-}
-
-pub async fn fs_link_a(oldpath: &Path, newpath: &Path) -> TheResult<()> {
-  match tokio::fs::hard_link(oldpath, newpath).await {
-    Ok(_) => Ok(()),
-    Err(e) => Err(TheErr::CreateLinkFailed(
-      oldpath.to_path_buf(),
-      newpath.to_path_buf(),
-      e,
-    )),
-  }
-}
 
 pub struct FsLinkFuture {
   pub promise: v8::Global<v8::PromiseResolver>,

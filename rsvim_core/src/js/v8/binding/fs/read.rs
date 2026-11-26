@@ -1,47 +1,16 @@
 //! Read APIs.
 
+// The engine-neutral implementation lives in `crate::js::fs`.
+pub use crate::js::fs::fs_read_s;
+
 use crate::is_v8_int;
 use crate::js;
 use crate::js::JsFuture;
 use crate::js::binding;
 use crate::js::converter::*;
 use crate::js::pending;
-use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
-use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
-
-pub fn fs_read_s(
-  resource_table: ResourceTableArc,
-  rid: ResourceId,
-  bufsize: usize,
-) -> TheResult<Vec<u8>> {
-  use std::io::Read;
-
-  let res = lock!(resource_table).get(&rid).cloned();
-  debug_assert!(res.is_some());
-  match res.unwrap() {
-    Resource::File(res) => {
-      let handle = res.data();
-      let mut handle = lock!(handle);
-      let mut buf: Vec<u8> = vec![0; bufsize];
-      let n = match handle.read(&mut buf) {
-        Ok(n) => n,
-        Err(e) => {
-          return Err(TheErr::ReadFileByRidFailed(rid, e));
-        }
-      };
-      debug_assert!(n <= buf.capacity());
-      unsafe {
-        buf.set_len(n);
-      }
-      trace!("|fs_read| bufsize:{},n:{},buf:{:?}", bufsize, n, buf);
-
-      Ok(buf)
-    }
-    _ => unreachable!(),
-  }
-}
 
 pub struct FsReadFuture {
   pub promise: v8::Global<v8::PromiseResolver>,
