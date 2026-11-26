@@ -6,25 +6,15 @@ use crate::js::binding;
 use crate::js::command::def::CommandDefinition;
 use crate::js::converter::*;
 use crate::prelude::*;
-use crate::state::ops::cmdline_ops;
 use compact_str::CompactString;
 use compact_str::ToCompactString;
 
+/// Forwards to the engine-neutral implementation.
+///
+/// Kept as a thin shim rather than rewriting the four call sites: `cmd.rs` and
+/// `err.rs` both reach it, and the body has nothing v8-specific in it.
 pub fn send_cmdline_message(state: &JsKernel, payload: String) {
-  trace!("|cmd| send_cmdline_message:{:?}", payload);
-  let mut tree = lock!(state.editor.tree);
-  let mut cmdline_text = lock!(state.editor.cmdline_text);
-  if tree.cmdline_id().is_some() {
-    cmdline_ops::cmdline_set_message(&mut tree, &mut cmdline_text, payload);
-  } else {
-    // If `command_line` widget does not exist, it means the TUI is not
-    // initialized yet. All we can do is simply store this message to
-    // command-line-message-history. When editor TUI initialize, it will flush
-    // all pending messages to TUI before running the event loop.
-    //
-    // See [crate::evloop::EventLoop::flush_pending_command_line_messages].
-    cmdline_text.message_history_mut().push_overwrite(payload);
-  }
+  crate::js::cmdline::send_cmdline_message(&state.editor, payload);
 }
 
 /// `cmd.echo` API.

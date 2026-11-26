@@ -52,55 +52,13 @@ pub fn set_state<'js>(ctx: &Ctx<'js>, kernel: JsKernelRc) -> JsResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
-  use crate::buf::BufferManager;
-  use crate::cli::CliOptions;
-  use crate::cmdltext::CmdlineText;
-  use crate::hl::ColorSchemeManager;
-  use crate::js::command::CommandManager;
-  use crate::js::resource::ResourceTable;
-  use crate::prelude::*;
-  use crate::syntax::SyntaxManager;
+  use crate::tests::js::make_editor;
   use crate::tests::log::init as test_log_init;
-  use crate::ui::tree::Tree;
   use rquickjs::AsyncContext;
   use rquickjs::AsyncRuntime;
   use std::rc::Rc;
-  use std::sync::Arc;
-
-  fn make_editor() -> Editor {
-    let canvas_size = size!(10, 10);
-    let style = taffy::Style {
-      size: taffy::Size {
-        width: taffy::prelude::length(canvas_size.width()),
-        height: taffy::prelude::length(canvas_size.height()),
-      },
-      ..Default::default()
-    };
-    let tree = Tree::to_arc(Tree::new(style).unwrap());
-    let syntax_manager = SyntaxManager::to_arc(SyntaxManager::new());
-    let colorscheme_manager =
-      ColorSchemeManager::to_arc(ColorSchemeManager::new());
-    let buffer_manager = BufferManager::to_arc(BufferManager::new(
-      Arc::downgrade(&syntax_manager),
-      Arc::downgrade(&colorscheme_manager),
-    ));
-    let cmdline_text = CmdlineText::to_arc(CmdlineText::new(canvas_size));
-    let command_manager = CommandManager::to_arc(CommandManager::default());
-    let resource_table = ResourceTable::to_arc(ResourceTable::new());
-
-    Editor {
-      cli_opts: CliOptions::empty(),
-      tree,
-      buffer_manager,
-      cmdline_text,
-      syntax_manager,
-      colorscheme_manager,
-      command_manager,
-      resource_table,
-    }
-  }
 
   fn make_kernel() -> JsKernelRc {
     let (master_tx, _master_rx) =

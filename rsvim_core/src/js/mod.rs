@@ -27,6 +27,11 @@ compile_error!(
    `js-quickjs`"
 );
 
+pub mod cmdline;
+pub mod core_modules;
+
+pub use core_modules::CORE_MODULES;
+
 #[cfg(feature = "js-v8")]
 pub mod v8;
 #[cfg(feature = "js-v8")]

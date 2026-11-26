@@ -5,6 +5,9 @@
 //! Once the port reaches parity the re-export in [`super`] flips and `js-v8`
 //! stops being the default (see `quickjs-plan.md` Step 6/7).
 
+pub mod binding;
+pub mod converter;
+pub mod loader;
 pub mod runtime;
 
 pub use runtime::*;
