@@ -125,25 +125,6 @@ async fn clean_config_tick_is_idle() -> IoResult<()> {
   Ok(())
 }
 
-/// A stream that never yields an item.
-///
-/// Lets a single [`crate::evloop::Rsvim::step`] be driven deterministically by
-/// the javascript channel: the `[C]` input branch stays pending, so the test
-/// observes exactly the branch it cares about instead of racing the mock
-/// reader's background thread.
-struct PendingReader;
-
-impl futures::Stream for PendingReader {
-  type Item = IoResult<Event>;
-
-  fn poll_next(
-    self: std::pin::Pin<&mut Self>,
-    _cx: &mut std::task::Context<'_>,
-  ) -> std::task::Poll<Option<Self::Item>> {
-    std::task::Poll::Pending
-  }
-}
-
 /// How many times the event loop asked the writer to repaint.
 fn write_count(event_loop: &crate::evloop::EventLoop) -> usize {
   match &event_loop.writer {
@@ -156,8 +137,9 @@ fn write_count(event_loop: &crate::evloop::EventLoop) -> usize {
 ///
 /// P0-2 regression: the old loop answered "there is more work" by sending a
 /// request through a channel and waiting for the response, which both spun and
-/// added a whole select round-trip. Now the completion itself advances the
-/// runtime, in place, once.
+/// added a whole select round-trip. Now a single `tick` runs Phase A to
+/// quiescence, so the completion is consumed inside that one call -- no retry
+/// loop, no budget.
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
 async fn tick_is_driven_by_completion_only() -> IoResult<()> {
@@ -190,32 +172,31 @@ async fn tick_is_driven_by_completion_only() -> IoResult<()> {
     }))
     .unwrap();
 
-  let mut io = PendingReader;
+  // One ordinary keystroke is enough to wake Phase B without ending the loop,
+  // so the assertion below is about the completion, not about quitting.
+  let mut io = MockEventReader::new(vec![MockEvent::Event(Event::Key(
+    crossterm::event::KeyEvent::new(
+      crossterm::event::KeyCode::Char('x'),
+      crossterm::event::KeyModifiers::NONE,
+    ),
+  ))]);
   let noop = |_: &mut crate::evloop::Rsvim, _: Option<IoResult<Event>>| {};
 
-  // `select!` is deliberately not `biased` (a biased loop lets a busy js
-  // channel starve terminal input), so which ready branch wins is random. The
-  // `MasterMessage::TimeoutReq` queuea by `initialize` is ready too, and
-  // processing it only spawns a 10s sleep. Step until the completion has been
-  // observed, asserting that it never took more than a handful of rounds.
-  let mut rounds = 0;
-  while event_loop
-    .kernel
-    .borrow()
-    .pending_timers
-    .contains_key(&timer_id)
-  {
-    rounds += 1;
-    assert!(rounds <= 10, "the completion never drove a tick");
-    let flow = event_loop.step(&mut io, &is_ctrl_d, &noop).await?;
-    assert!(flow.is_continue(), "the loop must not exit on a tick");
-  }
-
-  assert_eq!(
-    event_loop.js_spin, 0,
-    "handling a completion must not self-drive extra ticks"
+  // One call is enough: Phase A drains the javascript inbox and settles the
+  // master channel, so the completion cannot survive into Phase B.
+  let flow = event_loop.tick(&mut io, &is_ctrl_d, &noop).await?;
+  assert!(
+    flow.is_continue(),
+    "handling a completion must not exit the loop",
   );
-  assert!(!event_loop.js_tick_again);
+  assert!(
+    !event_loop
+      .kernel
+      .borrow()
+      .pending_timers
+      .contains_key(&timer_id),
+    "the completion must be consumed by the same tick",
+  );
 
   event_loop.shutdown()?;
   Ok(())
@@ -501,36 +482,42 @@ async fn exit_diagnoses_pending_top_level_await() -> IoResult<()> {
   Ok(())
 }
 
-/// Exhausting the self-drive budget must not strand the remaining work.
+/// A self-sustaining chain runs to completion inside a single tick.
 ///
-/// P0-2 regression. `TickOutcome::MoreWork` means `pending_futures` is still
-/// non-empty. Before the fix, the budget-exhausted path only cleared
-/// `js_tick_again`, so a self-sustaining chain (each future queueing the next)
-/// had no new message and no wake-up coming: it stopped forever, silently, with
-/// the UI perfectly responsive. Now exhaustion schedules exactly one delayed
-/// `js_wake`, which the `[E]` branch consumes and which resets the budget.
+/// This is the whole point of v2: `TickOutcome::MoreWork` no longer needs a
+/// budget, a retry timer, or a wake-up, because Phase A keeps going until the
+/// runtime is quiet. The chain here is simulated with a [`crate::js::JsFuture`]
+/// that re-queues itself -- the exact shape of a recursive microtask chain --
+/// and it is allowed to run a thousand times before stopping.
 ///
-/// The chain is simulated with a `JsFuture` that re-queues itself -- the exact
-/// shape of a recursive microtask chain. If the retry were missing, the loop
-/// would run at most `JS_SPIN_BUDGET + 1` futures and then stall until the
-/// reader's `CTRL_D`; the assertion below therefore fails without the fix.
+/// Re-introducing a self-driving budget would cap this at that budget, so the
+/// assertion below is what pins the "no bound" behaviour down. See
+/// `evloop-plan-v2.md` §2 and §7.4.
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
-async fn exhausted_budget_wakes_instead_of_stranding() -> IoResult<()> {
+async fn bounded_chain_runs_to_completion_in_one_tick() -> IoResult<()> {
   use std::cell::Cell;
 
   test_log_init();
 
+  /// How many rounds the chain is allowed to run. Two orders of magnitude above
+  /// any budget that ever existed here, small enough to keep the test fast.
+  const LIMIT: usize = 1000;
+
   struct SelfQueueing {
     kernel: crate::js::JsKernelRc,
     runs: std::rc::Rc<Cell<usize>>,
+    limit: usize,
   }
 
   impl crate::js::JsFuture for SelfQueueing {
     fn run(&mut self, _scope: &mut v8::PinScope) {
       self.runs.set(self.runs.get() + 1);
+      if self.runs.get() >= self.limit {
+        return;
+      }
       // `run_ready_futures` takes the vector before running anything, so the
-      // borrow is free here and this lands in the next tick.
+      // borrow is free here and this lands in the next round.
       self
         .kernel
         .borrow_mut()
@@ -538,6 +525,7 @@ async fn exhausted_budget_wakes_instead_of_stranding() -> IoResult<()> {
         .push(Box::new(SelfQueueing {
           kernel: self.kernel.clone(),
           runs: self.runs.clone(),
+          limit: self.limit,
         }));
     }
   }
@@ -558,24 +546,93 @@ async fn exhausted_budget_wakes_instead_of_stranding() -> IoResult<()> {
     .push(Box::new(SelfQueueing {
       kernel: event_loop.kernel.clone(),
       runs: runs.clone(),
+      limit: LIMIT,
     }));
-  event_loop.js_tick_again = true;
 
-  // The reader sleeps, so the loop has time to exhaust its budget at least
-  // once, then appends a `CTRL_D` and lets the test finish.
-  event_loop
-    .run_with_mock_events(MockEventReader::new(vec![MockEvent::SleepFor(
-      Duration::from_millis(50),
-    )]))
-    .await?;
+  // One synchronous call, no `select!`, no sleeping: this is Phase A itself.
+  let did_work = event_loop.tick_event_loop();
+  event_loop.shutdown()?;
+
+  assert!(did_work, "running the chain is work");
+  assert_eq!(
+    runs.get(),
+    LIMIT,
+    "the chain must run to completion in a single tick, not stop at a budget"
+  );
+
+  Ok(())
+}
+
+/// A request the config script issues is served before the loop waits.
+///
+/// `process.exit` is the cheapest such request: it never becomes a background
+/// task, it just lands on `master_rx`. Phase A's `settle_master` therefore has
+/// to drain it, notice the cancellation, and break out -- all before Phase B
+/// ever polls an event source.
+///
+/// The probe below makes that ordering observable: if the loop reaches the
+/// `select!`, the probe's `poll_next` runs. So a false `polled` flag is proof
+/// that the request was served inside the tick that produced it, not by
+/// winning a race against terminal input.
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn master_request_is_served_in_the_same_tick() -> IoResult<()> {
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  test_log_init();
+
+  /// Records whether Phase B ever asked for an event.
+  struct ProbeReader {
+    polled: Rc<Cell<bool>>,
+  }
+
+  impl futures::Stream for ProbeReader {
+    type Item = IoResult<Event>;
+
+    fn poll_next(
+      self: std::pin::Pin<&mut Self>,
+      _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+      self.polled.set(true);
+      std::task::Poll::Pending
+    }
+  }
+
+  let src: &str = r#"
+  import process from "rsvim:process";
+  process.exit(7);
+  "#;
+  let _tp = make_configs(vec![(Path::new("rsvim.js"), src)]);
+
+  let mut event_loop = make_event_loop(10, 10, CliOptions::empty());
+  event_loop.initialize()?;
+
+  // The module ran during `initialize`, so the request is already queued and
+  // nothing has consumed it yet.
+  assert_eq!(event_loop.exit_code, 0, "nothing has been served yet");
+  assert!(!event_loop.cancellation_token.is_cancelled());
+
+  let polled = Rc::new(Cell::new(false));
+  let mut io = ProbeReader {
+    polled: polled.clone(),
+  };
+  let noop = |_: &mut crate::evloop::Rsvim, _: Option<IoResult<Event>>| {};
+
+  let flow = event_loop.tick(&mut io, &is_ctrl_d, &noop).await?;
   event_loop.shutdown()?;
 
   assert!(
-    runs.get() > crate::evloop::Rsvim::JS_SPIN_BUDGET * 2,
-    "the chain must keep making progress across budget bursts, got {} runs \
-     (budget is {})",
-    runs.get(),
-    crate::evloop::Rsvim::JS_SPIN_BUDGET
+    flow.is_break(),
+    "an exit request must end the loop, not survive into Phase B",
+  );
+  assert_eq!(
+    event_loop.exit_code, 7,
+    "the exit code carried by the request must be adopted",
+  );
+  assert!(
+    !polled.get(),
+    "Phase A must settle the request before the loop waits on any event source",
   );
 
   Ok(())

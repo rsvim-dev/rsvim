@@ -58,7 +58,6 @@ use itertools::Itertools;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use taffy::Style;
-use tokio::sync::Notify;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -176,8 +175,9 @@ pub struct Rsvim {
   /// Channel-2, the single javascript channel.
   ///
   /// The sender is cloned into the FSM (`StateContext`) and into every
-  /// background task; the receiver is the `[A]` branch of
-  /// `Rsvim::run_inner`, i.e. the only tick driver.
+  /// background task. The receiver is drained by `Rsvim::tick_event_loop` in
+  /// Phase A of `Rsvim::tick`, and by the `[A]` branch that ends Phase B --
+  /// every javascript advance starts from a completion.
   ///
   /// This used to be two channels with a forwarding hop in between. The hop
   /// is gone, and the two channels are folded into this one: a completion
@@ -185,28 +185,10 @@ pub struct Rsvim {
   pub jsrt_tx: UnboundedSender<JsMessage>,
   pub jsrt_rx: UnboundedReceiver<JsMessage>,
 
-  /// Whether there is javascript work that can be advanced right now, i.e.
-  /// the previous tick returned [`TickOutcome::MoreWork`]. Consumed at the
-  /// top of every `Rsvim::run_inner` iteration.
-  pub js_tick_again: bool,
-  /// How many consecutive self-driven ticks have been performed without
-  /// going back to the `select!`. Bounded by `JS_SPIN_BUDGET`.
-  pub js_spin: usize,
-  /// Whether the exhausted-budget warning has already been emitted for the
-  /// current run of self-driven ticks, so a long microtask chain is reported
-  /// once instead of once per retry.
-  pub js_spin_warned: bool,
   /// Whether the terminal needs to be repainted. Replaces the old
   /// "redraw after every select iteration" behaviour, which turned a busy
   /// javascript loop into a full repaint per tick.
   pub dirty: bool,
-  /// Wakes the loop up for javascript work that has no payload.
-  ///
-  /// One producer exists today: when the self-driving budget is exhausted
-  /// while `pending_futures` is still non-empty, a short delayed
-  /// `notify_one` is scheduled, so that work is retried instead of being
-  /// stranded forever. A custom v8 platform would be the second producer.
-  pub js_wake: Arc<Notify>,
   /// Bounded backoff for [`v8::Isolate::has_pending_background_tasks`].
   ///
   /// "A v8 background task is still running" is a *waiting* state, not a
@@ -219,15 +201,18 @@ pub struct Rsvim {
 }
 
 /// The self-assessment of a single javascript tick.
+///
+/// Only [`Rsvim::tick_event_loop`] interprets this, and only to decide whether
+/// to go around again: the whole point of running to quiescence in Phase A is
+/// that [`TickOutcome::MoreWork`] needs no budget, no retry, and no wake-up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickOutcome {
-  /// There's no javascript work that can be advanced right now, it's safe to
-  /// go back to the `select!` and wait.
+  /// No javascript work can be advanced right now: the runtime is quiescent
+  /// as far as this tick can tell.
   Idle,
-  /// There's still work that is ready *right now* (newly ready `JsFuture`s,
-  /// newly arrived messages), it's worth ticking once more -- but the number
-  /// of consecutive self-driven ticks must be bounded by
-  /// `JS_SPIN_BUDGET`.
+  /// Work that is ready *right now* is still queued (newly ready
+  /// [`crate::js::JsFuture`]s, newly arrived messages). Tick again, in the
+  /// same iteration -- there is nothing to wait for.
   MoreWork,
 }
 
@@ -384,15 +369,35 @@ impl Rsvim {
     !kernel.borrow().pending_futures.is_empty()
   }
 
-  /// Drains the javascript inbox and advances the runtime by one tick.
+  /// Advances the javascript side until it has nothing left that can be
+  /// advanced right now, and reports whether it did anything at all.
   ///
-  /// This is the "one-shot" entry point, used by `_init_config` (to settle the
-  /// imports of the config file) and by tests. The event loop proper does not
-  /// call it: `Rsvim::run_inner` drives [`Rsvim::tick_js`] directly, so that
-  /// the inbox drain and the tick happen inside a single `select!` iteration.
-  pub fn tick_event_loop(&mut self) -> TickOutcome {
-    let inbox = self.drain_js_inbox(None);
-    self.tick_js(inbox)
+  /// This is the synchronous half of `Rsvim::tick`'s Phase A, and it is also
+  /// what `_init_config` calls before the loop exists: at that point there is
+  /// no runtime to yield to, and no timers in flight, so a plain loop is
+  /// exact.
+  ///
+  /// Returning `bool` instead of [`TickOutcome`] is deliberate: the caller only
+  /// needs "did the world move". `TickOutcome` stays internal to a single
+  /// [`Rsvim::tick_js`] call, whose `MoreWork` is already folded into the loop
+  /// below.
+  pub fn tick_event_loop(&mut self) -> bool {
+    let mut did_work = false;
+    loop {
+      let inbox = self.drain_js_inbox(None);
+      // NOTE: don't write `self.tick_js(self.drain_js_inbox(None))` -- both
+      // take `&mut self`, nesting them is E0499. Drain first, then tick.
+      let had_inbox = !inbox.is_empty();
+      let outcome = self.tick_js(inbox);
+      // `had_inbox` matters: a round that consumes messages and then reports
+      // `Idle` still moved the world -- those messages may have queued new io
+      // requests on `master_rx`.
+      did_work |= had_inbox;
+      if outcome == TickOutcome::Idle {
+        return did_work;
+      }
+      did_work = true;
+    }
   }
 
   /// Executes javascript source code as ES module, i.e. ECMA standard.
@@ -603,11 +608,7 @@ impl Rsvim {
       master_rx,
       jsrt_tx,
       jsrt_rx,
-      js_tick_again: false,
-      js_spin: 0,
-      js_spin_warned: false,
       dirty: false,
-      js_wake: Arc::new(Notify::new()),
       js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
@@ -665,11 +666,7 @@ impl Rsvim {
       master_rx,
       jsrt_tx,
       jsrt_rx,
-      js_tick_again: false,
-      js_spin: 0,
-      js_spin_warned: false,
       dirty: false,
-      js_wake: Arc::new(Notify::new()),
       js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
@@ -1467,25 +1464,6 @@ impl Rsvim {
     }
   }
 
-  /// How many consecutive self-driven ticks are allowed before the loop
-  /// insists on going back to the `select!`.
-  ///
-  /// A self-driven tick means: the previous [`Rsvim::tick_js`] returned
-  /// [`TickOutcome::MoreWork`], so there is javascript work that can be
-  /// advanced *right now* -- running it in the same iteration is both faster
-  /// and more correct than bouncing through a channel. The budget bounds the
-  /// pathological case (a promise chain that keeps queueing more work), so
-  /// that terminal input and cancellation always get a chance to be polled.
-  pub(crate) const JS_SPIN_BUDGET: usize = 8;
-
-  /// Delay before retrying self-driven work whose budget was exhausted.
-  ///
-  /// Long enough that a pathological microtask chain cannot spin the CPU, short
-  /// enough that a legitimate chain (e.g. a long `await`-free loop building a
-  /// buffer) completes without a visible stall.
-  pub(crate) const JS_RETRY_DELAY: std::time::Duration =
-    std::time::Duration::from_millis(1);
-
   /// Lower bound of the background-task backoff, see [`Rsvim::js_backoff`].
   pub(crate) const JS_BACKOFF_MIN: std::time::Duration =
     std::time::Duration::from_millis(1);
@@ -1526,20 +1504,6 @@ impl Rsvim {
     self.js_backoff = Self::JS_BACKOFF_MIN;
   }
 
-  /// Diagnostics for an exhausted self-driving budget.
-  ///
-  /// Deliberately *not* calling `v8::Isolate::terminate_execution()`: that
-  /// leaves the isolate in an unrecoverable state and there is no reset path.
-  fn report_js_spin_warning(&self) {
-    warn!(
-      "js self-driving tick budget ({}) exhausted; pending_futures={}, \
-       has_pending_background_tasks={}",
-      Self::JS_SPIN_BUDGET,
-      self.kernel.borrow().pending_futures.len(),
-      self.isolate.has_pending_background_tasks(),
-    );
-  }
-
   /// Takes every javascript message that has already arrived.
   ///
   /// `first` is the message the `[A]` branch already `recv`ed, so it does not
@@ -1554,6 +1518,30 @@ impl Rsvim {
       inbox.push(msg);
     }
     inbox
+  }
+
+  /// Takes every io request the javascript side has already issued.
+  ///
+  /// Returns whether anything was handled, so Phase A knows to go around
+  /// again: a handled request may synchronously queue more javascript work,
+  /// and its completion lands on `jsrt_rx`.
+  ///
+  /// This is what removes the last race between "the config script issued a
+  /// write" and "the user pressed Ctrl-D": the request is consumed inside the
+  /// same tick that produced it, instead of competing for a `select!` slot.
+  fn settle_master(&mut self) -> bool {
+    let mut handled = false;
+    while let Ok(req) = self.master_rx.try_recv() {
+      self.process_master_message(req);
+      handled = true;
+    }
+    if handled {
+      // A handled request may have changed `exit_code`, queued a timer, or
+      // dispatched a background task whose completion redraws later. Marking
+      // dirty is the cheap conservative choice: `render_if_dirty` gates it.
+      self.dirty = true;
+    }
+    handled
   }
 
   /// Repaints the terminal, but only if something actually changed.
@@ -1633,7 +1621,7 @@ impl Rsvim {
     // `lock!(tree).draw(...)` + `writer.init_complete(...)`; drawing again
     // would flash two frames on startup.
     loop {
-      if self.step(&mut io, &is_exit, &on_input).await?.is_break() {
+      if self.tick(&mut io, &is_exit, &on_input).await?.is_break() {
         break;
       }
     }
@@ -1653,13 +1641,30 @@ impl Rsvim {
     Ok(self.exit_code)
   }
 
-  /// One iteration of `Rsvim::run_inner`.
+  /// One iteration of `Rsvim::run_inner`: **the** top-level loop body.
+  ///
+  /// Two phases, in this order, always:
+  ///
+  /// * **Phase A -- run to quiescence.** Consume every io request and every
+  ///   javascript completion that can be advanced right now, and keep ticking
+  ///   until the runtime is quiet. There is no bound.
+  /// * **Phase B -- wait for one external event.** Block until javascript
+  ///   completes something, javascript asks for io, the terminal sends input,
+  ///   cancellation fires, or the v8 background-task backoff expires. Handle
+  ///   that one event and return.
+  ///
+  /// This ordering is why there is no self-driving budget any more. The old
+  /// code advanced the runtime *inside* `tokio::select!`, so each round had to
+  /// leave the branch after a fixed number of ticks or let a javascript chain
+  /// starve terminal input forever. Here waiting happens only after the work is
+  /// done, so there is nothing to be starved and nothing to bound. See
+  /// `evloop-plan-v2.md` §2 and §5.
   ///
   /// Split out of the `loop` so tests can drive the loop one iteration at a
   /// time instead of racing against a real input stream. Production calls it
   /// only from `Rsvim::run_inner`, so the split changes no behaviour:
-  /// `run_inner` is exactly `loop { if step(..).is_break() { break } }`.
-  pub(crate) async fn step<S, F, H>(
+  /// `run_inner` is exactly `loop { if tick(..).is_break() { break } }`.
+  pub(crate) async fn tick<S, F, H>(
     &mut self,
     io: &mut S,
     is_exit: &F,
@@ -1670,58 +1675,42 @@ impl Rsvim {
     F: Fn(&Option<S::Item>) -> bool,
     H: Fn(&mut Rsvim, Option<S::Item>),
   {
-    // Self-drive: advance the work that is ready *right now* in this very
-    // iteration instead of manufacturing a message to come back through the
-    // select.
-    if self.js_tick_again {
-      // NOTE: don't write `self.tick_js(self.drain_js_inbox(None))` -- both
-      // take `&mut self`, nesting them is E0499. Drain first, then tick.
-      let inbox = self.drain_js_inbox(None);
-      let outcome = self.tick_js(inbox);
-      match outcome {
-        TickOutcome::MoreWork => {
-          self.js_spin += 1;
-          if self.js_spin <= Self::JS_SPIN_BUDGET {
-            // Yield without blocking: IO tasks and background tasks get a
-            // chance to make progress, while the next tick needs no channel.
-            tokio::task::yield_now().await;
-            self.render_if_dirty()?;
-            return Ok(ControlFlow::Continue(()));
-          }
-          // Budget exhausted: the js side is sustaining itself (typically an
-          // endless microtask chain). Stop self-driving so the select regains
-          // control, and report once rather than once per retry.
-          if !self.js_spin_warned {
-            self.report_js_spin_warning();
-            self.js_spin_warned = true;
-          }
-          self.js_tick_again = false;
-          // Exhausting the budget does **not** mean the work is gone:
-          // `MoreWork` means `pending_futures` is still non-empty. Without a
-          // nudge, that chain would be stranded forever -- no new message
-          // will arrive for it. Schedule one bounded retry (at most one per
-          // exhaustion, so this cannot become a hot loop) through the same
-          // `js_wake` the `[E]` branch consumes.
-          let wake = self.js_wake.clone();
-          self.detached_tracker.spawn(async move {
-            tokio::time::sleep(Self::JS_RETRY_DELAY).await;
-            wake.notify_one();
-          });
-        }
-        TickOutcome::Idle => {
-          self.js_spin = 0;
-          self.js_spin_warned = false;
-          self.js_tick_again = false;
-        }
+    // ---- Phase A: run to quiescence ----
+    //
+    // Both halves are needed, and they feed each other: a handled io request can
+    // queue more javascript work, and a javascript tick can queue more io
+    // requests. A round ends only when a whole round moves nothing, i.e. the
+    // runtime is actually quiet. That is the entire scheduling policy.
+    loop {
+      let settled = self.settle_master();
+      let ticked = self.tick_event_loop();
+      if !settled && !ticked {
+        break;
       }
-      self.render_if_dirty()?;
+
+      // Cancellation is checked between rounds rather than inside them: a
+      // `Ctrl-D` or `MasterMessage::ExitReq` that arrived while the js side was
+      // running must be honoured before going around again.
+      if self.cancellation_token.is_cancelled() {
+        return Ok(ControlFlow::Break(()));
+      }
+
+      // Yield without blocking: io tasks and v8 background tasks get a turn, and
+      // the next round observes whatever they produced.
+      self.reset_js_backoff();
+      tokio::task::yield_now().await;
     }
 
+    // Phase B can block indefinitely, so anything Phase A produced has to be on
+    // screen before we go and wait for the next event.
+    self.render_if_dirty()?;
+
+    // ---- Phase B: wait for one external event ----
     let mut flow = ControlFlow::Continue(());
 
-    // Armed only while v8 still has background tasks: those are *waiting*
-    // work, so they must not self-drive (that was P0-1), but nothing else
-    // would ever come back to check them.
+    // Armed only while v8 still has background tasks: those are *waiting* work,
+    // so they must not self-drive, but nothing else would ever come back to
+    // check them.
     let backoff = self.js_backoff_deadline();
 
     // NOTE: deliberately **not** `biased;`. `biased` polls the branches in
@@ -1729,22 +1718,22 @@ impl Rsvim {
     // fairness: with `[A]` first, a steady stream of javascript completions
     // would starve terminal input (`[C]`) and master messages (`[B]`) -- the
     // user could press keys and see nothing. Tokio's default random choice is
-    // what provides fairness here; `JS_SPIN_BUDGET` governs the self-driving
-    // loop *outside* `select!` and cannot compensate for branch order.
+    // what provides fairness here.
     tokio::select! {
 
-      // [A] JS completion -- the only tick driver.
+      // [A] A javascript completion. Phase A of the next iteration is what runs
+      // it to quiescence; handling it here only spares the message a second trip
+      // through the channel.
       msg = self.jsrt_rx.recv() => {
         match msg {
           Some(first) => {
             self.reset_js_backoff();
             let inbox = self.drain_js_inbox(Some(first));
-            let outcome = self.tick_js(inbox);
-            self.js_tick_again = outcome == TickOutcome::MoreWork;
+            self.tick_js(inbox);
           }
           // Every sender is gone, so no javascript result can ever arrive.
-          // This must not happen on the normal exit path (`jsrt_tx`
-          // is owned by `Rsvim`), so bail out instead of hanging silently.
+          // This must not happen on the normal exit path (`jsrt_tx` is owned by
+          // `Rsvim`), so bail out instead of hanging silently.
           None => flow = ControlFlow::Break(()),
         }
       }
@@ -1773,33 +1762,13 @@ impl Rsvim {
         flow = ControlFlow::Break(());
       }
 
-      // [E] A javascript wake-up with no payload (a v8 background task
-      // finished, or an external interrupt). Nothing notifies it yet; it is
-      // kept as the precise-wakeup slot for a `post_task` hook.
-      _ = self.js_wake.notified() => {
-        self.reset_js_backoff();
-        // Resetting the budget here is what makes the retry path useful: the
-        // wake means "real progress may be possible again", so the next eight
-        // ticks are allowed. A pathological microtask chain therefore runs in
-        // bounded bursts separated by `JS_RETRY_DELAY`, instead of either hot
-        // spinning or being stranded.
-        self.js_spin = 0;
-        self.js_spin_warned = false;
-        let inbox = self.drain_js_inbox(None);
-        let outcome = self.tick_js(inbox);
-        self.js_tick_again = outcome == TickOutcome::MoreWork;
-      }
-
-      // [F] Bounded backoff for v8 background tasks, see `js_backoff`.
+      // [E] Bounded backoff for v8 background tasks, see `js_backoff`.
       //
-      // A false tick here means "nothing happened yet", so the interval
-      // doubles. It stays `waiting`, never `runnable`: this branch does not
-      // set `js_tick_again`.
+      // A false tick means "nothing happened yet", so the interval doubles. The
+      // branch does not tick: Phase A of the next iteration does, which keeps a
+      // single place where javascript is advanced.
       _ = Self::js_backoff_tick(backoff) => {
         self.grow_js_backoff();
-        let inbox = self.drain_js_inbox(None);
-        let outcome = self.tick_js(inbox);
-        self.js_tick_again = outcome == TickOutcome::MoreWork;
       }
     }
 
