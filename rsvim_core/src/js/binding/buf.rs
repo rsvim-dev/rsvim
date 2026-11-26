@@ -2,7 +2,7 @@
 
 use crate::buf::BufferId;
 use crate::js::binding::set_function_to;
-use crate::js::get_state;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use rquickjs::Coerced;
 use rquickjs::Ctx;
@@ -15,9 +15,7 @@ use rquickjs::Result as JsResult;
 /// Returns `undefined` when there is no current window yet, which the js side
 /// documents as "no buffer".
 pub fn current<'js>(ctx: Ctx<'js>) -> JsResult<Option<i32>> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let tree = kernel.borrow().editor.tree.clone();
   let tree = lock!(tree);
   match tree.current_window() {
@@ -36,9 +34,7 @@ pub fn current<'js>(ctx: Ctx<'js>) -> JsResult<Option<i32>> {
 
 /// `buf.list()`.
 pub fn list<'js>(ctx: Ctx<'js>) -> JsResult<Vec<i32>> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   trace!("buf.list: {:?}", buffer_manager.keys());
@@ -55,9 +51,7 @@ pub fn write_sync<'js>(ctx: Ctx<'js>, buf_id: Coerced<i32>) -> JsResult<i32> {
   let buf_id = BufferId::from(buf_id.0);
   trace!("buf.writeSync: {:?}", buf_id);
 
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
 
@@ -83,34 +77,8 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
 
 #[cfg(test)]
 mod tests {
-  use crate::js::binding::install_bindings;
-  use crate::js::runtime;
-  use crate::js::runtime::JsKernel;
-  use crate::js::runtime::JsRuntimeOptions;
-  use crate::js::runtime::set_state;
-  use crate::tests::js::make_editor;
+  use crate::tests::js::with_kernel;
   use crate::tests::log::init as test_log_init;
-  use rquickjs::Context;
-  use rquickjs::Runtime;
-
-  fn with_kernel<R>(
-    f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc) -> R,
-  ) -> R {
-    let editor = make_editor();
-    let (master_tx, _master_rx) = tokio::sync::mpsc::unbounded_channel();
-    let kernel = JsKernel::to_rc(JsKernel {
-      options: JsRuntimeOptions::default(),
-      master_tx,
-      editor,
-    });
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
-    ctx.with(move |ctx| {
-      set_state(&ctx, kernel.clone()).unwrap();
-      install_bindings(&ctx).unwrap();
-      f(ctx, kernel)
-    })
-  }
 
   #[test]
   #[cfg_attr(miri, ignore)]

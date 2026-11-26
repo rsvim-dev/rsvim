@@ -152,8 +152,9 @@ impl Timers {
     let Some((&key, _)) = self.by_deadline.first_key_value() else {
       return Poll::Ready(None);
     };
-    if key.0 <= Instant::now() {
-      return Poll::Ready(self.pop_due(Instant::now()));
+    let now = Instant::now();
+    if key.0 <= now {
+      return Poll::Ready(self.pop_due(now));
     }
 
     let sleep = self

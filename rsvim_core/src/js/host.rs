@@ -34,6 +34,7 @@ use crate::js::runtime::JsKernel;
 use crate::js::runtime::JsKernelRc;
 use crate::js::runtime::JsRuntimeOptions;
 use crate::js::runtime::capture_exception;
+use crate::js::runtime::get_state;
 use crate::js::runtime::set_state;
 use crate::js::runtime::to_io_error;
 use crate::js::timers::DueTimer;
@@ -55,10 +56,51 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::task::TaskTracker;
 
 /// A rejected promise that nobody was listening to, yet.
+///
+/// Only the two values are kept. Turning the reason into a report is work, and
+/// most rejections are handled a moment later, so it is done in
+/// [`JsHost::flush_rejections`], for the ones that are still here.
 struct Rejection {
   /// Identity, so a handler attached later can cancel the report.
   promise: Persistent<Value<'static>>,
-  error: JsError,
+  reason: Persistent<Value<'static>>,
+}
+
+/// The rejections nobody has handled so far.
+#[derive(Default)]
+struct Rejections(RefCell<Vec<Rejection>>);
+
+impl Rejections {
+  fn record<'js>(
+    &self,
+    ctx: &Ctx<'js>,
+    promise: Value<'js>,
+    reason: Value<'js>,
+  ) {
+    self.0.borrow_mut().push(Rejection {
+      promise: Persistent::save(ctx, promise),
+      reason: Persistent::save(ctx, reason),
+    });
+  }
+
+  /// Stops tracking `promise`: somebody handled it, or reports it themselves.
+  fn forget<'js>(&self, ctx: &Ctx<'js>, promise: &Value<'js>) {
+    self.0.borrow_mut().retain(|r| {
+      r.promise
+        .clone()
+        .restore(ctx)
+        .map(|saved| saved != *promise)
+        .unwrap_or(true)
+    });
+  }
+
+  fn take(&self) -> Vec<Rejection> {
+    std::mem::take(&mut *self.0.borrow_mut())
+  }
+
+  fn clear(&self) {
+    self.0.borrow_mut().clear();
+  }
 }
 
 /// The javascript runtime, its context, and the tables that hang off them.
@@ -68,7 +110,7 @@ pub struct JsHost {
   kernel: JsKernelRc,
   editor: Editor,
   ops: Rc<OpTable>,
-  rejections: Rc<RefCell<Vec<Rejection>>>,
+  rejections: Rc<Rejections>,
   /// Deadline for the code that is running right now, see
   /// [`JsRuntimeOptions::exec_timeout`].
   deadline: Rc<Cell<Option<Instant>>>,
@@ -115,7 +157,7 @@ impl JsHost {
       editor: editor.clone(),
     });
     let ops = Rc::new(OpTable::new(jsrt_tx, blocked, detached));
-    let rejections: Rc<RefCell<Vec<Rejection>>> = Rc::default();
+    let rejections: Rc<Rejections> = Rc::default();
 
     // QuickJS reports a rejection twice when somebody handles it late: first with
     // `handled == false` when it is rejected with no handler, then with `true`
@@ -126,57 +168,49 @@ impl JsHost {
       let rejections = rejections.clone();
       move |ctx, promise, reason, handled| {
         if handled {
-          rejections.borrow_mut().retain(|r| {
-            r.promise
-              .clone()
-              .restore(&ctx)
-              .map(|saved| saved != promise)
-              .unwrap_or(true)
-          });
+          rejections.forget(&ctx, &promise);
         } else {
-          let error = JsError::from_js_value(&ctx, reason);
-          rejections.borrow_mut().push(Rejection {
-            promise: Persistent::save(&ctx, promise),
-            error,
-          });
+          rejections.record(&ctx, promise, reason);
         }
       }
     })));
 
     // The watchdog: QuickJS calls this regularly while it interprets, and a
-    // `true` raises an exception javascript cannot catch. It only ever fires
-    // inside `enter`, and only when a timeout is configured.
+    // `true` raises an exception javascript cannot catch. Without a timeout
+    // there is nothing for it to do, so it is not installed at all.
     let deadline: Rc<Cell<Option<Instant>>> = Rc::default();
-    runtime.set_interrupt_handler(Some(Box::new({
-      let deadline = deadline.clone();
-      move || deadline.get().is_some_and(|d| Instant::now() > d)
-    })));
+    if exec_timeout.is_some() {
+      runtime.set_interrupt_handler(Some(Box::new({
+        let deadline = deadline.clone();
+        move || deadline.get().is_some_and(|d| Instant::now() > d)
+      })));
+    }
 
-    context
-      .with(|ctx| -> rquickjs::Result<()> {
-        set_state(&ctx, kernel.clone())?;
+    let mut host = Self {
+      runtime,
+      context,
+      kernel: kernel.clone(),
+      editor,
+      ops: ops.clone(),
+      rejections,
+      deadline,
+      exec_timeout,
+      dirty: false,
+    };
+
+    // Bootstrapping is a javascript entry like any other: the web globals are a
+    // module, and it can leave jobs behind.
+    host
+      .enter(|ctx| -> rquickjs::Result<()> {
+        set_state(&ctx, kernel)?;
         ctx
-          .store_userdata(OpTableHandle(ops.clone()))
+          .store_userdata(OpTableHandle(ops))
           .map_err(|_| Exception::throw_message(&ctx, "op table is taken"))?;
         binding::install_bindings(&ctx)?;
         binding::install_web_globals(&ctx)?;
         Ok(())
       })
       .map_err(to_io_error)?;
-
-    let mut host = Self {
-      runtime,
-      context,
-      kernel,
-      editor,
-      ops,
-      rejections,
-      deadline,
-      exec_timeout,
-      dirty: false,
-    };
-    host.drain_jobs();
-    host.flush_rejections();
     host.dirty = false;
     Ok(host)
   }
@@ -237,7 +271,7 @@ impl JsHost {
     let rejections = self.rejections.clone();
     self.enter(|ctx| -> TheResult<()> {
       let promise = Module::evaluate(ctx.clone(), filename.to_string(), source)
-        .map_err(|e| TheErr::JsError(Box::new(JsError::from_error(&ctx, e))))?;
+        .map_err(|e| JsError::from_error(&ctx, e))?;
 
       match promise.finish::<()>() {
         Ok(()) => Ok(()),
@@ -247,15 +281,8 @@ impl JsHost {
         Err(e) => {
           // The caller reports this failure, so the rejection the failed module
           // left on the tracker would report it a second time.
-          let failed = promise.into_value();
-          rejections.borrow_mut().retain(|r| {
-            r.promise
-              .clone()
-              .restore(&ctx)
-              .map(|saved| saved != failed)
-              .unwrap_or(true)
-          });
-          Err(TheErr::JsError(Box::new(JsError::from_error(&ctx, e))))
+          rejections.forget(&ctx, &promise.into_value());
+          Err(JsError::from_error(&ctx, e).into())
         }
       }
     })
@@ -276,26 +303,18 @@ impl JsHost {
       trace!("|complete| op {:?} is gone", id);
       return;
     };
-    let result = completion.into_result();
+    let result = completion.result;
 
     self.enter(move |ctx| {
       let aux = aux.and_then(|saved| saved.restore(&ctx).ok());
-      match reply(&ctx, aux, result) {
-        Ok(value) => {
-          if let Ok(resolve) = resolve.restore(&ctx) {
-            if resolve.call::<_, ()>((value,)).is_err() {
-              ctx.catch();
-            }
-          }
-        }
-        Err(e) => {
-          let reason = rejection_value(&ctx, e);
-          if let Ok(reject) = reject.restore(&ctx) {
-            if reject.call::<_, ()>((reason,)).is_err() {
-              ctx.catch();
-            }
-          }
-        }
+      let (settle, value) = match reply(&ctx, aux, result) {
+        Ok(value) => (resolve, value),
+        Err(e) => (reject, rejection_value(&ctx, e)),
+      };
+      if let Ok(settle) = settle.restore(&ctx)
+        && settle.call::<_, ()>((value,)).is_err()
+      {
+        ctx.catch();
       }
     });
   }
@@ -322,15 +341,17 @@ impl JsHost {
   /// Runs the callback of a timer that came due.
   pub fn run_timer(&mut self, timer: DueTimer) {
     trace!("|run_timer| timer_id:{:?}", timer.id);
-    let editor = self.editor.clone();
     self.enter(move |ctx| {
       let Ok(callback) = timer.callback.restore(&ctx) else {
         return;
       };
-      if callback.call::<_, ()>(()).is_err() {
-        if let Some(err) = capture_exception(&ctx) {
-          report_js_error(&editor, TheErr::JsError(Box::new(err)));
-        }
+      if callback.call::<_, ()>(()).is_ok() {
+        return;
+      }
+      if let Some(err) = capture_exception(&ctx)
+        && let Some(kernel) = get_state(&ctx)
+      {
+        report_js_error(&kernel.borrow().editor, err);
       }
     });
   }
@@ -347,7 +368,7 @@ impl JsHost {
         Ok(false) => break,
         Err(exception) => {
           if let Some(err) = exception.0.with(|ctx| capture_exception(&ctx)) {
-            report_js_error(&self.editor, TheErr::JsError(Box::new(err)));
+            report_js_error(&self.editor, err);
           }
         }
       }
@@ -356,12 +377,19 @@ impl JsHost {
 
   /// Reports the rejections that are still unhandled, once each.
   fn flush_rejections(&mut self) {
-    let unhandled = std::mem::take(&mut *self.rejections.borrow_mut());
-    for rejection in unhandled {
-      crate::js::cmdline::send_cmdline_message(
-        &self.editor,
-        rejection.error.to_report(true),
-      );
+    let unhandled = self.rejections.take();
+    if unhandled.is_empty() {
+      return;
+    }
+    let reports: Vec<String> = self.context.with(|ctx| {
+      unhandled
+        .iter()
+        .filter_map(|r| r.reason.clone().restore(&ctx).ok())
+        .map(|reason| JsError::from_js_value(&ctx, reason).to_report(true))
+        .collect()
+    });
+    for report in reports {
+      crate::js::cmdline::send_cmdline_message(&self.editor, report);
     }
   }
 }
@@ -385,7 +413,7 @@ impl Drop for JsHost {
   /// path out, including the early `?` returns that skip an orderly shutdown.
   fn drop(&mut self) {
     self.ops.clear();
-    self.rejections.borrow_mut().clear();
+    self.rejections.clear();
     lock!(self.editor.command_manager).clear();
   }
 }

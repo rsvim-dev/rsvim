@@ -1,7 +1,7 @@
 //! Handles that name asynchronous work.
 //!
-//! Both engines hand the caller an integer and look it up in a map when the
-//! work finishes, so the ids belong to neither engine.
+//! The caller is handed an integer and the work is looked up by it in a table
+//! when it finishes.
 
 // Timer id, starts from 1.
 #[derive(

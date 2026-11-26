@@ -1,9 +1,7 @@
-//! Engine-neutral command line plumbing.
+//! Command line plumbing.
 //!
-//! `cmd.echo` is the same operation no matter which javascript engine called
-//! it: put the payload where the user will see it. The v8 backend and the
-//! quickjs backend both end up here, so the function lives outside either of
-//! them.
+//! `cmd.echo`, and every error that is reported to the user, end up in
+//! [`send_cmdline_message`]: put the payload where the user will see it.
 
 use crate::evloop::Editor;
 use crate::prelude::*;

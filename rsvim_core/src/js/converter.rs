@@ -38,12 +38,34 @@ pub fn array_buffer_to_vec<'js>(
   Ok(bytes.to_vec())
 }
 
-/// Copies `bytes` into a fresh `ArrayBuffer`.
+/// Moves `bytes` into a fresh `ArrayBuffer`.
 pub fn vec_to_array_buffer<'js>(
   ctx: Ctx<'js>,
   bytes: Vec<u8>,
 ) -> JsResult<ArrayBuffer<'js>> {
-  ArrayBuffer::new_copy(ctx, bytes)
+  ArrayBuffer::new(ctx, bytes)
+}
+
+/// Copies as much of `src` as fits into `buffer`, from its start, and returns
+/// how many bytes that was. `None` means the buffer is detached.
+///
+/// The bound is the buffer's length *now*, not whatever it was when the caller
+/// looked: a buffer that was resized in between cannot be overrun. Every
+/// binding that writes into a caller's buffer (`fs.read`, `encodeInto`) goes
+/// through here, so this is the one place that needs the `unsafe`.
+pub fn copy_into_array_buffer(
+  buffer: &ArrayBuffer<'_>,
+  src: &[u8],
+) -> Option<usize> {
+  let raw = buffer.as_raw()?;
+  let n = src.len().min(raw.len());
+  // SAFETY: `as_raw` hands back the backing store of a live array buffer, `n`
+  // is within it, and nothing else touches the engine before the copy
+  // finishes -- javascript only runs on the thread that is in here.
+  unsafe {
+    std::ptr::copy_nonoverlapping(src.as_ptr(), raw.as_ptr() as *mut u8, n)
+  };
+  Some(n)
 }
 
 /// `CompactString` from a javascript value.

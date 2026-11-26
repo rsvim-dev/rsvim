@@ -8,7 +8,7 @@ use crate::js::command::def::CommandCallback;
 use crate::js::command::def::CommandDefinition;
 use crate::js::command::def::CommandDefinitionRc;
 use crate::js::command::opt::CommandOptions;
-use crate::js::get_state;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use compact_str::ToCompactString;
 use rquickjs::Coerced;
@@ -29,9 +29,7 @@ use std::str::FromStr;
 /// reject anything that is not already a string, which broke every caller that
 /// echoes a number, so the coercion is spelled out here.
 pub fn echo<'js>(ctx: Ctx<'js>, message: Coerced<String>) -> JsResult<()> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   send_cmdline_message(&kernel.borrow().editor, message.0);
   Ok(())
 }
@@ -57,9 +55,9 @@ fn nargs_from<'js>(
 /// present; the fallbacks below only guard a caller that bypasses the wrapper.
 fn attributes_from<'js>(
   ctx: &Ctx<'js>,
-  value: Value<'js>,
+  value: Option<Value<'js>>,
 ) -> JsResult<CommandAttributes> {
-  let Some(obj) = value.as_object() else {
+  let Some(obj) = value.as_ref().and_then(|v| v.as_object()) else {
     return Ok(CommandAttributes {
       bang: false,
       nargs: CommandNargs::Zero,
@@ -74,11 +72,8 @@ fn attributes_from<'js>(
 }
 
 /// Reads `{force, alias}`.
-fn options_from<'js>(
-  ctx: &Ctx<'js>,
-  value: Value<'js>,
-) -> JsResult<CommandOptions> {
-  let Some(obj) = value.as_object() else {
+fn options_from(value: Option<Value<'_>>) -> JsResult<CommandOptions> {
+  let Some(obj) = value.as_ref().and_then(|v| v.as_object()) else {
     return Ok(CommandOptions {
       force: true,
       alias: None,
@@ -92,7 +87,6 @@ fn options_from<'js>(
     },
     _ => None,
   };
-  let _ = ctx;
   Ok(CommandOptions { force, alias })
 }
 
@@ -110,20 +104,8 @@ pub fn create<'js>(
 ) -> JsResult<Value<'js>> {
   // `Opt` rather than a plain parameter: a caller may legitimately stop after
   // the callback, and rquickjs rejects a missing non-optional argument.
-  let attributes = match attributes.0 {
-    Some(v) => attributes_from(&ctx, v)?,
-    None => CommandAttributes {
-      bang: false,
-      nargs: CommandNargs::Zero,
-    },
-  };
-  let options = match options.0 {
-    Some(v) => options_from(&ctx, v)?,
-    None => CommandOptions {
-      force: true,
-      alias: None,
-    },
-  };
+  let attributes = attributes_from(&ctx, attributes.0)?;
+  let options = options_from(options.0)?;
 
   let definition = CommandDefinition {
     name: name.to_compact_string(),
@@ -132,9 +114,7 @@ pub fn create<'js>(
     options,
   };
 
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let manager = kernel.borrow().editor.command_manager.clone();
   let mut manager = lock!(manager);
   match manager.insert(
@@ -149,9 +129,7 @@ pub fn create<'js>(
 
 /// `cmd.list()`.
 pub fn list<'js>(ctx: Ctx<'js>) -> JsResult<Vec<String>> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let manager = kernel.borrow().editor.command_manager.clone();
   let manager = lock!(manager);
   Ok(manager.keys().map(|k| k.to_string()).collect())
@@ -159,22 +137,18 @@ pub fn list<'js>(ctx: Ctx<'js>) -> JsResult<Vec<String>> {
 
 /// `cmd.get(name)`.
 pub fn get<'js>(ctx: Ctx<'js>, name: String) -> JsResult<Value<'js>> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let manager = kernel.borrow().editor.command_manager.clone();
   let manager = lock!(manager);
   match manager.get(name.as_str()) {
-    Some(def) => definition_to_object(&ctx, &def),
+    Some(def) => definition_to_object(&ctx, def),
     None => Ok(Value::new_undefined(ctx.clone())),
   }
 }
 
 /// `cmd.remove(name)`.
 pub fn remove<'js>(ctx: Ctx<'js>, name: String) -> JsResult<Value<'js>> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let manager = kernel.borrow().editor.command_manager.clone();
   let mut manager = lock!(manager);
   match manager.remove(name.as_str()) {
@@ -226,42 +200,12 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
 mod tests {
   use crate::js::binding::install_bindings;
   use crate::js::command::attr::CommandNargs;
-  use crate::js::runtime;
-  use crate::js::runtime::JsKernel;
-  use crate::js::runtime::JsRuntimeOptions;
-  use crate::js::runtime::set_state;
   use crate::prelude::*;
-  use crate::tests::js::make_editor;
+  use crate::tests::js::with_kernel;
   use crate::tests::log::init as test_log_init;
   use compact_str::ToCompactString;
   use rquickjs::Context;
   use rquickjs::Runtime;
-
-  fn with_kernel<R>(
-    f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc) -> R,
-  ) -> R {
-    let editor = make_editor();
-    let (master_tx, _master_rx) = tokio::sync::mpsc::unbounded_channel();
-    let kernel = JsKernel::to_rc(JsKernel {
-      options: JsRuntimeOptions::default(),
-      master_tx,
-      editor: editor.clone(),
-    });
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
-    ctx.with(move |ctx| {
-      set_state(&ctx, kernel.clone()).unwrap();
-      install_bindings(&ctx).unwrap();
-      let out = f(ctx, kernel.clone());
-      // A registered command owns a `Persistent` function handle, and QuickJS
-      // aborts the process if one outlives its runtime. Production gets this
-      // for free from `Rsvim`'s field order; a test keeps the editor past the
-      // runtime, so it has to say so explicitly.
-      let manager = kernel.borrow().editor.command_manager.clone();
-      lock!(manager).clear();
-      out
-    })
-  }
 
   #[test]
   #[cfg_attr(miri, ignore)]

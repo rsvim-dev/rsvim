@@ -6,10 +6,11 @@
 
 use crate::js::binding::set_function_to;
 use crate::js::converter::array_buffer_to_vec;
+use crate::js::converter::copy_into_array_buffer;
 use crate::js::err::JsError;
-use crate::js::get_state;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use encoding_rs::CoderResult;
 use encoding_rs::Decoder;
@@ -40,28 +41,16 @@ pub fn encoding_encode<'js>(
 /// `TextEncoder.encodeInto(string, uint8array)`.
 ///
 /// Writes as many bytes as fit and reports both counts, per the encoding
-/// standard. v8 gave us `buf.get_backing_store()`; here the destination is an
-/// `ArrayBuffer` and the write goes through `as_raw()`.
+/// standard.
 pub fn encoding_encode_into<'js>(
   ctx: Ctx<'js>,
   payload: Coerced<String>,
   buffer: ArrayBuffer<'js>,
 ) -> JsResult<Object<'js>> {
   let bytes = payload.0.into_bytes();
-  let cap = buffer.len();
-  let n = bytes.len().min(cap);
-
-  // SAFETY: the pointer is the backing store of a live array buffer and no
-  // javascript runs before the copy finishes.
-  let dst = match buffer.as_raw() {
-    Some(raw) => unsafe {
-      std::slice::from_raw_parts_mut(raw.as_ptr() as *mut u8, cap)
-    },
-    None => {
-      return Err(Exception::throw_type(&ctx, "encodeInto: detached buffer"));
-    }
-  };
-  dst[..n].copy_from_slice(&bytes[..n]);
+  let n = copy_into_array_buffer(&buffer, &bytes).ok_or_else(|| {
+    Exception::throw_type(&ctx, "encodeInto: detached buffer")
+  })?;
 
   let result = Object::new(ctx.clone())?;
   result.set("read", n)?;
@@ -161,9 +150,7 @@ pub fn encoding_create_stream_decoder(
   ignore_bom: bool,
 ) -> JsResult<i32> {
   let decoder = create_decoder(&label.0, ignore_bom)?;
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let table = kernel.borrow().editor.resource_table.clone();
   let rid = lock!(table).add_text_decoder(decoder);
   Ok(rid.into())
@@ -179,9 +166,7 @@ pub fn encoding_decode_stream<'js>(
 ) -> JsResult<JsString<'js>> {
   let bytes = array_buffer_to_vec(&ctx, data.into_value())?;
   let rid = ResourceId::from(decoder_rid.0);
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let table = kernel.borrow().editor.resource_table.clone();
   let handle = lock!(table).get(&rid).cloned().ok_or_else(|| {
     Exception::throw_type(&ctx, "unknown text decoder handle")
@@ -202,9 +187,7 @@ pub fn encoding_close_stream_decoder(
   decoder_rid: Coerced<i32>,
 ) -> JsResult<()> {
   let rid = ResourceId::from(decoder_rid.0);
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let table = kernel.borrow().editor.resource_table.clone();
   let _ = lock!(table).remove(&rid);
   Ok(())
@@ -228,14 +211,9 @@ pub fn queue_microtask<'js>(
 /// `00__web.min.js` uses when a callback throws. The error is shown the way
 /// every other uncaught error is, see [`JsError::from_exception`].
 pub fn report_error<'js>(ctx: Ctx<'js>, error: Value<'js>) -> JsResult<()> {
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
-  let editor = kernel.borrow().editor.clone();
-  crate::js::err::report_js_error(
-    &editor,
-    TheErr::JsError(Box::new(JsError::from_js_value(&ctx, error))),
-  );
+  let kernel = kernel(&ctx)?;
+  let error = JsError::from_js_value(&ctx, error);
+  crate::js::err::report_js_error(&kernel.borrow().editor, error);
   Ok(())
 }
 
@@ -285,37 +263,9 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
 
 #[cfg(test)]
 mod tests {
-  use crate::js::binding::install_bindings;
-  use crate::js::binding::install_web_globals;
-  use crate::js::runtime;
-  use crate::js::runtime::JsKernel;
-  use crate::js::runtime::JsRuntimeOptions;
-  use crate::js::runtime::set_state;
   use crate::lock;
-  use crate::tests::js::make_editor;
+  use crate::tests::js::with_kernel;
   use crate::tests::log::init as test_log_init;
-  use rquickjs::Context;
-  use rquickjs::Runtime;
-
-  fn with_kernel<R>(
-    f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc) -> R,
-  ) -> R {
-    let editor = make_editor();
-    let (master_tx, _master_rx) = tokio::sync::mpsc::unbounded_channel();
-    let kernel = JsKernel::to_rc(JsKernel {
-      options: JsRuntimeOptions::default(),
-      master_tx,
-      editor,
-    });
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
-    ctx.with(move |ctx| {
-      set_state(&ctx, kernel.clone()).unwrap();
-      install_bindings(&ctx).unwrap();
-      install_web_globals(&ctx).unwrap();
-      f(ctx, kernel)
-    })
-  }
 
   #[test]
   #[cfg_attr(miri, ignore)]

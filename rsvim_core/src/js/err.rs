@@ -13,10 +13,8 @@ use rquickjs::Value;
 pub struct JsError {
   pub message: String,
   pub resource_name: String,
-  pub source_line: Option<String>,
   pub line_number: Option<i64>,
   pub start_column: Option<i64>,
-  pub end_column: Option<i64>,
   pub stack: Option<String>,
 }
 
@@ -29,20 +27,12 @@ impl JsError {
     &self.resource_name
   }
 
-  pub fn source_line(&self) -> &Option<String> {
-    &self.source_line
-  }
-
   pub fn line_number(&self) -> &Option<i64> {
     &self.line_number
   }
 
   pub fn start_column(&self) -> &Option<i64> {
     &self.start_column
-  }
-
-  pub fn end_column(&self) -> &Option<i64> {
-    &self.end_column
   }
 
   pub fn stack(&self) -> &Option<String> {
@@ -66,15 +56,16 @@ impl JsError {
 
     let message = rquickjs::Coerced::<String>::from_js(ctx, value)
       .map(|c| c.0)
-      .unwrap_or_else(|_| "(unknown)".into());
+      .unwrap_or_else(|_| UNKNOWN_RESOURCE.into());
+    Self::unlocated(message)
+  }
+
+  /// An error that says nothing about where it came from.
+  pub fn unlocated(message: impl Into<String>) -> Self {
     JsError {
-      message,
+      message: message.into(),
       resource_name: UNKNOWN_RESOURCE.into(),
-      source_line: None,
-      line_number: None,
-      start_column: None,
-      end_column: None,
-      stack: None,
+      ..Default::default()
     }
   }
 
@@ -84,16 +75,8 @@ impl JsError {
   /// former has no `Error` object to inspect, only the error's own message. The
   /// caller checks [`Ctx::has_exception`] first and prefers
   /// [`JsError::from_js_value`] whenever there is a value to look at.
-  pub fn from_js_error(_ctx: &Ctx<'_>, error: rquickjs::Error) -> Self {
-    JsError {
-      message: error.to_string(),
-      resource_name: UNKNOWN_RESOURCE.into(),
-      source_line: None,
-      line_number: None,
-      start_column: None,
-      end_column: None,
-      stack: None,
-    }
+  pub fn from_js_error(error: rquickjs::Error) -> Self {
+    Self::unlocated(error.to_string())
   }
 
   /// Builds a [`JsError`] from whatever a fallible `rquickjs` call returned.
@@ -108,7 +91,7 @@ impl JsError {
         return err;
       }
     }
-    Self::from_js_error(ctx, error)
+    Self::from_js_error(error)
   }
 
   /// Builds a [`JsError`] from an [`Exception`].
@@ -143,10 +126,8 @@ impl JsError {
         .as_ref()
         .map(|(file, _, _)| file.clone())
         .unwrap_or_else(|| UNKNOWN_RESOURCE.into()),
-      source_line: None,
       line_number: frame.as_ref().map(|(_, line, _)| *line),
       start_column: frame.as_ref().map(|(_, _, column)| *column),
-      end_column: None,
       stack,
     }
   }
@@ -212,43 +193,14 @@ impl std::fmt::Display for JsError {
 }
 
 impl std::fmt::Debug for JsError {
-  /// Displays a full version of the error with stack-trace.
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    // Output exception information.
-    write!(f, "Uncaught {}", self.message)?;
-
-    // Output source-line if exists.
-    match self.source_line.as_ref() {
-      Some(source_line) if !source_line.is_empty() => {
-        // Log the source-line.
-        writeln!(f, "\n{source_line}")?;
-
-        // Indicate the position where the error was thrown.
-        let start_column = self.start_column.unwrap_or_default();
-        let end_column = self.end_column.unwrap_or_default();
-
-        for _ in 0..start_column {
-          write!(f, " ")?;
-        }
-
-        for _ in start_column..end_column {
-          let mark = "^";
-          write!(f, "{mark}")?;
-        }
-
-        // Print stacktrace if available.
-        if let Some(stack) = self.stack.as_ref() {
-          write!(f, "\n{stack}")?;
-        }
-      }
-      _ => {}
-    };
-
-    Ok(())
+    write!(f, "Uncaught {}", self.message)
   }
 }
 
 /// Reports an error to the command line.
-pub fn report_js_error(editor: &Editor, e: TheErr) {
-  send_cmdline_message(editor, e.to_string());
+///
+/// Takes anything that is an [`TheErr`], a [`JsError`] included.
+pub fn report_js_error(editor: &Editor, e: impl Into<TheErr>) {
+  send_cmdline_message(editor, e.into().to_string());
 }

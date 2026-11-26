@@ -12,7 +12,7 @@
 use crate::buf::opt::FileEncodingOption;
 use crate::buf::opt::FileFormatOption;
 use crate::js::binding::set_function_to;
-use crate::js::get_state;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use compact_str::ToCompactString;
 use rquickjs::Coerced;
@@ -21,19 +21,9 @@ use rquickjs::Exception;
 use rquickjs::Object;
 use rquickjs::Result as JsResult;
 
-/// Fetches the kernel, or raises a javascript error if the bindings were
-/// installed on a context that never got one.
-macro_rules! kernel {
-  ($ctx:expr) => {
-    get_state($ctx).ok_or_else(|| {
-      Exception::throw_message($ctx, "js kernel is not initialised")
-    })?
-  };
-}
-
 /// `opt.getWrap()`.
 pub fn get_wrap<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let tree = kernel.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().wrap();
@@ -44,7 +34,7 @@ pub fn get_wrap<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
 /// `opt.setWrap(value)`.
 pub fn set_wrap<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_wrap: {:?}", value);
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let tree = kernel.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_wrap(value);
@@ -53,7 +43,7 @@ pub fn set_wrap<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
 
 /// `opt.getLineBreak()`.
 pub fn get_line_break<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let tree = kernel.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().line_break();
@@ -64,7 +54,7 @@ pub fn get_line_break<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
 /// `opt.setLineBreak(value)`.
 pub fn set_line_break<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_line_break: {:?}", value);
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let tree = kernel.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_line_break(value);
@@ -73,7 +63,7 @@ pub fn set_line_break<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
 
 /// `opt.getTabStop()`.
 pub fn get_tab_stop<'js>(ctx: Ctx<'js>) -> JsResult<u32> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().tab_stop();
@@ -91,7 +81,7 @@ pub fn set_tab_stop<'js>(ctx: Ctx<'js>, value: Coerced<i32>) -> JsResult<()> {
       &format!("setTabStop: out of range: {}", value),
     ));
   }
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -102,7 +92,7 @@ pub fn set_tab_stop<'js>(ctx: Ctx<'js>, value: Coerced<i32>) -> JsResult<()> {
 
 /// `opt.getExpandTab()`.
 pub fn get_expand_tab<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().expand_tab();
@@ -113,7 +103,7 @@ pub fn get_expand_tab<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
 /// `opt.setExpandTab(value)`.
 pub fn set_expand_tab<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_expand_tab: {:?}", value);
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -124,7 +114,7 @@ pub fn set_expand_tab<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
 
 /// `opt.getShiftWidth()`.
 pub fn get_shift_width<'js>(ctx: Ctx<'js>) -> JsResult<u32> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().shift_width();
@@ -145,7 +135,7 @@ pub fn set_shift_width<'js>(
       &format!("setShiftWidth: out of range: {}", value),
     ));
   }
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -156,7 +146,7 @@ pub fn set_shift_width<'js>(
 
 /// `opt.getFileEncoding()`.
 pub fn get_file_encoding<'js>(ctx: Ctx<'js>) -> JsResult<String> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_encoding();
@@ -178,7 +168,7 @@ pub fn set_file_encoding<'js>(
       &format!("setFileEncoding: unknown encoding {:?}", value),
     )
   })?;
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -189,7 +179,7 @@ pub fn set_file_encoding<'js>(
 
 /// `opt.getFileFormat()`.
 pub fn get_file_format<'js>(ctx: Ctx<'js>) -> JsResult<String> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_format();
@@ -210,7 +200,7 @@ pub fn set_file_format<'js>(
       &format!("setFileFormat: unknown format {:?}", value),
     )
   })?;
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -221,7 +211,7 @@ pub fn set_file_format<'js>(
 
 /// `opt.getFixEndOfLine()`.
 pub fn get_fix_end_of_line<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().fix_end_of_line();
@@ -232,7 +222,7 @@ pub fn get_fix_end_of_line<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
 /// `opt.setFixEndOfLine(value)`.
 pub fn set_fix_end_of_line<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_fix_end_of_line: {:?}", value);
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
   buffer_manager
@@ -243,7 +233,7 @@ pub fn set_fix_end_of_line<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
 
 /// `opt.getSyntaxParserLibPath()`.
 pub fn get_syntax_parser_lib_path<'js>(ctx: Ctx<'js>) -> JsResult<String> {
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   let value = syntax_manager
@@ -262,7 +252,7 @@ pub fn set_syntax_parser_lib_path<'js>(
 ) -> JsResult<()> {
   let value = value.0;
   trace!("set_syntax_parser_lib_path: {:?}", value);
-  let kernel = kernel!(&ctx);
+  let kernel = kernel(&ctx)?;
   let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   syntax_manager
@@ -316,35 +306,9 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
 
 #[cfg(test)]
 mod tests {
-  use crate::js::binding::install_bindings;
-  use crate::js::runtime;
-  use crate::js::runtime::JsKernel;
-  use crate::js::runtime::JsRuntimeOptions;
-  use crate::js::runtime::set_state;
   use crate::prelude::*;
-  use crate::tests::js::make_editor;
+  use crate::tests::js::with_kernel;
   use crate::tests::log::init as test_log_init;
-  use rquickjs::Context;
-  use rquickjs::Runtime;
-
-  fn with_kernel<R>(
-    f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc) -> R,
-  ) -> R {
-    let editor = make_editor();
-    let (master_tx, _master_rx) = tokio::sync::mpsc::unbounded_channel();
-    let kernel = JsKernel::to_rc(JsKernel {
-      options: JsRuntimeOptions::default(),
-      master_tx,
-      editor,
-    });
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
-    ctx.with(move |ctx| {
-      set_state(&ctx, kernel.clone()).unwrap();
-      install_bindings(&ctx).unwrap();
-      f(ctx, kernel)
-    })
-  }
 
   #[test]
   #[cfg_attr(miri, ignore)]

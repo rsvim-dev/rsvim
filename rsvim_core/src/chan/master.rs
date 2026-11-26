@@ -6,10 +6,11 @@ use tokio::sync::mpsc::UnboundedSender;
 
 /// Message sent to [`Rsvim`](crate::evloop::Rsvim).
 ///
-/// The javascript runtime needs very little from the event loop now: QuickJS
-/// drives its own futures through the scheduler the loop polls, so filesystem
-/// work no longer round-trips through this channel. What is left is what only
-/// the loop can do -- stop it, and ask the state machine to parse a buffer.
+/// The javascript runtime needs very little from the event loop: asynchronous
+/// work is a tokio task that reports back on the javascript channel (see
+/// [`crate::js::ops`]), so filesystem work does not round-trip through this
+/// one. What is left is what only the loop can do -- stop it, and ask the state
+/// machine to parse a buffer.
 #[derive(Debug)]
 pub enum MasterMessage {
   /// Js runtime ask master to exit.

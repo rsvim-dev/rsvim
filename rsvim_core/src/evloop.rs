@@ -71,15 +71,12 @@ use crossterm::event::KeyModifiers;
 
 /// The editor's shared data.
 ///
-/// Every field is behind an `Arc`, and `Arc`s are what makes the split work:
-/// [`Rsvim`] owns the loop, while v8 callbacks can only reach the isolate
-/// slot, i.e. [`crate::js::JsKernel`]. Both hold a clone of this struct, and
-/// all the clones point to the very same `Arc`s.
-///
-/// It cannot be stored in a single place because v8 callbacks
-/// (`promise_reject_cb`, `module_resolve_cb`, all the bindings) reach the
-/// kernel through [`get_state`](crate::js::get_state), and have
-/// no way to reach the outer `Rsvim`.
+/// Cloning it is cheap and every clone is the same editor: the fields are
+/// `Arc`s, except `cli_opts`, which is plain data. [`Rsvim`] owns the loop,
+/// while the javascript bindings can only reach the kernel stored in the
+/// context, i.e. [`crate::js::JsKernel`], through
+/// [`get_state`](crate::js::get_state); they have no way to reach the outer
+/// `Rsvim`. Both hold a clone of this struct.
 #[derive(Debug, Clone)]
 pub struct Editor {
   /// Command line options.
@@ -100,8 +97,8 @@ pub struct Editor {
   pub resource_table: ResourceTableArc,
 }
 
-/// The editor's owner: the v8 isolate, its kernel, and all the shared editor
-/// data in one place.
+/// The editor's owner: the javascript host, and all the shared editor data in
+/// one place.
 ///
 /// This used to be named `EventLoop`; the alias [`EventLoop`] is kept so that
 /// the binary and the doc links don't have to change.
@@ -111,8 +108,8 @@ pub struct Editor {
 /// they are done. The event loop controls all the tasks with
 /// [`CancellationToken`] and [`TaskTracker`].
 ///
-/// Js runtime and event loop also communicate via channels, since js runtime
-/// is based on v8 engine, all v8 APIs are not thread-safe.
+/// The javascript engine is not thread-safe and tokio's tasks are, so the two
+/// only exchange plain data over channels; see [`crate::js::ops`].
 pub struct Rsvim {
   /// Indicates the start time of the process.
   pub startup_moment: Instant,
@@ -130,8 +127,8 @@ pub struct Rsvim {
 
   /// Editor's shared data (buffers, UI tree, managers, resources, cli options).
   ///
-  /// The same `Arc`s are also cloned into [`crate::js::JsKernel`], because v8 callbacks
-  /// can only reach the isolate slot.
+  /// The same `Arc`s are also cloned into [`crate::js::JsKernel`], because the
+  /// javascript bindings can only reach the kernel.
   pub editor: Editor,
 
   /// Cancellation token to notify the main loop to exit.
@@ -269,9 +266,7 @@ impl Rsvim {
 
     // Every way into javascript went through `JsHost::enter`, which marks the
     // host dirty: javascript may have changed anything.
-    if self.js.take_dirty() {
-      self.dirty = true;
-    }
+    self.dirty |= self.js.take_dirty();
   }
 
   /// Runs one message that was queued for javascript.
@@ -279,26 +274,13 @@ impl Rsvim {
     match message {
       JsMessage::ExCommandReq(req) => {
         trace!("Recv ExCommandReq:{:?}", req.payload);
-        let manager = self.editor.command_manager.clone();
-        let parsed = {
-          let manager = lock!(manager);
-          manager.parse(&req)
+        let parsed = lock!(self.editor.command_manager).parse(&req);
+        let failure = match parsed {
+          Some(command) => command.run(&mut self.js).map(TheErr::from),
+          None => Some(TheErr::CommandNotFound(req.payload)),
         };
-        match parsed {
-          Some(command) => {
-            if let Some(err) = command.run(&mut self.js) {
-              crate::js::err::report_js_error(
-                &self.editor,
-                TheErr::JsError(Box::new(err)),
-              );
-            }
-          }
-          None => {
-            crate::js::err::report_js_error(
-              &self.editor,
-              TheErr::CommandNotFound(req.payload.clone()),
-            );
-          }
+        if let Some(err) = failure {
+          crate::js::err::report_js_error(&self.editor, err);
         }
       }
       JsMessage::OpDone(completion) => self.js.complete(completion),
@@ -310,9 +292,7 @@ impl Rsvim {
     if let Err(e) = self.js.execute_module(filename, source) {
       crate::js::err::report_js_error(&self.editor, e);
     }
-    if self.js.take_dirty() {
-      self.dirty = true;
-    }
+    self.dirty |= self.js.take_dirty();
   }
 }
 
@@ -401,41 +381,18 @@ impl Rsvim {
     // State
     let state = State::default();
 
-    // When implements `Promise`, `async`/`await` APIs for javascript runtime,
-    // we need to leverage tokio's async runtime. i.e. first we send js task
-    // requests to master (i.e. "this" event loop, here call it "master"), let
-    // the master handles these tasks with tokio's async tasks. Once a task is
-    // done, we send js task results back to js runtime.
+    // Javascript's `Promise` and `async`/`await` are built on tokio tasks: a
+    // binding starts the work as a task, and the task reports back with plain
+    // data, because the javascript engine is not thread-safe and never leaves
+    // this thread (see `crate::js::ops`).
     //
-    // These tasks are low-level infrastructures, for example:
+    // Two message channels connect them with the event loop:
     //
-    // - File IO
-    // - Network
-    // - Timer
-    // - And more...
-    //
-    // But there are technical limitations that we cannot use tokio APIs along
-    // with V8 engine, since V8 rust bindings are not Arc/Mutex (i.e. not
-    // thread safe), while tokio async runtime requires Arc/Mutex (i.e. thread
-    // safe).
-    //
-    // The request/response data flow uses below message channels:
-    //
-    // - Channel-1 `master_tx` => `master_rx` on `MasterMessage`.
-    // - Channel-2 `jsrt_tx` => `jsrt_rx` on `JsMessage`.
-    //
-    // The dataflow follows below steps:
-    //
-    // 1. Js runtime --- [`MasterMessage`] (channel-1) --> Event loop
-    // 2. Event loop handles js requests with tokio async tasks
-    // 3. Background tasks --- JsMessage (channel-2) --> Event loop
-    // 4. Event loop advances the js runtime in-place, it already owns the
-    //    isolate.
-    //
-    // NOTE: there used to be a third channel that carried the results from
-    // channel-2 into the js runtime, plus a forwarding hop. Both are gone: the
-    // event loop *is* the js runtime now, so the completion event is also the
-    // tick trigger.
+    // - Channel-1 `master_tx` => `master_rx` on `MasterMessage`: what
+    //   javascript asks of the editor (quit, parse a buffer).
+    // - Channel-2 `jsrt_tx` => `jsrt_rx` on `JsMessage`: what makes javascript
+    //   run later -- an ex command from the state machine, or the completion of
+    //   an operation a script started.
 
     // Channel-1
     let (master_tx, master_rx) = unbounded_channel();
@@ -926,11 +883,6 @@ impl Rsvim {
     }
   }
 
-  pub(crate) async fn process_cancellation_notify(&mut self) {
-    trace!("Receive cancellation token, exit loop");
-    self.close_trackers().await;
-  }
-
   /// Stops accepting background work and waits for the part of it that cannot
   /// be abandoned.
   ///
@@ -940,9 +892,9 @@ impl Rsvim {
   /// was promised to the user -- a write, a child-process wait -- and dropping
   /// it silently is exactly the bug this stage is about, so we wait.
   ///
-  /// Idempotent: `[D]` closes the trackers, and `[A]`/`[C]` reach the same
-  /// place on their own exit paths, so every way out funnels through here.
-  async fn close_trackers(&mut self) {
+  /// Every way out of the loop -- Ctrl-D, cancellation, the javascript channel
+  /// closing -- funnels through [`Rsvim::run_inner`], which calls this once.
+  pub(crate) async fn close_trackers(&mut self) {
     self.detached_tracker.close();
     self.blocked_tracker.close();
     self.blocked_tracker.wait().await;
@@ -1128,7 +1080,6 @@ impl Rsvim {
 
       // [D] Cancellation.
       _ = self.cancellation_token.cancelled() => {
-        self.process_cancellation_notify().await;
         flow = ControlFlow::Break(());
       }
 
@@ -1193,7 +1144,8 @@ impl Rsvim {
     H: Fn(&mut Rsvim, Option<S::Item>) -> bool,
   {
     for _ in 0..INPUT_BATCH {
-      let Some(item) = poll_ready(io).await else {
+      // `poll!` polls with the waker of the task that is running.
+      let std::task::Poll::Ready(item) = futures::poll!(io.next()) else {
         break;
       };
       if self
@@ -1205,19 +1157,6 @@ impl Rsvim {
     }
     ControlFlow::Continue(())
   }
-}
-
-/// Polls `stream` once, with the waker of the task that is running, and says
-/// whether it had something: `None` for "not ready", `Some(item)` otherwise
-/// (where `item` is `None` when the stream ended).
-async fn poll_ready<S: Stream + Unpin>(
-  stream: &mut S,
-) -> Option<Option<S::Item>> {
-  std::future::poll_fn(|cx| match stream.poll_next_unpin(cx) {
-    std::task::Poll::Ready(item) => std::task::Poll::Ready(Some(item)),
-    std::task::Poll::Pending => std::task::Poll::Ready(None),
-  })
-  .await
 }
 
 /// Whether a terminal event can change what is on screen.

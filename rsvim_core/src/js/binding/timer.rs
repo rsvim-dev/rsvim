@@ -29,11 +29,9 @@ pub fn create_timer<'js>(
 ) -> JsResult<i32> {
   let table = op_table(&ctx)?;
 
-  let delay = if delay.is_finite() && delay >= 1.0 {
-    Duration::from_millis(delay as u64)
-  } else {
-    Duration::from_millis(1)
-  };
+  // `as u64` saturates, and NaN and negative delays become 0; the timer table
+  // clamps whatever comes out into `[1ms, MAX_DELAY]`.
+  let delay = Duration::from_millis(delay as u64);
 
   let timer_id = table.timers.borrow_mut().insert(
     Persistent::save(&ctx, callback),

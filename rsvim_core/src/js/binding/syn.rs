@@ -4,13 +4,13 @@
 //! `syn.loadParser`.
 
 use crate::js::binding::set_function_to;
-use crate::js::get_state;
 use crate::js::ops::OpKind;
 use crate::js::ops::spawn_simple_op;
-use crate::js::syn::SynLoadTreeSitterParserOptions;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use crate::syntax;
 use crate::syntax::SyntaxLoadGrammarRequest;
+use crate::syntax::SyntaxTreeSitterGrammarRepository;
 use rquickjs::Ctx;
 use rquickjs::Exception;
 use rquickjs::Object;
@@ -47,7 +47,7 @@ fn metadata_to_object<'js>(
       .as_ref()
       .map(|p| p.to_string_lossy().to_string()),
   )?;
-  object.set("highlightsQuery", metadata.highlights_query.clone())?;
+  object.set("highlightsQuery", metadata.highlights_query.as_deref())?;
   object.set(
     "tagsPath",
     metadata
@@ -55,7 +55,7 @@ fn metadata_to_object<'js>(
       .as_ref()
       .map(|p| p.to_string_lossy().to_string()),
   )?;
-  object.set("tagsQuery", metadata.tags_query.clone())?;
+  object.set("tagsQuery", metadata.tags_query.as_deref())?;
   object.set(
     "injectionsPath",
     metadata
@@ -63,7 +63,7 @@ fn metadata_to_object<'js>(
       .as_ref()
       .map(|p| p.to_string_lossy().to_string()),
   )?;
-  object.set("injectionsQuery", metadata.injections_query.clone())?;
+  object.set("injectionsQuery", metadata.injections_query.as_deref())?;
   object.set("injectionRegex", metadata.injection_regex.clone())?;
   Ok(object)
 }
@@ -71,9 +71,7 @@ fn metadata_to_object<'js>(
 /// `syn.listParsers()`.
 pub fn list_parsers<'js>(ctx: Ctx<'js>) -> JsResult<Vec<String>> {
   trace!("syn.listParsers");
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let parser_names = lock!(syntax_manager).list_grammar_names();
   trace!("syn.listParsers result:{:?}", parser_names);
@@ -88,120 +86,79 @@ pub fn get_parser_metadata<'js>(
   parser_name: String,
 ) -> JsResult<Option<Object<'js>>> {
   trace!("syn.getParserMetadata:{:?}", parser_name);
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
-  match syntax_manager.get_metadata(&parser_name) {
-    Some(metadata) => {
-      trace!("syn.getParserMetadata result:{:?}", metadata);
-      Ok(Some(metadata_to_object(&ctx, metadata)?))
-    }
-    None => Ok(None),
-  }
+  let metadata = syntax_manager.get_metadata(&parser_name);
+  trace!("syn.getParserMetadata result:{:?}", metadata);
+  metadata.map(|m| metadata_to_object(&ctx, m)).transpose()
 }
 
-/// Reads `{grammarPath}`.
+/// Reads `{grammarPath}` and absolutizes it.
 ///
 /// `syn.min.js` defaults the whole object, so a missing argument only happens
 /// for a caller that skips the wrapper; an empty path then fails to absolutize
 /// and surfaces as `TreeSitterParserNotFound`, which is the right error.
-fn options_from<'js>(
-  value: Option<Value<'js>>,
-) -> JsResult<SynLoadTreeSitterParserOptions> {
-  let Some(object) = value.and_then(|v| v.as_object().cloned()) else {
-    return Ok(SynLoadTreeSitterParserOptions {
-      grammar_path: "".into(),
-    });
-  };
-  let path: String = object.get("grammarPath").unwrap_or_default();
-  Ok(SynLoadTreeSitterParserOptions {
-    grammar_path: path.into(),
-  })
+fn grammar_request<'js>(
+  ctx: &Ctx<'js>,
+  options: Option<Value<'js>>,
+) -> JsResult<SyntaxLoadGrammarRequest> {
+  let grammar_path: String = options
+    .and_then(|v| v.as_object().cloned())
+    .and_then(|object| object.get("grammarPath").ok())
+    .unwrap_or_default();
+  trace!("syn.loadParser:{:?}", grammar_path);
+
+  match Path::new(&grammar_path).absolutize() {
+    Ok(path) => Ok(SyntaxLoadGrammarRequest {
+      grammar_path: path.to_path_buf(),
+    }),
+    Err(_) => Err(Exception::throw_message(
+      ctx,
+      &TheErr::TreeSitterParserNotFound(grammar_path.into()).to_string(),
+    )),
+  }
+}
+
+/// The names of the parsers a grammar provides.
+fn grammar_names(metainfo: &SyntaxTreeSitterGrammarRepository) -> Vec<String> {
+  metainfo
+    .grammars
+    .iter()
+    .map(|g| g.name.to_string())
+    .collect()
 }
 
 /// `syn.loadParserSync(options)`.
 ///
-/// Loads a tree-sitter grammar and returns the parser names it provides. The
-/// engine-neutral part — absolutizing the path and asking the syntax manager —
-/// is the same call the v8 backend makes.
+/// Loads a tree-sitter grammar and returns the parser names it provides.
 pub fn load_parser_sync<'js>(
   ctx: Ctx<'js>,
   options: Opt<Value<'js>>,
 ) -> JsResult<Vec<String>> {
-  let options = options_from(options.0)?;
-  trace!("syn.loadParserSync:{:?}", options);
-
-  let path = match Path::new(&options.grammar_path).absolutize() {
-    Ok(p) => p.to_path_buf(),
-    Err(_) => {
-      return Err(Exception::throw_message(
-        &ctx,
-        &TheErr::TreeSitterParserNotFound(options.grammar_path.clone())
-          .to_string(),
-      ));
-    }
-  };
-
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
-  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
-  let req = SyntaxLoadGrammarRequest { grammar_path: path };
-  match syntax::load_syntax_grammar(syntax_manager, &req) {
-    Ok(metainfo) => Ok(
-      metainfo
-        .grammars
-        .iter()
-        .map(|g| g.name.to_string())
-        .collect(),
-    ),
-    Err(e) => Err(Exception::throw_message(&ctx, &e.to_string())),
-  }
+  let req = grammar_request(&ctx, options.0)?;
+  let syntax_manager = kernel(&ctx)?.borrow().editor.syntax_manager.clone();
+  syntax::load_syntax_grammar(syntax_manager, &req)
+    .map(|metainfo| grammar_names(&metainfo))
+    .map_err(|e| Exception::throw_message(&ctx, &e.to_string()))
 }
 
 /// `syn.loadParser(options)` -> `Promise<string[]>`.
 ///
 /// The grammar load is already a coroutine (`syntax::async_load_syntax_grammar`),
 /// so unlike `fs.read` there is nothing to hand off to a blocking pool: the
-/// future is awaited straight inside the promise. The v8 backend reaches the
-/// same code through `MasterMessage::LoadTreeSitterParserReq`.
+/// future runs straight inside the operation.
 pub fn load_parser<'js>(
   ctx: Ctx<'js>,
   options: Opt<Value<'js>>,
 ) -> JsResult<Promise<'js>> {
-  let options = options_from(options.0)?;
-  trace!("syn.loadParser:{:?}", options);
-
-  let path = match Path::new(&options.grammar_path).absolutize() {
-    Ok(p) => p.to_path_buf(),
-    Err(_) => {
-      return Err(Exception::throw_message(
-        &ctx,
-        &TheErr::TreeSitterParserNotFound(options.grammar_path.clone())
-          .to_string(),
-      ));
-    }
-  };
-
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
-  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
+  let req = grammar_request(&ctx, options.0)?;
+  let syntax_manager = kernel(&ctx)?.borrow().editor.syntax_manager.clone();
 
   spawn_simple_op(&ctx, "syn.loadParser", OpKind::Detached, async move {
-    let req = SyntaxLoadGrammarRequest { grammar_path: path };
-    let metainfo = syntax::async_load_syntax_grammar(syntax_manager, &req)
+    syntax::async_load_syntax_grammar(syntax_manager, &req)
       .await
-      .map_err(|e| e.to_string())?;
-    Ok::<Vec<String>, String>(
-      metainfo
-        .grammars
-        .iter()
-        .map(|g| g.name.to_string())
-        .collect(),
-    )
+      .map(|metainfo| grammar_names(&metainfo))
   })
 }
 

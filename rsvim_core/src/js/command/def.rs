@@ -7,14 +7,13 @@ use compact_str::CompactString;
 /// The javascript function a user registered with `cmd.create(name, cb)`.
 ///
 /// QuickJS hands out [`rquickjs::Persistent`] for "a callable that outlives the
-/// current scope", for the same reason v8 needed a `v8::Global`: a
-/// `rquickjs::Function` dies with its [`rquickjs::Ctx`].
+/// current scope": a `rquickjs::Function` dies with its [`rquickjs::Ctx`].
 ///
 /// NOTE: a `Persistent` that outlives its runtime makes QuickJS abort the
-/// process on drop. The command manager lives in [`crate::evloop::Editor`] and
-/// the runtime in the same struct, so the field order there decides which one
-/// drops first -- and [`crate::js::command::CommandManager::clear`] makes it
-/// explicit on the shutdown path.
+/// process on drop. The command manager lives in [`crate::evloop::Editor`],
+/// which the runtime does not own, so no field order can decide which drops
+/// first; `impl Drop for` [`crate::js::JsHost`] clears the manager before the
+/// runtime goes away.
 #[derive(Clone)]
 pub struct CommandCallback(rquickjs::Persistent<rquickjs::Function<'static>>);
 

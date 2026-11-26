@@ -66,6 +66,16 @@ pub fn get_state<'js>(ctx: &Ctx<'js>) -> Option<JsKernelRc> {
   ctx.userdata::<JsKernelRc>().map(|g| (*g).clone())
 }
 
+/// The kernel of the runtime `ctx` belongs to.
+///
+/// Raises a javascript error if the bindings were installed on a context that
+/// never got one, which is what every binding wants to do about it.
+pub fn kernel<'js>(ctx: &Ctx<'js>) -> JsResult<JsKernelRc> {
+  get_state(ctx).ok_or_else(|| {
+    rquickjs::Exception::throw_message(ctx, "js kernel is not initialised")
+  })
+}
+
 /// Installs `kernel` as the context's userdata.
 pub fn set_state<'js>(ctx: &Ctx<'js>, kernel: JsKernelRc) -> JsResult<()> {
   ctx.store_userdata(kernel)?;

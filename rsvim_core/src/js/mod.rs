@@ -42,7 +42,6 @@ pub mod ops;
 pub mod process_command;
 pub mod resource;
 pub mod runtime;
-pub mod syn;
 pub mod timers;
 
 pub use core_modules::CORE_MODULES;

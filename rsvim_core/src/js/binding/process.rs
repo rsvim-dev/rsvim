@@ -7,7 +7,7 @@
 use crate::chan;
 use crate::chan::MasterMessage;
 use crate::js::binding::set_function_to;
-use crate::js::get_state;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use compact_str::CompactString;
 use compact_str::ToCompactString;
@@ -86,9 +86,7 @@ pub fn spawn_child<'js>(
     exec_path, options
   );
 
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let resource_table = kernel.borrow().editor.resource_table.clone();
 
   let (child_rid, stdin_rid, stdout_rid, stderr_rid) =
@@ -146,9 +144,7 @@ fn options_to_object<'js>(
 /// `process.exit(code)`.
 pub fn exit<'js>(ctx: Ctx<'js>, exit_code: i32) -> JsResult<()> {
   trace!("exit: {:?}", exit_code);
-  let kernel = get_state(&ctx).ok_or_else(|| {
-    Exception::throw_message(&ctx, "js kernel is not initialised")
-  })?;
+  let kernel = kernel(&ctx)?;
   let master_tx = kernel.borrow().master_tx.clone();
   chan::send_to_master(
     master_tx,
@@ -167,60 +163,27 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
 #[cfg(test)]
 mod tests {
   use crate::chan::MasterMessage;
-  use crate::js::binding::install_bindings;
-  use crate::js::runtime;
-  use crate::js::runtime::JsKernel;
-  use crate::js::runtime::JsRuntimeOptions;
-  use crate::js::runtime::set_state;
-  use crate::tests::js::make_editor;
+  use crate::tests::js::make_js_host;
+  use crate::tests::js::with_kernel;
   use crate::tests::log::init as test_log_init;
-  use rquickjs::Context;
-  use rquickjs::Runtime;
-  use tokio::sync::mpsc::UnboundedReceiver;
-
-  fn with_kernel<R>(
-    f: impl FnOnce(
-      rquickjs::Ctx<'_>,
-      runtime::JsKernelRc,
-      UnboundedReceiver<MasterMessage>,
-    ) -> R,
-  ) -> R {
-    let editor = make_editor();
-    let (master_tx, master_rx) = tokio::sync::mpsc::unbounded_channel();
-    let kernel = JsKernel::to_rc(JsKernel {
-      options: JsRuntimeOptions::default(),
-      master_tx,
-      editor,
-    });
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
-    ctx.with(move |ctx| {
-      set_state(&ctx, kernel.clone()).unwrap();
-      install_bindings(&ctx).unwrap();
-      f(ctx, kernel, master_rx)
-    })
-  }
 
   #[test]
   #[cfg_attr(miri, ignore)]
   fn exit_sends_an_exit_request() {
     test_log_init();
-    with_kernel(|ctx, _kernel, mut master_rx| {
-      ctx
-        .eval::<(), _>("__InternalRsvimGlobalObject.process_exit(7)")
-        .unwrap();
-      match master_rx.try_recv() {
-        Ok(MasterMessage::ExitReq(req)) => assert_eq!(req.exit_code, 7),
-        other => panic!("expected an ExitReq, got {:?}", other),
-      }
-    });
+    let mut js = make_js_host();
+    js.run("__InternalRsvimGlobalObject.process_exit(7)");
+    match js.master_rx.try_recv() {
+      Ok(MasterMessage::ExitReq(req)) => assert_eq!(req.exit_code, 7),
+      other => panic!("expected an ExitReq, got {:?}", other),
+    }
   }
 
   #[test]
   #[cfg_attr(miri, ignore)]
   fn spawn_of_a_missing_binary_is_a_javascript_error() {
     test_log_init();
-    with_kernel(|ctx, _kernel, _master_rx| {
+    with_kernel(|ctx, _kernel| {
       let result = ctx.eval::<rquickjs::Object, _>(
         "__InternalRsvimGlobalObject.process_spawn_child('/nonexistent/rsvim-test-binary', {})",
       );
@@ -232,7 +195,7 @@ mod tests {
   #[cfg_attr(miri, ignore)]
   fn spawn_returns_the_resource_ids() {
     test_log_init();
-    with_kernel(|ctx, _kernel, _master_rx| {
+    with_kernel(|ctx, _kernel| {
       // `/bin/true` exists on every unix, and an empty options object must fall
       // back to the builder defaults (`stdin: null`, `stdout/stderr: piped`).
       let has_rid: bool = ctx

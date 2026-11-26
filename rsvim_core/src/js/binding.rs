@@ -1,10 +1,9 @@
 //! Js runtime bindings for the QuickJS-ng backend.
 //!
-//! The shape mirrors `crate::js::v8::binding`: a context is created, one
-//! internal object (`__InternalRsvimGlobalObject`) is hung off the global, and
-//! every built-in function is a plain function on that object. The javascript
-//! modules in `rsvim_core/js/*.min.js` never touch anything else, which is why
-//! the same sources work for both engines.
+//! A context is created, one internal object (`__InternalRsvimGlobalObject`) is
+//! hung off the global, and every built-in function is a plain function on that
+//! object. The javascript modules in `rsvim_core/js/*.min.js` never touch
+//! anything else.
 
 pub mod buf;
 pub mod cmd;

@@ -21,28 +21,32 @@
 //! (`read`, `readDir`, `readFile`, `stat`, ...) is [`OpKind::Detached`]: nobody
 //! would see its result once the loop is gone, so exit does not wait.
 
+use crate::js::binding::fs::dir_entry_to_object;
+use crate::js::binding::fs::metadata_to_object;
+use crate::js::binding::fs::mkdir_options;
+use crate::js::binding::fs::open_options;
+use crate::js::binding::fs::resource_table;
+use crate::js::binding::fs::symlink_options;
 use crate::js::binding::set_function_to;
 use crate::js::converter::array_buffer_to_vec;
+use crate::js::converter::copy_into_array_buffer;
 use crate::js::converter::vec_to_array_buffer;
 use crate::js::fs::FsDirEntry;
 use crate::js::fs::FsMetadata;
-use crate::js::fs::FsMkdirOptions;
-use crate::js::fs::FsMkdirOptionsBuilder;
-use crate::js::fs::FsOpenOptions;
-use crate::js::fs::FsOpenOptionsBuilder;
-use crate::js::fs::FsSymlinkOptions;
 use crate::js::fs::fs_link_a;
 use crate::js::fs::fs_lstat_a;
 use crate::js::fs::fs_mkdir_a;
 use crate::js::fs::fs_open_a;
+use crate::js::fs::fs_read_dir_next_s;
+use crate::js::fs::fs_read_dir_s;
 use crate::js::fs::fs_read_file_a;
 use crate::js::fs::fs_read_s;
 use crate::js::fs::fs_read_text_file_a;
 use crate::js::fs::fs_stat_a;
 use crate::js::fs::fs_symlink_a;
 use crate::js::fs::fs_write_s;
-use crate::js::get_state;
 use crate::js::ops::OpKind;
+use crate::js::ops::blocking;
 use crate::js::ops::spawn_op;
 use crate::js::ops::spawn_simple_op;
 use crate::js::resource::ResourceId;
@@ -56,31 +60,6 @@ use rquickjs::Object;
 use rquickjs::Promise;
 use rquickjs::Result as JsResult;
 use rquickjs::Value;
-use std::str::FromStr;
-
-/// Reads the kernel's `resource_table`, or raises if there is no kernel.
-macro_rules! resource_table {
-  ($ctx:expr) => {{
-    let kernel = get_state($ctx).ok_or_else(|| {
-      Exception::throw_message($ctx, "js kernel is not initialised")
-    })?;
-    let table = kernel.borrow().editor.resource_table.clone();
-    table
-  }};
-}
-
-/// Runs a blocking call on tokio's blocking pool and flattens the two layers of
-/// failure (the task dying, the call failing) into one message.
-async fn blocking<T, F>(what: &'static str, f: F) -> Result<T, String>
-where
-  T: Send + 'static,
-  F: FnOnce() -> TheResult<T> + Send + 'static,
-{
-  tokio::task::spawn_blocking(f)
-    .await
-    .map_err(|e| format!("{what} task: {e}"))?
-    .map_err(|e| e.to_string())
-}
 
 /// `fs.open(path, options)` -> `Promise<number>`.
 ///
@@ -90,14 +69,13 @@ pub fn open<'js>(
   path: String,
   options: Option<Object<'js>>,
 ) -> JsResult<Promise<'js>> {
-  let table = resource_table!(&ctx);
+  let table = resource_table(&ctx)?;
   let opts = open_options(&ctx, options)?;
   trace!("fs.open:{:?}", path);
   spawn_simple_op(&ctx, "fs.open", OpKind::Blocked, async move {
     fs_open_a(table, Path::new(&path), opts)
       .await
       .map(i32::from)
-      .map_err(|e| e.to_string())
   })
 }
 
@@ -114,7 +92,7 @@ pub fn read<'js>(
   rid: i32,
   buffer: ArrayBuffer<'js>,
 ) -> JsResult<Promise<'js>> {
-  let table = resource_table!(&ctx);
+  let table = resource_table(&ctx)?;
   let rid = ResourceId::from(rid);
   let size = buffer.len();
   trace!("fs.read rid:{:?}, size:{}", rid, size);
@@ -125,24 +103,14 @@ pub fn read<'js>(
     Some(buffer.into_value()),
     blocking("fs.read", move || fs_read_s(table, rid, size)),
     |ctx, aux, data: Vec<u8>| {
-      let buffer = match aux {
-        Some(value) => ArrayBuffer::from_js(ctx, value)?,
-        None => {
-          return Err(Exception::throw_message(ctx, "fs.read: buffer is gone"));
-        }
-      };
-      // SAFETY: `as_raw` hands back the backing store of a live array buffer,
-      // and nothing else touches the engine between taking the pointer and
-      // finishing the copy -- this runs on the thread that owns it.
-      match buffer.as_raw() {
-        Some(raw) => {
-          let n = data.len().min(raw.len());
-          let dst = raw.as_ptr() as *mut u8;
-          unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), dst, n) };
-          (n as i32).into_js(ctx)
-        }
-        None => Err(Exception::throw_message(ctx, "fs.read: detached buffer")),
-      }
+      let buffer = aux.ok_or_else(|| {
+        Exception::throw_message(ctx, "fs.read: buffer is gone")
+      })?;
+      let buffer = ArrayBuffer::from_js(ctx, buffer)?;
+      let n = copy_into_array_buffer(&buffer, &data).ok_or_else(|| {
+        Exception::throw_message(ctx, "fs.read: detached buffer")
+      })?;
+      (n as i32).into_js(ctx)
     },
   )
 }
@@ -153,7 +121,7 @@ pub fn write<'js>(
   rid: i32,
   buffer: ArrayBuffer<'js>,
 ) -> JsResult<Promise<'js>> {
-  let table = resource_table!(&ctx);
+  let table = resource_table(&ctx)?;
   let rid = ResourceId::from(rid);
   let data = array_buffer_to_vec(&ctx, buffer.into_value())?;
   trace!("fs.write rid:{:?}, len:{}", rid, data.len());
@@ -169,36 +137,30 @@ pub fn write<'js>(
 
 /// `fs.readDir(path)` -> `Promise<number>`.
 pub fn read_dir<'js>(ctx: Ctx<'js>, path: String) -> JsResult<Promise<'js>> {
-  let table = resource_table!(&ctx);
+  let table = resource_table(&ctx)?;
   trace!("fs.readDir:{:?}", path);
   spawn_simple_op(
     &ctx,
     "fs.readDir",
     OpKind::Detached,
     blocking("fs.readDir", move || {
-      crate::js::fs::fs_read_dir_s(table, Path::new(&path)).map(i32::from)
+      fs_read_dir_s(table, Path::new(&path)).map(i32::from)
     }),
   )
 }
 
 /// `fs.readDirNext(rid)` -> `Promise<object | undefined>`.
 pub fn read_dir_next<'js>(ctx: Ctx<'js>, rid: i32) -> JsResult<Promise<'js>> {
-  let table = resource_table!(&ctx);
+  let table = resource_table(&ctx)?;
   let rid = ResourceId::from(rid);
   spawn_op(
     &ctx,
     "fs.readDirNext",
     OpKind::Detached,
     None,
-    async move {
-      tokio::task::spawn_blocking(move || {
-        crate::js::fs::fs_read_dir_next_s(table, rid)
-      })
-      .await
-      .map_err(|e| format!("fs.readDirNext task: {e}"))?
-      .transpose()
-      .map_err(|e| e.to_string())
-    },
+    blocking("fs.readDirNext", move || {
+      fs_read_dir_next_s(table, rid).transpose()
+    }),
     |ctx, _aux, entry: Option<FsDirEntry>| match entry {
       Some(entry) => Ok(dir_entry_to_object(ctx, &entry)?.into_value()),
       None => Ok(Value::new_undefined(ctx.clone())),
@@ -213,11 +175,7 @@ pub fn read_file<'js>(ctx: Ctx<'js>, path: String) -> JsResult<Promise<'js>> {
     "fs.readFile",
     OpKind::Detached,
     None,
-    async move {
-      fs_read_file_a(Path::new(&path))
-        .await
-        .map_err(|e| e.to_string())
-    },
+    async move { fs_read_file_a(Path::new(&path)).await },
     |ctx, _aux, data: Vec<u8>| {
       Ok(vec_to_array_buffer(ctx.clone(), data)?.into_value())
     },
@@ -230,9 +188,7 @@ pub fn read_text_file<'js>(
   path: String,
 ) -> JsResult<Promise<'js>> {
   spawn_simple_op(&ctx, "fs.readTextFile", OpKind::Detached, async move {
-    fs_read_text_file_a(Path::new(&path))
-      .await
-      .map_err(|e| e.to_string())
+    fs_read_text_file_a(Path::new(&path)).await
   })
 }
 
@@ -243,11 +199,7 @@ pub fn lstat<'js>(ctx: Ctx<'js>, path: String) -> JsResult<Promise<'js>> {
     "fs.lstat",
     OpKind::Detached,
     None,
-    async move {
-      fs_lstat_a(Path::new(&path))
-        .await
-        .map_err(|e| e.to_string())
-    },
+    async move { fs_lstat_a(Path::new(&path)).await },
     |ctx, _aux, meta: FsMetadata| {
       Ok(metadata_to_object(ctx, &meta)?.into_value())
     },
@@ -261,7 +213,7 @@ pub fn stat<'js>(ctx: Ctx<'js>, path: String) -> JsResult<Promise<'js>> {
     "fs.stat",
     OpKind::Detached,
     None,
-    async move { fs_stat_a(Path::new(&path)).await.map_err(|e| e.to_string()) },
+    async move { fs_stat_a(Path::new(&path)).await },
     |ctx, _aux, meta: FsMetadata| {
       Ok(metadata_to_object(ctx, &meta)?.into_value())
     },
@@ -275,16 +227,9 @@ pub fn symlink<'js>(
   newpath: String,
   options: Option<String>,
 ) -> JsResult<Promise<'js>> {
-  let options = match options {
-    Some(o) => FsSymlinkOptions::from_str(&o).map_err(|_| {
-      Exception::throw_range(&ctx, &format!("fs.symlink: unknown type {:?}", o))
-    })?,
-    None => FsSymlinkOptions::File,
-  };
+  let options = symlink_options(&ctx, "fs.symlink", options)?;
   spawn_simple_op(&ctx, "fs.symlink", OpKind::Blocked, async move {
-    fs_symlink_a(Path::new(&oldpath), Path::new(&newpath), options)
-      .await
-      .map_err(|e| e.to_string())
+    fs_symlink_a(Path::new(&oldpath), Path::new(&newpath), options).await
   })
 }
 
@@ -295,9 +240,7 @@ pub fn link<'js>(
   newpath: String,
 ) -> JsResult<Promise<'js>> {
   spawn_simple_op(&ctx, "fs.link", OpKind::Blocked, async move {
-    fs_link_a(Path::new(&oldpath), Path::new(&newpath))
-      .await
-      .map_err(|e| e.to_string())
+    fs_link_a(Path::new(&oldpath), Path::new(&newpath)).await
   })
 }
 
@@ -309,107 +252,8 @@ pub fn mkdir<'js>(
 ) -> JsResult<Promise<'js>> {
   let opts = mkdir_options(&ctx, options)?;
   spawn_simple_op(&ctx, "fs.mkdir", OpKind::Blocked, async move {
-    fs_mkdir_a(Path::new(&path), opts)
-      .await
-      .map_err(|e| e.to_string())
+    fs_mkdir_a(Path::new(&path), opts).await
   })
-}
-
-fn open_options<'js>(
-  ctx: &Ctx<'js>,
-  options: Option<Object<'js>>,
-) -> JsResult<FsOpenOptions> {
-  let mut builder = FsOpenOptionsBuilder::default();
-  if let Some(object) = options {
-    if let Some(v) = object.get::<&str, Option<bool>>("append")? {
-      builder.append(v);
-    }
-    if let Some(v) = object.get::<&str, Option<bool>>("create")? {
-      builder.create(v);
-    }
-    if let Some(v) = object.get::<&str, Option<bool>>("createNew")? {
-      builder.create_new(v);
-    }
-    if let Some(v) = object.get::<&str, Option<bool>>("read")? {
-      builder.read(v);
-    }
-    if let Some(v) = object.get::<&str, Option<bool>>("truncate")? {
-      builder.truncate(v);
-    }
-    if let Some(v) = object.get::<&str, Option<bool>>("write")? {
-      builder.write(v);
-    }
-  }
-  builder.build().map_err(|e| {
-    Exception::throw_message(ctx, &format!("fs.open: bad options: {}", e))
-  })
-}
-
-fn mkdir_options<'js>(
-  ctx: &Ctx<'js>,
-  options: Option<Object<'js>>,
-) -> JsResult<FsMkdirOptions> {
-  let mut builder = FsMkdirOptionsBuilder::default();
-  if let Some(object) = options {
-    if let Some(v) = object.get::<&str, Option<bool>>("recursive")? {
-      builder.recursive(v);
-    }
-    if let Some(v) = object.get::<&str, Option<i32>>("mode")? {
-      builder.mode(v as u32);
-    }
-  }
-  builder.build().map_err(|e| {
-    Exception::throw_message(ctx, &format!("fs.mkdir: bad options: {}", e))
-  })
-}
-
-fn metadata_to_object<'js>(
-  ctx: &Ctx<'js>,
-  meta: &FsMetadata,
-) -> JsResult<Object<'js>> {
-  let object = Object::new(ctx.clone())?;
-  object.set("accessed", meta.accessed)?;
-  object.set("created", meta.created)?;
-  object.set("modified", meta.modified)?;
-  object.set("isDir", meta.is_dir)?;
-  object.set("isFile", meta.is_file)?;
-  object.set("isSymlink", meta.is_symlink)?;
-  object.set("len", meta.len)?;
-  object.set("readOnly", meta.read_only)?;
-  object.set("fileAttributes", meta.file_attributes)?;
-  object.set("creationTime", meta.creation_time)?;
-  object.set("lastAccessTime", meta.last_access_time)?;
-  object.set("lastWriteTime", meta.last_write_time)?;
-  object.set("fileSize", meta.file_size)?;
-  object.set("dev", meta.dev)?;
-  object.set("ino", meta.ino)?;
-  object.set("mode", meta.mode)?;
-  object.set("nlink", meta.nlink)?;
-  object.set("uid", meta.uid)?;
-  object.set("gid", meta.gid)?;
-  object.set("rdev", meta.rdev)?;
-  object.set("size", meta.size)?;
-  object.set("atime", meta.atime)?;
-  object.set("atimeNsec", meta.atime_nsec)?;
-  object.set("mtime", meta.mtime)?;
-  object.set("mtimeNsec", meta.mtime_nsec)?;
-  object.set("ctime", meta.ctime)?;
-  object.set("ctimeNsec", meta.ctime_nsec)?;
-  object.set("blksize", meta.blksize)?;
-  object.set("blocks", meta.blocks)?;
-  Ok(object)
-}
-
-fn dir_entry_to_object<'js>(
-  ctx: &Ctx<'js>,
-  entry: &FsDirEntry,
-) -> JsResult<Object<'js>> {
-  let object = Object::new(ctx.clone())?;
-  object.set("name", entry.name.clone())?;
-  object.set("isDir", entry.is_dir)?;
-  object.set("isFile", entry.is_file)?;
-  object.set("isSymlink", entry.is_symlink)?;
-  Ok(object)
 }
 
 /// Installs the promise-returning `fs_*` built-ins on `internal`.

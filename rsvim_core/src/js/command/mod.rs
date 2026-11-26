@@ -76,21 +76,11 @@ impl CommandFuture {
       {
         Ok(()) => None,
         Err(TheErr::JsError(err)) => Some(*err),
-        Err(e) => Some(JsError {
-          message: e.to_string(),
-          resource_name: "(unknown)".into(),
-          source_line: None,
-          line_number: None,
-          start_column: None,
-          end_column: None,
-          stack: None,
-        }),
+        Err(e) => Some(JsError::unlocated(e.to_string())),
       };
     }
 
-    let Some(def) = self.definition.clone() else {
-      return None;
-    };
+    let def = self.definition.clone()?;
 
     host.enter(|ctx| -> Option<JsError> {
       let callback = match def.callback.restore(&ctx) {
@@ -125,7 +115,7 @@ impl CommandContext {
       object.set("currentWindowId", i32::from(self.current_window_id))?;
       Ok(object)
     };
-    build().map_err(|e| JsError::from_js_error(ctx, e))
+    build().map_err(JsError::from_js_error)
   }
 }
 
@@ -135,7 +125,8 @@ impl CommandContext {
 /// A definition holds a javascript callback handle. In QuickJS that handle is a
 /// [`rquickjs::Persistent`], and a persistent that outlives its runtime makes
 /// the runtime abort when it is dropped -- hence [`CommandManager::clear`],
-/// which the shutdown path calls before the runtime goes away.
+/// which `impl Drop for` [`crate::js::JsHost`] calls before the runtime goes
+/// away.
 pub struct CommandManager {
   commands: BTreeMap<CompactString, CommandDefinitionRc>,
   aliases: FoldMap<CompactString, CompactString>,
@@ -182,8 +173,8 @@ impl CommandManager {
   ///
   /// Dropping the definitions drops their [`rquickjs::Persistent`] handles. In
   /// QuickJS a persistent must be dropped before the runtime, otherwise
-  /// `JS_FreeRuntime` asserts. The shutdown path calls this explicitly; the
-  /// field order of [`crate::evloop::Rsvim`] is the second line of defence.
+  /// `JS_FreeRuntime` asserts. [`crate::js::JsHost`] calls this when it is
+  /// dropped, on every path out.
   pub fn clear(&mut self) {
     self.commands.clear();
     self.aliases.clear();

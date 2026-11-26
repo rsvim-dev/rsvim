@@ -19,20 +19,9 @@ use std::time::SystemTime;
 
 /// File metadata, as `fs.stat`/`fs.lstat` report it.
 ///
-/// `serde` matters: the async bindings used to ship this across the completion
-/// channel as `postcard` bytes. QuickJS resolves the promise in place instead,
-/// so nothing serialises it any more; the derives are kept because the struct
-/// is still the plain data carrier the bindings and tests share.
-#[derive(
-  Debug,
-  Copy,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  serde::Serialize,
-  serde::Deserialize,
-)]
+/// Plain data: an operation sends it back to the main thread as is (it is
+/// `Send`), and the binding turns it into a javascript object there.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_builder::Builder)]
 pub struct FsMetadata {
   #[builder(default = None)]
   pub accessed: Option<SystemTime>,
@@ -127,15 +116,7 @@ pub struct FsMetadata {
 }
 
 /// One entry of a directory listing.
-#[derive(
-  Debug,
-  Clone,
-  PartialEq,
-  Eq,
-  derive_builder::Builder,
-  serde::Serialize,
-  serde::Deserialize,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_builder::Builder)]
 pub struct FsDirEntry {
   #[builder(default = "".to_string())]
   pub name: String,

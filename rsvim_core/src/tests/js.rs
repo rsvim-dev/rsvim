@@ -187,3 +187,16 @@ pub fn make_js_host_with(options: JsRuntimeOptions) -> TestJs {
     master_rx,
   }
 }
+
+/// Runs `f` inside a fully installed host, for the binding tests that only
+/// need a context and the kernel.
+///
+/// The host is dropped afterwards, which also releases whatever the test
+/// registered (an `:Ex` command owns a `Persistent` handle).
+pub fn with_kernel<R>(
+  f: impl FnOnce(Ctx<'_>, crate::js::JsKernelRc) -> R,
+) -> R {
+  let mut js = make_js_host();
+  let kernel = js.host.kernel().clone();
+  js.enter(move |ctx| f(ctx, kernel))
+}

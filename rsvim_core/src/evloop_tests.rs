@@ -43,8 +43,8 @@ async fn rejection_does_not_spin() -> IoResult<()> {
   let mut event_loop = make_event_loop(10, 10, CliOptions::empty());
   event_loop.initialize()?;
 
-  // `initialize` already ran one tick (the "extra tick for pending imports"),
-  // so the rejection has been captured and reported by now.
+  // Evaluating the config entered javascript, which drained the job queue and
+  // reported the rejection, so it has been reported by now.
   //
   // Two more ticks must be idle and must not report the error again: a tick
   // that keeps reporting the same rejection would mean the engine still holds
@@ -144,7 +144,7 @@ fn write_count(event_loop: &crate::evloop::EventLoop) -> usize {
 /// sending a message".
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
-async fn tick_is_driven_by_the_engine_scheduler() -> IoResult<()> {
+async fn a_due_timer_runs_without_anyone_sending_a_message() -> IoResult<()> {
   test_log_init();
 
   let src: &str = r#"
@@ -245,7 +245,7 @@ async fn render_only_when_dirty() -> IoResult<()> {
 
 /// Shutting down waits for the write tasks that must not be interrupted.
 ///
-/// This mirrors [`crate::evloop::Rsvim::process_cancellation_notify`]: the
+/// This is [`crate::evloop::Rsvim::close_trackers`], which every exit path runs: the
 /// detached tracker is closed without waiting, the blocked tracker is closed
 /// and then awaited, so a write that is already in flight still lands.
 #[tokio::test]
@@ -273,12 +273,9 @@ async fn shutdown_waits_for_write() -> IoResult<()> {
   // The tracker is non-empty, so `wait()` must actually wait instead of
   // returning immediately.
   assert!(!event_loop.blocked_tracker.is_empty());
-  tokio::time::timeout(
-    Duration::from_secs(5),
-    event_loop.process_cancellation_notify(),
-  )
-  .await
-  .expect("shutdown must not hang");
+  tokio::time::timeout(Duration::from_secs(5), event_loop.close_trackers())
+    .await
+    .expect("shutdown must not hang");
 
   let written =
     std::fs::read_to_string(temp_dir.child("written.txt").path()).unwrap();

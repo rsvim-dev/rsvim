@@ -60,7 +60,7 @@ pub enum OpKind {
 /// closure it parks in the table is the only place that downcasts it.
 pub struct Completion {
   pub(crate) id: OpId,
-  result: Box<dyn Any + Send>,
+  pub(crate) result: Box<dyn Any + Send>,
 }
 
 impl std::fmt::Debug for Completion {
@@ -104,8 +104,6 @@ where
 
 /// One operation waiting for its completion.
 pub(crate) struct PendingOp {
-  #[allow(dead_code)]
-  pub(crate) name: &'static str,
   pub(crate) resolve: Persistent<Function<'static>>,
   pub(crate) reject: Persistent<Function<'static>>,
   pub(crate) aux: Option<Persistent<Value<'static>>>,
@@ -195,9 +193,9 @@ pub fn op_table(ctx: &Ctx<'_>) -> JsResult<Rc<OpTable>> {
 /// - `fut` is plain Rust: `Send + 'static`, it cannot capture a javascript
 ///   value. Anything the reply needs from the javascript side goes in `aux`.
 /// - `reply` runs on the main thread, after the task is done, and builds the
-///   value the promise resolves with. An `Err(String)` from `fut` rejects the
-///   promise with an `Error` carrying that message instead.
-pub fn spawn_op<'js, T, F, R>(
+///   value the promise resolves with. An `Err` from `fut` rejects the promise
+///   with an `Error` carrying its message instead.
+pub fn spawn_op<'js, T, E, F, R>(
   ctx: &Ctx<'js>,
   name: &'static str,
   kind: OpKind,
@@ -207,7 +205,8 @@ pub fn spawn_op<'js, T, F, R>(
 ) -> JsResult<Promise<'js>>
 where
   T: Send + 'static,
-  F: Future<Output = Result<T, String>> + Send + 'static,
+  E: ToString + Send + 'static,
+  F: Future<Output = Result<T, E>> + Send + 'static,
   R: for<'a> FnOnce(&Ctx<'a>, Option<Value<'a>>, T) -> JsResult<Value<'a>>
     + 'static,
 {
@@ -221,7 +220,6 @@ where
   table.pending.borrow_mut().insert(
     id,
     PendingOp {
-      name,
       resolve: Persistent::save(ctx, resolve),
       reject: Persistent::save(ctx, reject),
       aux: aux.map(|value| Persistent::save(ctx, value)),
@@ -231,7 +229,7 @@ where
 
   let tx = table.tx.clone();
   let task = async move {
-    let result = fut.await;
+    let result = fut.await.map_err(|e| e.to_string());
     // The receiver only goes away with the loop, and then nobody is left to
     // settle the promise anyway.
     let _ = tx.send(JsMessage::OpDone(Completion {
@@ -247,9 +245,25 @@ where
   Ok(promise)
 }
 
+/// Runs a blocking call on tokio's blocking pool and flattens the two layers of
+/// failure -- the task dying, the call failing -- into one message.
+///
+/// `what` names the binding in the "task died" message.
+pub async fn blocking<T, E, F>(what: &'static str, f: F) -> Result<T, String>
+where
+  T: Send + 'static,
+  E: ToString + Send + 'static,
+  F: FnOnce() -> Result<T, E> + Send + 'static,
+{
+  tokio::task::spawn_blocking(f)
+    .await
+    .map_err(|e| format!("{what} task: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
 /// [`spawn_op`] for the common case: the result converts to javascript by
 /// itself and there is nothing to keep alive.
-pub fn spawn_simple_op<'js, T, F>(
+pub fn spawn_simple_op<'js, T, E, F>(
   ctx: &Ctx<'js>,
   name: &'static str,
   kind: OpKind,
@@ -257,16 +271,10 @@ pub fn spawn_simple_op<'js, T, F>(
 ) -> JsResult<Promise<'js>>
 where
   T: for<'a> rquickjs::IntoJs<'a> + Send + 'static,
-  F: Future<Output = Result<T, String>> + Send + 'static,
+  E: ToString + Send + 'static,
+  F: Future<Output = Result<T, E>> + Send + 'static,
 {
   spawn_op(ctx, name, kind, None, fut, |ctx, _aux, value: T| {
     rquickjs::IntoJs::into_js(value, ctx)
   })
-}
-
-impl Completion {
-  /// Hands the payload to the reply closure parked in the table.
-  pub(crate) fn into_result(self) -> Box<dyn Any + Send> {
-    self.result
-  }
 }
