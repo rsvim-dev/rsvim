@@ -9,6 +9,7 @@
 pub mod buf;
 pub mod cmd;
 pub mod fs;
+pub mod global;
 pub mod opt;
 pub mod process;
 pub mod syn;
@@ -65,6 +66,7 @@ pub fn install_bindings<'js>(ctx: &Ctx<'js>) -> JsResult<()> {
   buf::install(ctx, &internal)?;
   cmd::install(ctx, &internal)?;
   fs::install(ctx, &internal)?;
+  global::install(ctx, &internal)?;
   opt::install(ctx, &internal)?;
   process::install(ctx, &internal)?;
   syn::install(ctx, &internal)?;
