@@ -1,6 +1,5 @@
 //! Child-process command.
 
-use crate::js::converter::*;
 use crate::js::resource::ResourceId;
 use crate::js::resource::ResourceTableArc;
 use crate::prelude::*;
@@ -31,7 +30,8 @@ pub enum Stdio {
   Inherit,
 }
 
-impl FromV8 for Stdio {
+#[cfg(feature = "js-v8")]
+impl crate::js::converter::FromV8 for Stdio {
   fn from_v8<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     value: v8::Local<'s, v8::Value>,
@@ -42,7 +42,8 @@ impl FromV8 for Stdio {
   }
 }
 
-impl ToV8 for Stdio {
+#[cfg(feature = "js-v8")]
+impl crate::js::converter::ToV8 for Stdio {
   fn to_v8<'s>(
     &self,
     scope: &mut v8::PinScope<'s, '_>,
@@ -57,8 +58,10 @@ impl ToV8 for Stdio {
   PartialEq,
   Eq,
   derive_builder::Builder,
-  rsvim_macro::ToV8,
-  rsvim_macro::FromV8,
+)]
+#[cfg_attr(
+  feature = "js-v8",
+  derive(rsvim_macro::ToV8, rsvim_macro::FromV8)
 )]
 pub struct ProcessCommandOptions {
   #[builder(default = vec![])]

@@ -6,7 +6,11 @@
 //! modules in `rsvim_core/js/*.min.js` never touch anything else, which is why
 //! the same sources work for both engines.
 
+pub mod buf;
 pub mod cmd;
+pub mod opt;
+pub mod process;
+pub mod syn;
 
 use rquickjs::Ctx;
 use rquickjs::Function;
@@ -57,7 +61,11 @@ pub fn create_internal_object<'js>(ctx: &Ctx<'js>) -> JsResult<Object<'js>> {
 /// in. Callers are expected to run it exactly once per context.
 pub fn install_bindings<'js>(ctx: &Ctx<'js>) -> JsResult<()> {
   let internal = create_internal_object(ctx)?;
+  buf::install(ctx, &internal)?;
   cmd::install(ctx, &internal)?;
+  opt::install(ctx, &internal)?;
+  process::install(ctx, &internal)?;
+  syn::install(ctx, &internal)?;
   Ok(())
 }
 
