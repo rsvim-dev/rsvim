@@ -17,7 +17,7 @@ pub fn init() {
       .format(|out, message, record| {
         out.finish(format_args!(
           "{} {:<5} {}:{}| {}",
-          jiff::Zoned::now().strftime(formatter),
+          jiff::ZonedDateTime::now().strftime(formatter),
           record.level(),
           record.target(),
           record.line().unwrap_or(0),
