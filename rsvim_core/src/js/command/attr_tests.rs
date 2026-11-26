@@ -1,6 +1,4 @@
 use super::attr::*;
-use crate::js::converter::*;
-use crate::tests::js::*;
 use std::str::FromStr;
 
 #[test]
@@ -22,22 +20,16 @@ fn test_nargs() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore)]
-fn test_converter1() {
-  let mut jsrt = make_js_runtime();
-  let context = jsrt.context();
-  v8::scope_with_context!(scope, &mut jsrt.isolate, context);
-
+fn test_attributes_builder() {
   let a1 = CommandAttributesBuilder::default().build().unwrap();
-  let obj1 = a1.to_v8(scope);
-  let val1 = CommandAttributes::from_v8(scope, obj1);
-  assert_eq!(val1, a1);
+  assert!(!a1.bang);
+  assert_eq!(a1.nargs, CommandNargs::Zero);
 
   let a2 = CommandAttributesBuilder::default()
+    .bang(true)
     .nargs(CommandNargs::Any)
     .build()
     .unwrap();
-  let obj2 = a2.to_v8(scope);
-  let val2 = CommandAttributes::from_v8(scope, obj2);
-  assert_eq!(val2, a2);
+  assert!(a2.bang);
+  assert_eq!(a2.nargs, CommandNargs::Any);
 }

@@ -1,10 +1,8 @@
 //! Engine-neutral module sources.
 //!
-//! These are the javascript sources embedded into the binary. Both engines load
-//! them from here: v8 through [`crate::js::v8::loader::CoreModuleLoader`],
-//! QuickJS through [`crate::js::rqjs::CoreLoader`]. Keeping the table outside
-//! `js/v8` is what makes the second backend possible at all -- the sources
-//! themselves never had anything to do with an engine.
+//! These are the javascript sources embedded into the binary, loaded through
+//! [`crate::js::loader::CoreLoader`]. The sources themselves never had anything
+//! to do with an engine, so the table lives outside any backend.
 
 use crate::prelude::*;
 use std::sync::LazyLock;

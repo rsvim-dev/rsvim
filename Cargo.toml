@@ -59,9 +59,7 @@ mimalloc = "0.1"
 normpath = "1.5"
 num-traits = "0.2"
 oxc_resolver = "11.21"
-paste = "1.0"
 path-absolutize = "4.0"
-postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 proc-macro2 = "1"
 quote = "1"
 regex = "1.12"
@@ -101,13 +99,8 @@ tree-sitter-toml-ng = "0.7"
 unicode-width = "0.2"
 
 # js engine
-v8 = { version = "=150.4.0", default-features = false, features = [
-  "use_custom_libcxx",
-  "simdutf",
-] }
 rquickjs = { version = "0.14", default-features = false, features = [
   "std",
-  "futures",
   "loader",
   "array-buffer",
   "classes",
@@ -120,10 +113,6 @@ double_must_use = "allow"
 new_without_default = "allow"
 nonminimal_bool = "allow"
 type_complexity = "allow"
-
-# Debug
-[profile.dev.package.v8]
-opt-level = 1
 
 # Nightly
 [profile.nightly]

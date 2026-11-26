@@ -9,7 +9,6 @@ use compact_str::ToCompactString;
 /// manager to build a tree-sitter grammar. Only the shape of the javascript
 /// argument differed between the engines, so it lives here.
 #[derive(Debug, Clone, PartialEq, Eq, derive_builder::Builder)]
-#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 pub struct SynLoadTreeSitterParserOptions {
   #[builder(default = "".to_compact_string())]
   pub grammar_path: CompactString,

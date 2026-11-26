@@ -6,13 +6,9 @@
 //! is only how a result is turned into a value and how a failure becomes an
 //! exception, which stays in each backend.
 //!
-//! Everything here is therefore plain Rust, and the two backends re-export it
-//! into their own namespaces so that existing call sites keep working:
-//!
-//! - `crate::js::v8::binding::fs::open::fs_open_s`
-//! - `crate::js::rqjs::binding::fs::open::fs_open_s`
-//!
-//! Both resolve to the function below.
+//! Everything here is therefore plain Rust; the QuickJS bindings in
+//! [`crate::js::binding::fs`] and [`crate::js::binding::fs_async`] are the only
+//! callers, and they only translate values and errors.
 
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
@@ -23,9 +19,10 @@ use std::time::SystemTime;
 
 /// File metadata, as `fs.stat`/`fs.lstat` report it.
 ///
-/// `serde` matters: the async bindings ship this across the completion channel
-/// as `postcard` bytes, so the field order is a wire format. Append new fields,
-/// never reorder.
+/// `serde` matters: the async bindings used to ship this across the completion
+/// channel as `postcard` bytes. QuickJS resolves the promise in place instead,
+/// so nothing serialises it any more; the derives are kept because the struct
+/// is still the plain data carrier the bindings and tests share.
 #[derive(
   Debug,
   Copy,
@@ -36,7 +33,6 @@ use std::time::SystemTime;
   serde::Serialize,
   serde::Deserialize,
 )]
-#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 pub struct FsMetadata {
   #[builder(default = None)]
   pub accessed: Option<SystemTime>,
@@ -140,7 +136,6 @@ pub struct FsMetadata {
   serde::Serialize,
   serde::Deserialize,
 )]
-#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 pub struct FsDirEntry {
   #[builder(default = "".to_string())]
   pub name: String,
@@ -157,7 +152,6 @@ pub struct FsDirEntry {
 
 /// Options of `fs.open`/`fs.openSync`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, derive_builder::Builder)]
-#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 // See: <https://doc.rust-lang.org/std/fs/struct.OpenOptions.html>.
 pub struct FsOpenOptions {
   #[builder(default = false)]
@@ -181,7 +175,6 @@ pub struct FsOpenOptions {
 
 /// Options of `fs.mkdir`/`fs.mkdirSync`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, derive_builder::Builder)]
-#[cfg_attr(feature = "js-v8", derive(rsvim_macro::ToV8, rsvim_macro::FromV8))]
 pub struct FsMkdirOptions {
   #[builder(default = false)]
   pub recursive: bool,
@@ -212,28 +205,6 @@ pub enum FsSymlinkOptions {
 
   #[strum(serialize = "junction")]
   Junction,
-}
-
-#[cfg(feature = "js-v8")]
-impl crate::js::v8::converter::FromV8 for FsSymlinkOptions {
-  fn from_v8<'s>(
-    scope: &mut v8::PinScope<'s, '_>,
-    value: v8::Local<'s, v8::Value>,
-  ) -> Self {
-    use std::str::FromStr;
-    let result = value.to_string(scope).unwrap().to_rust_string_lossy(scope);
-    FsSymlinkOptions::from_str(&result).unwrap()
-  }
-}
-
-#[cfg(feature = "js-v8")]
-impl crate::js::v8::converter::ToV8 for FsSymlinkOptions {
-  fn to_v8<'s>(
-    &self,
-    scope: &mut v8::PinScope<'s, '_>,
-  ) -> v8::Local<'s, v8::Value> {
-    self.to_string().to_v8(scope)
-  }
 }
 
 /// `fs.close` body: dropping the entry closes the handle.

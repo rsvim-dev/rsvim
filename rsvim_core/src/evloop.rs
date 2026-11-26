@@ -4,6 +4,7 @@ pub mod ui;
 pub mod writer;
 
 use crate::buf::BufferArc;
+use crate::buf::BufferId;
 use crate::buf::BufferManager;
 use crate::buf::BufferManagerArc;
 use crate::cfg::path_cfg::PATH_CONFIG;
@@ -15,25 +16,13 @@ use crate::cmdltext::CmdlineText;
 use crate::cmdltext::CmdlineTextArc;
 use crate::hl::ColorSchemeManager;
 use crate::hl::ColorSchemeManagerArc;
-use crate::js::JsKernelRc;
+use crate::js::JsHost;
 use crate::js::JsRuntimeOptions;
-use crate::js::binding::fs::link::fs_link_a;
-use crate::js::binding::fs::mkdir::fs_mkdir_s;
-use crate::js::binding::fs::open::fs_open_a;
-use crate::js::binding::fs::read::fs_read_s;
-use crate::js::binding::fs::read_dir::fs_read_dir_next_s;
-use crate::js::binding::fs::read_dir::fs_read_dir_s;
-use crate::js::binding::fs::read_file::fs_read_file_a;
-use crate::js::binding::fs::read_text_file::fs_read_text_file_a;
-use crate::js::binding::fs::stat::fs_lstat_a;
-use crate::js::binding::fs::stat::fs_stat_a;
-use crate::js::binding::fs::symlink::fs_symlink_s;
-use crate::js::binding::fs::write::fs_write_s;
 use crate::js::command::CommandManager;
 use crate::js::command::CommandManagerArc;
-use crate::js::resource::Resource;
 use crate::js::resource::ResourceTable;
 use crate::js::resource::ResourceTableArc;
+use crate::js::timers::DueTimer;
 use crate::prelude::*;
 use crate::state::State;
 use crate::state::StateContext;
@@ -42,14 +31,12 @@ use crate::state::ops::cmdline_ops;
 use crate::syntax;
 use crate::syntax::SyntaxEdit;
 use crate::syntax::SyntaxEditNew;
-use crate::syntax::SyntaxLoadGrammarRequest;
 use crate::syntax::SyntaxManager;
 use crate::syntax::SyntaxManagerArc;
 use crate::ui::canvas::Canvas;
 use crate::ui::canvas::CanvasArc;
 use crate::ui::tree::*;
 use crate::ui::widget::WidgetContext;
-use compact_str::ToCompactString;
 use crossterm::event::Event;
 use crossterm::event::EventStream;
 use futures::Stream;
@@ -162,11 +149,13 @@ pub struct Rsvim {
   pub blocked_tracker: TaskTracker,
   pub exit_code: i32,
 
-  /// V8 isolate.
-  pub isolate: v8::OwnedIsolate,
-  /// The kernel of the js runtime, i.e. the state stored inside the v8
-  /// isolate's slot.
-  pub kernel: JsKernelRc,
+  /// The javascript host: the QuickJS runtime and everything around it.
+  ///
+  /// It is a synchronous object. Nothing in it makes progress on its own: the
+  /// loop feeds it the three things that can make javascript run -- an ex
+  /// command, the completion of an asynchronous operation, a due timer -- and
+  /// every one of them goes through [`JsHost::enter`]. See [`crate::js::host`].
+  pub js: JsHost,
 
   /// Channel-1
   pub master_tx: UnboundedSender<MasterMessage>,
@@ -174,14 +163,10 @@ pub struct Rsvim {
 
   /// Channel-2, the single javascript channel.
   ///
-  /// The sender is cloned into the FSM (`StateContext`) and into every
-  /// background task. The receiver is drained by `Rsvim::tick_event_loop` in
-  /// Phase A of `Rsvim::tick`, and by the `[A]` branch that ends Phase B --
-  /// every javascript advance starts from a completion.
-  ///
-  /// This used to be two channels with a forwarding hop in between. The hop
-  /// is gone, and the two channels are folded into this one: a completion
-  /// event is both the result and the trigger to advance the isolate.
+  /// The sender is cloned into the FSM (`StateContext`) and into the operation
+  /// table of the host, so it carries both an `:Ex` command from the editor and
+  /// the completion of every asynchronous operation a script started, in the
+  /// order they happened.
   pub jsrt_tx: UnboundedSender<JsMessage>,
   pub jsrt_rx: UnboundedReceiver<JsMessage>,
 
@@ -189,227 +174,145 @@ pub struct Rsvim {
   /// "redraw after every select iteration" behaviour, which turned a busy
   /// javascript loop into a full repaint per tick.
   pub dirty: bool,
-  /// Bounded backoff for [`v8::Isolate::has_pending_background_tasks`].
-  ///
-  /// "A v8 background task is still running" is a *waiting* state, not a
-  /// *runnable* one, so it must not drive the self-driving tick (see
-  /// `evloop-plan.md` §5.4(b)). But nothing else notifies us either, so the
-  /// loop would never re-check. This interval does exactly that: it is only
-  /// armed while that predicate is true, it doubles `1ms -> 2ms -> ... ->
-  /// 16ms`, and it is reset by any real progress.
-  pub js_backoff: std::time::Duration,
 }
 
-/// The self-assessment of a single javascript tick.
-///
-/// Only [`Rsvim::tick_event_loop`] interprets this, and only to decide whether
-/// to go around again: the whole point of running to quiescence in Phase A is
-/// that [`TickOutcome::MoreWork`] needs no budget, no retry, and no wake-up.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TickOutcome {
-  /// No javascript work can be advanced right now: the runtime is quiescent
-  /// as far as this tick can tell.
-  Idle,
-  /// Work that is ready *right now* is still queued (newly ready
-  /// [`crate::js::JsFuture`]s, newly arrived messages). Tick again, in the
-  /// same iteration -- there is nothing to wait for.
-  MoreWork,
+/// What [`Rsvim::tick_event_loop`] found ready.
+enum Ready {
+  /// A request javascript made to the editor.
+  Master(MasterMessage),
+  /// An ex command, or the completion of an asynchronous operation.
+  Js(JsMessage),
+  /// A timer that came due.
+  Timer(DueTimer),
 }
+
+/// At most this many events are handled before the loop goes back to waiting
+/// on terminal input.
+///
+/// The limit is not about javascript -- a run of microtasks is never cut -- but
+/// about the *loop*: a source that keeps producing events (a 1ms interval whose
+/// callback takes longer than 1ms) must not starve the terminal. What is left
+/// over is not lost: it stays in the channels and the timer table, which wake
+/// the next wait immediately, so nothing can be stranded.
+const SETTLE_MAX_EVENTS: usize = 256;
+
+/// ... and at most this long.
+const SETTLE_BUDGET: std::time::Duration = std::time::Duration::from_millis(8);
+
+/// How many terminal events are taken in one go, so that a burst of keys (a
+/// paste arrives as one) is applied before the screen is repainted once.
+const INPUT_BATCH: usize = 64;
 
 impl Rsvim {
-  /// Advances the javascript event loop by a single tick.
+  /// Runs every javascript-side event that is ready *right now*, without
+  /// waiting, and reports whether it ran any.
   ///
-  /// The order strictly follows Dune (`dune/src/runtime.rs:427-432`):
-  ///   1. microtask checkpoint
-  ///   2. consume the completion events, each followed by
-  ///      checkpoint + flush errors + the [`crate::js::JsFuture`]s it just made ready
-  ///   3. run whatever [`crate::js::JsFuture`] was pending before the tick started
-  ///   4. flush the exceptions captured outside the two loops above
-  ///   5. decide whether there's more work that can be advanced immediately
+  /// Three sources can make javascript run, and they are polled in this order:
   ///
-  /// Fixes P0-1: step 2 and step 3 flush the errors after **each** item,
-  /// instead of only calling `check_exceptions` for `JsFuture`s like the old
-  /// `run_pending_futures` did.
+  /// 1. requests javascript made to the editor (`MasterMessage`);
+  /// 2. ex commands and finished operations (`JsMessage`);
+  /// 3. timers that are due.
   ///
-  /// The `inbox` is owned by the caller: the select branches drain `jsrt_rx`
-  /// and pass the messages in, so that this function never touches the
-  /// receiver (which would be a double borrow of `self` while `isolate` is
-  /// borrowed by the scope).
-  pub fn tick_js(&mut self, inbox: Vec<JsMessage>) -> TickOutcome {
-    // Split the borrow: `isolate` and `kernel` are two disjoint fields, this
-    // is the keystone of the whole merged design.
-    let Self {
-      ref mut isolate,
-      ref kernel,
-      ..
-    } = *self;
-    let context = kernel.borrow().context.clone();
-
+  /// Running one may produce more (a command arms a timer, a completion queues
+  /// an ex command), so the loop goes around until a pass finds nothing, the
+  /// editor is asked to quit, or the budget is spent -- see
+  /// `SETTLE_MAX_EVENTS`.
+  ///
+  /// This is what makes an event that was queued *before* the loop started
+  /// (the config script asked to quit, or issued a write) get served before the
+  /// loop looks at terminal input at all.
+  pub fn tick_event_loop(&mut self) -> bool {
+    let started = std::time::Instant::now();
     let mut worked = false;
 
-    let more = {
-      v8::scope_with_context!(scope, isolate, context);
+    for _ in 0..SETTLE_MAX_EVENTS {
+      let Some(ready) = self.pop_ready() else {
+        break;
+      };
+      worked = true;
+      self.apply(ready);
 
-      // 1) microtask checkpoint
-      Self::checkpoint(scope);
-
-      // 2) consume the completion events, running the `JsFuture`s each one
-      // produces **before** the next event is observed.
-      //
-      // NOTE: the whole inbox is drained up-front (`Rsvim::drain_js_inbox`)
-      // because the event loop owns whatever already landed in the channel.
-      // But a completion event's *consequences* must be applied before the
-      // next event is looked at, otherwise the callbacks observe an ordering
-      // that cannot happen in Node. Concrete case: `setInterval(3ms)` plus
-      // `setTimeout(20ms, () => clearInterval(id))`; when both `TimeoutResp`s
-      // are in the same inbox, running all the messages first and the futures
-      // afterwards makes the interval callback fire *after* the `clearInterval`
-      // that was supposed to cancel it, so an extra tick shows up on the
-      // command line.
-      for msg in inbox {
-        crate::js::process_js_message(kernel, scope, msg);
-        Self::flush_js_errors(kernel, scope);
-        Self::checkpoint(scope);
-        Self::run_ready_futures(kernel, scope);
-        worked = true;
+      if self.cancellation_token.is_cancelled()
+        || started.elapsed() >= SETTLE_BUDGET
+      {
+        break;
       }
+    }
 
-      // 3) the futures that were already pending when the tick started.
-      //
-      // This is a no-op when the inbox was non-empty (step 2 already ran
-      // them) and the actual work when it was empty. It keeps the old
-      // `run_pending_futures` behaviour for the "no message, only futures"
-      // case.
-      worked |= Self::run_ready_futures(kernel, scope);
+    worked
+  }
 
-      // 4) report whatever was captured by the js engine outside of the two
-      // loops above -- typically a rejection raised while evaluating a module
-      // (`execute_module`), which has no message and no future to hang the
-      // flush on. `check_exceptions` takes the captured vector, so this is
-      // idempotent: a second tick reports nothing.
-      Self::flush_js_errors(kernel, scope);
+  /// Takes the next event that needs no waiting.
+  fn pop_ready(&mut self) -> Option<Ready> {
+    if let Ok(request) = self.master_rx.try_recv() {
+      return Some(Ready::Master(request));
+    }
+    if let Ok(message) = self.jsrt_rx.try_recv() {
+      return Some(Ready::Js(message));
+    }
+    self.js.pop_due_timer().map(Ready::Timer)
+  }
 
-      // 5) work that can be advanced immediately (**excluding**
-      // `has_pending_background_tasks`, see §5.4)
-      Self::has_runnable_js_work(kernel)
-    };
+  /// Handles one event, and notes whether the editor may have changed.
+  fn apply(&mut self, ready: Ready) {
+    match ready {
+      Ready::Master(request) => {
+        self.process_master_message(request);
+        // A handled request may have changed `exit_code`, or dispatched a
+        // background task whose completion redraws later. Marking dirty is the
+        // cheap conservative choice: `render_if_dirty` gates it.
+        self.dirty = true;
+      }
+      Ready::Js(message) => self.process_js_message(message),
+      Ready::Timer(timer) => self.js.run_timer(timer),
+    }
 
-    // A tick that executed javascript may have touched the editor -- a
-    // `cmd.echo`, an option, a buffer. A tick that executed nothing cannot
-    // have, so it must not buy itself a full repaint: that is exactly the
-    // "busy javascript loop turns into a repaint per tick" problem the dirty
-    // flag exists to solve.
-    if worked {
+    // Every way into javascript went through `JsHost::enter`, which marks the
+    // host dirty: javascript may have changed anything.
+    if self.js.take_dirty() {
       self.dirty = true;
     }
-
-    if more {
-      TickOutcome::MoreWork
-    } else {
-      TickOutcome::Idle
-    }
   }
 
-  fn checkpoint(scope: &mut v8::PinScope) {
-    crate::js::checkpoint(scope);
-  }
-
-  /// Turns the "captured exceptions" into "reported exceptions".
-  ///
-  /// Fixes P0-1: `check_exceptions` used to `mem::take` the whole
-  /// `promise_rejections` vector but then `return Some(error)` from every
-  /// branch, so N rejections only reported the first one. It now returns a
-  /// `Vec<JsError>` and we report all of them.
-  fn flush_js_errors(kernel: &JsKernelRc, scope: &mut v8::PinScope) {
-    for err in crate::js::check_exceptions(scope) {
-      let state = kernel.borrow();
-      crate::js::err::report_js_error(&state, TheErr::JsError(Box::new(err)));
-    }
-  }
-
-  /// Runs the [`crate::js::JsFuture`]s that are ready *right now*, once.
-  ///
-  /// `mem::take` first, so the borrow on `kernel` is released before the
-  /// futures run and they are free to push new ones (which then land in the
-  /// *next* tick, matching the old `run_pending_futures`).
-  /// Runs every `JsFuture` that was pending when the tick reached this point.
-  ///
-  /// Returns whether anything actually ran: `tick_js` uses that to decide if
-  /// the terminal has to be repainted, so an idle tick must not repaint.
-  ///
-  /// NOTE: `mem::take` releases the borrow before the futures run, so a
-  /// future that pushes a new `JsFuture` into `pending_futures` lands in the
-  /// *next* tick. That matches the old `run_pending_futures` behaviour.
-  fn run_ready_futures(kernel: &JsKernelRc, scope: &mut v8::PinScope) -> bool {
-    let futures: Vec<Box<dyn crate::js::JsFuture>> =
-      std::mem::take(&mut kernel.borrow_mut().pending_futures);
-    let ran = !futures.is_empty();
-    for mut fut in futures {
-      fut.run(scope);
-      Self::flush_js_errors(kernel, scope);
-      Self::checkpoint(scope);
-    }
-    ran
-  }
-
-  /// The work that is ready *right now*.
-  ///
-  /// This is **not** the same thing as "is there pending work" (which is what
-  /// keeps the runtime alive).
-  ///
-  /// NOTE: this deliberately only looks at `pending_futures` and ignores
-  /// `pending_tasks`. `pending_futures` is a Dune-style "ready completion
-  /// queue" (see the `JsFuture` trait: `fn run(&mut self, scope)` -- no
-  /// poll/Waker), so a non-empty queue means "it can run now". `pending_tasks`
-  /// on the other hand holds the waiters of tasks that were already dispatched
-  /// but whose result hasn't come back: non-empty only means "there's work in
-  /// flight", not "it can be advanced now". Counting it as runnable is the
-  /// same class of bug as P0-1 (mistaking *waiting* for *runnable*).
-  fn has_runnable_js_work(kernel: &JsKernelRc) -> bool {
-    !kernel.borrow().pending_futures.is_empty()
-  }
-
-  /// Advances the javascript side until it has nothing left that can be
-  /// advanced right now, and reports whether it did anything at all.
-  ///
-  /// This is the synchronous half of `Rsvim::tick`'s Phase A, and it is also
-  /// what `_init_config` calls before the loop exists: at that point there is
-  /// no runtime to yield to, and no timers in flight, so a plain loop is
-  /// exact.
-  ///
-  /// Returning `bool` instead of [`TickOutcome`] is deliberate: the caller only
-  /// needs "did the world move". `TickOutcome` stays internal to a single
-  /// [`Rsvim::tick_js`] call, whose `MoreWork` is already folded into the loop
-  /// below.
-  pub fn tick_event_loop(&mut self) -> bool {
-    let mut did_work = false;
-    loop {
-      let inbox = self.drain_js_inbox(None);
-      // NOTE: don't write `self.tick_js(self.drain_js_inbox(None))` -- both
-      // take `&mut self`, nesting them is E0499. Drain first, then tick.
-      let had_inbox = !inbox.is_empty();
-      let outcome = self.tick_js(inbox);
-      // `had_inbox` matters: a round that consumes messages and then reports
-      // `Idle` still moved the world -- those messages may have queued new io
-      // requests on `master_rx`.
-      did_work |= had_inbox;
-      if outcome == TickOutcome::Idle {
-        return did_work;
+  /// Runs one message that was queued for javascript.
+  fn process_js_message(&mut self, message: JsMessage) {
+    match message {
+      JsMessage::ExCommandReq(req) => {
+        trace!("Recv ExCommandReq:{:?}", req.payload);
+        let manager = self.editor.command_manager.clone();
+        let parsed = {
+          let manager = lock!(manager);
+          manager.parse(&req)
+        };
+        match parsed {
+          Some(command) => {
+            if let Some(err) = command.run(&mut self.js) {
+              crate::js::err::report_js_error(
+                &self.editor,
+                TheErr::JsError(Box::new(err)),
+              );
+            }
+          }
+          None => {
+            crate::js::err::report_js_error(
+              &self.editor,
+              TheErr::CommandNotFound(req.payload.clone()),
+            );
+          }
+        }
       }
-      did_work = true;
+      JsMessage::OpDone(completion) => self.js.complete(completion),
     }
   }
 
   /// Executes javascript source code as ES module, i.e. ECMA standard.
   pub fn execute_module(&mut self, filename: &str, source: Option<&str>) {
-    let Self {
-      ref mut isolate,
-      ref kernel,
-      ..
-    } = *self;
-    let context = kernel.borrow().context.clone();
-    v8::scope_with_context!(scope, isolate, context);
-    crate::js::execute_module(scope, filename, source);
+    if let Err(e) = self.js.execute_module(filename, source) {
+      crate::js::err::report_js_error(&self.editor, e);
+    }
+    if self.js.take_dirty() {
+      self.dirty = true;
+    }
   }
 }
 
@@ -585,11 +488,14 @@ impl Rsvim {
     let writer = StdoutWriterValue::editor();
 
     // Js Runtime
-    let (isolate, kernel) = crate::js::new_isolate(
+    let js = JsHost::new(
       JsRuntimeOptions::default(),
       master_tx.clone(),
+      jsrt_tx.clone(),
       editor.clone(),
-    );
+      blocked_tracker.clone(),
+      detached_tracker.clone(),
+    )?;
 
     Ok(Rsvim {
       startup_moment,
@@ -602,14 +508,12 @@ impl Rsvim {
       detached_tracker,
       blocked_tracker,
       exit_code,
-      isolate,
-      kernel,
+      js,
       master_tx,
       master_rx,
       jsrt_tx,
       jsrt_rx,
       dirty: false,
-      js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
 
@@ -643,11 +547,14 @@ impl Rsvim {
     let writer = StdoutWriterValue::dev_null();
 
     // Js Runtime
-    let (isolate, kernel) = crate::js::new_isolate(
+    let js = JsHost::new(
       JsRuntimeOptions::default(),
       master_tx.clone(),
+      jsrt_tx.clone(),
       editor.clone(),
-    );
+      blocked_tracker.clone(),
+      detached_tracker.clone(),
+    )?;
 
     Ok(Rsvim {
       startup_moment,
@@ -660,14 +567,12 @@ impl Rsvim {
       detached_tracker,
       blocked_tracker,
       exit_code,
-      isolate,
-      kernel,
+      js,
       master_tx,
       master_rx,
       jsrt_tx,
       jsrt_rx,
       dirty: false,
-      js_backoff: Self::JS_BACKOFF_MIN,
     })
   }
 
@@ -697,10 +602,12 @@ impl Rsvim {
   /// Initialize user config file.
   fn _init_config(&mut self) -> IoResult<()> {
     if let Some(config_entry) = PATH_CONFIG.config_entry() {
+      // QuickJS resolves the whole import graph inside `Module::evaluate`, and
+      // `JsHost::enter` drains the microtask queue, so there is nothing left to
+      // "tick" here. What the config queued (an ex command, a request to quit,
+      // a write) is served by the first iteration of the loop, before it looks
+      // at any terminal input.
       self.execute_module(&config_entry.to_string_lossy(), None);
-
-      // Extra tick for some pending imports.
-      self.tick_event_loop();
     }
     Ok(())
   }
@@ -830,10 +737,16 @@ impl Rsvim {
     Ok(())
   }
 
-  fn process_event(&mut self, event: Option<IoResult<Event>>) {
+  /// Handles one terminal event, and reports whether it may have changed the
+  /// editor, i.e. whether the screen needs repainting.
+  pub(crate) fn process_event(
+    &mut self,
+    event: Option<IoResult<Event>>,
+  ) -> bool {
     match event {
       Some(Ok(event)) => {
         trace!("Polled terminal event ok: {:?}", event);
+        let may_change = event_may_change_state(&event);
         let context = StateContext::new(
           self.editor.tree.clone(),
           self.editor.buffer_manager.clone(),
@@ -846,14 +759,17 @@ impl Rsvim {
         let stateful = self.state;
         let next_stateful = stateful.handle(&context, event);
         self.state = next_stateful;
+        may_change
       }
       Some(Err(e)) => {
         error!("Polled terminal event error: {:?}", e);
         // self.cancellation_token.cancel();
+        false
       }
       None => {
         error!("Terminal event stream is exhausted");
         // self.cancellation_token.cancel();
+        false
       }
     }
   }
@@ -862,7 +778,7 @@ impl Rsvim {
   fn _process_mocked_operations(
     &mut self,
     op: Option<IoResult<MockOperation>>,
-  ) {
+  ) -> bool {
     match op {
       Some(Ok(op)) => {
         trace!("Polled editor operation ok: {:?}", op);
@@ -886,514 +802,127 @@ impl Rsvim {
           }
           _ => unreachable!(),
         }
+        true
       }
       Some(Err(e)) => {
         error!("Polled terminal event error: {:?}", e);
         // self.cancellation_token.cancel();
+        false
       }
       None => {
         error!("Terminal event stream is exhausted");
         // self.cancellation_token.cancel();
+        false
       }
     }
   }
 
   fn process_master_message(&mut self, message: MasterMessage) {
-    {
-      match message {
-        MasterMessage::ExitReq(req) => {
-          trace!("Recv ExitReq:{:?}", req.exit_code);
-          self.exit_code = req.exit_code;
-          self.cancellation_token.cancel();
-        }
-        MasterMessage::TimeoutReq(req) => {
-          trace!("Recv TimeoutReq:{:?}", req.timer_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let expire_at = req.start_at
-              + tokio::time::Duration::from_millis(req.delay as u64);
-            tokio::time::sleep_until(expire_at).await;
-            let _ = jsrt_tx.send(JsMessage::TimeoutResp(chan::TimeoutResp {
-              timer_id: req.timer_id,
-              expire_at,
-              delay: req.delay,
-              repeated: req.repeated,
-            }));
-          });
-        }
-        MasterMessage::FsOpenReq(req) => {
-          trace!("Recv FsOpenReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          let resource_table = self.editor.resource_table.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result =
-              fs_open_a(resource_table, req.path.as_path(), req.options).await;
-            let _ = jsrt_tx.send(JsMessage::FsOpenResp(chan::FsOpenResp {
-              task_id: req.task_id,
-              maybe_result: match maybe_result {
-                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
-                Err(e) => Some(Err(e)),
-              },
-            }));
-          });
-        }
-        MasterMessage::FsReadReq(req) => {
-          trace!("Recv FsReadReq:{:?}", req.task_id);
-          let resource_table = self.editor.resource_table.clone();
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result =
-              fs_read_s(resource_table, req.file_rid, req.bufsize);
-            let _ = jsrt_tx.send(JsMessage::FsReadResp(chan::FsReadResp {
-              task_id: req.task_id,
-              maybe_result: Some(maybe_result),
-            }));
-          });
-        }
-        MasterMessage::FsWriteReq(req) => {
-          trace!("Recv FsWriteReq:{:?}", req.task_id);
-          let resource_table = self.editor.resource_table.clone();
-          let jsrt_tx = self.jsrt_tx.clone();
-          // A write is not abortable: the bytes are already promised to the
-          // user. Run it on `blocked_tracker`, which `close_trackers` waits
-          // for on every exit path, so quitting right after
-          // `await file.write(buf)` cannot silently drop the tail of the file.
-          self.blocked_tracker.spawn_blocking(move || {
-            let maybe_result =
-              fs_write_s(resource_table, req.file_rid, req.buf);
-            let _ = jsrt_tx.send(JsMessage::FsWriteResp(chan::FsWriteResp {
-              task_id: req.task_id,
-              maybe_result: match maybe_result {
-                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
-                Err(e) => Some(Err(e)),
-              },
-            }));
-          });
-        }
-        MasterMessage::FsReadDirReq(req) => {
-          trace!("Recv FsReadDirReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          let resource_table = self.editor.resource_table.clone();
-          self.detached_tracker.spawn_blocking(move || {
-            let maybe_result =
-              fs_read_dir_s(resource_table, req.path.as_path());
-            let _ =
-              jsrt_tx.send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
-              }));
-          });
-        }
-        MasterMessage::FsReadDirNextReq(req) => {
-          trace!("Recv FsReadDirNextReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          let resource_table = self.editor.resource_table.clone();
-          self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_read_dir_next_s(resource_table, req.rid);
-            let _ =
-              jsrt_tx.send(JsMessage::FsReadDirResp(chan::FsReadDirResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Some(Ok(result)) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Some(Err(e)) => Some(Err(e)),
-                  None => None,
-                },
-              }));
-          });
-        }
-        MasterMessage::FsReadFileReq(req) => {
-          trace!("Recv FsReadFileReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result = fs_read_file_a(req.path.as_path()).await;
-            let _ =
-              jsrt_tx.send(JsMessage::FsReadFileResp(chan::FsReadFileResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => Some(Ok(result)),
-                  Err(e) => Some(Err(e)),
-                },
-              }));
-          });
-        }
-        MasterMessage::FsReadTextFileReq(req) => {
-          trace!("Recv FsReadTextFileReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result = fs_read_text_file_a(req.path.as_path()).await;
-            let _ = jsrt_tx.send(JsMessage::FsReadTextFileResp(
-              chan::FsReadTextFileResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(result) => {
-                    Some(Ok(postcard::to_allocvec(&result).unwrap()))
-                  }
-                  Err(e) => Some(Err(e)),
-                },
-              },
-            ));
-          });
-        }
-        MasterMessage::FsStatReq(req) => {
-          trace!("Recv FsStatReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result = if req.follow_symlink {
-              fs_stat_a(req.path.as_path()).await
-            } else {
-              fs_lstat_a(req.path.as_path()).await
-            };
-            let _ = jsrt_tx.send(JsMessage::FsStatResp(chan::FsStatResp {
-              task_id: req.task_id,
-              maybe_result: match maybe_result {
-                Ok(result) => Some(Ok(postcard::to_allocvec(&result).unwrap())),
-                Err(e) => Some(Err(e)),
-              },
-            }));
-          });
-        }
-        MasterMessage::FsSymlinkReq(req) => {
-          trace!("Recv FsSymlinkReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_symlink_s(
-              req.oldpath.as_path(),
-              req.newpath.as_path(),
-              req.options,
-            );
-            let _ =
-              jsrt_tx.send(JsMessage::FsSymlinkResp(chan::FsSymlinkResp {
-                task_id: req.task_id,
-                maybe_result: match maybe_result {
-                  Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
-                  Err(e) => Some(Err(e)),
-                },
-              }));
-          });
-        }
-        MasterMessage::FsLinkReq(req) => {
-          trace!("Recv FsLinkReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn(async move {
-            let maybe_result =
-              fs_link_a(req.oldpath.as_path(), req.newpath.as_path()).await;
-            let _ = jsrt_tx.send(JsMessage::FsLinkResp(chan::FsLinkResp {
-              task_id: req.task_id,
-              maybe_result: match maybe_result {
-                Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
-                Err(e) => Some(Err(e)),
-              },
-            }));
-          });
-        }
-        MasterMessage::FsMkdirReq(req) => {
-          trace!("Recv FsMkdirReq:{:?}", req.task_id);
-          let jsrt_tx = self.jsrt_tx.clone();
-          self.detached_tracker.spawn_blocking(move || {
-            let maybe_result = fs_mkdir_s(req.path.as_path(), req.options);
-            let _ = jsrt_tx.send(JsMessage::FsMkdirResp(chan::FsMkdirResp {
-              task_id: req.task_id,
-              maybe_result: match maybe_result {
-                Ok(_) => Some(Ok(postcard::to_allocvec(&0_u32).unwrap())),
-                Err(e) => Some(Err(e)),
-              },
-            }));
-          });
-        }
-        MasterMessage::SyntaxEditReq(req) => {
-          trace!("Recv SyntaxEditReq:{:?}", req.buffer_id);
-          if let Some(buf) =
-            lock!(self.editor.buffer_manager).get(&req.buffer_id)
-          {
-            let mut buf = lock!(buf);
+    match message {
+      MasterMessage::ExitReq(req) => {
+        trace!("Recv ExitReq:{:?}", req.exit_code);
+        self.exit_code = req.exit_code;
+        self.cancellation_token.cancel();
+      }
+      MasterMessage::SyntaxEditReq(req) => {
+        self.process_syntax_edit_request(req.buffer_id);
+      }
+      MasterMessage::SyntaxEditResp(resp) => {
+        trace!("Recv SyntaxEditResp:{:?}", resp.buffer_id);
+      }
+    }
+  }
 
-            // Early quit if any below conditions are met:
-            // 1. Has no syntax
-            // 2. Syntax is parsing
-            // 3. Syntax has no pending edits
-            let has_no_syntax = buf.syntax().is_none();
-            let syntax_is_parsing = buf
-              .syntax()
-              .as_ref()
-              .map(|s| s.is_parsing())
-              .unwrap_or(false);
-            let syntax_has_pending_edits = buf
-              .syntax()
-              .as_ref()
-              .map(|s| !s.pending_edits_is_empty())
-              .unwrap_or(false);
-            if has_no_syntax || syntax_is_parsing || !syntax_has_pending_edits {
-              return;
-            }
+  /// Parses and queries the syntax of `buffer_id`, then reports back.
+  ///
+  /// Split out of [`Rsvim::process_master_message`] so the three remaining
+  /// master messages (quit, this, and its completion) read as three lines.
+  fn process_syntax_edit_request(&mut self, buffer_id: BufferId) {
+    if let Some(buf) = lock!(self.editor.buffer_manager).get(&buffer_id) {
+      let mut buf = lock!(buf);
 
-            let (pending_edits, syn_id, ts_parser, ts_tree, ts_highlight_query) = {
-              let syn = buf.syntax_mut().as_mut().unwrap();
-              syn.set_is_parsing(true);
-              let syn_id = syn.id();
-              let pending_edits = syn.drain_pending_edits(..).collect_vec();
-              let ts_parser = syn.treesitter_parser();
-              let ts_tree = syn.treesitter_tree().clone();
-              let ts_highlight_query = syn.treesitter_highlight_query();
-              (
-                pending_edits,
-                syn_id,
-                ts_parser,
-                ts_tree,
-                ts_highlight_query,
-              )
-            };
+      // Early quit if any below conditions are met:
+      // 1. Has no syntax
+      // 2. Syntax is parsing
+      // 3. Syntax has no pending edits
+      let has_no_syntax = buf.syntax().is_none();
+      let syntax_is_parsing = buf
+        .syntax()
+        .as_ref()
+        .map(|s| s.is_parsing())
+        .unwrap_or(false);
+      let syntax_has_pending_edits = buf
+        .syntax()
+        .as_ref()
+        .map(|s| !s.pending_edits_is_empty())
+        .unwrap_or(false);
+      if has_no_syntax || syntax_is_parsing || !syntax_has_pending_edits {
+        return;
+      }
 
-            // release lock on the buffer
-            drop(buf);
+      let (pending_edits, syn_id, ts_parser, ts_tree, ts_highlight_query) = {
+        let syn = buf.syntax_mut().as_mut().unwrap();
+        syn.set_is_parsing(true);
+        let syn_id = syn.id();
+        let pending_edits = syn.drain_pending_edits(..).collect_vec();
+        let ts_parser = syn.treesitter_parser();
+        let ts_tree = syn.treesitter_tree().clone();
+        let ts_highlight_query = syn.treesitter_highlight_query();
+        (
+          pending_edits,
+          syn_id,
+          ts_parser,
+          ts_tree,
+          ts_highlight_query,
+        )
+      };
 
-            let buffer_manager = self.editor.buffer_manager.clone();
-            let master_tx = self.master_tx.clone();
+      // release lock on the buffer
+      drop(buf);
 
-            self.detached_tracker.spawn_blocking(move || {
-              let (parsed_tree, parsed_editing_version, highlight_capture) =
-                syntax::parse_and_query(
-                  ts_parser,
-                  ts_tree,
-                  ts_highlight_query,
-                  pending_edits,
-                );
+      let buffer_manager = self.editor.buffer_manager.clone();
+      let master_tx = self.master_tx.clone();
 
-              // If the buffer and its syntax remains the same
-              if let Some(buf) = lock!(buffer_manager).get(&req.buffer_id) {
-                let mut buf = lock!(buf);
-                if let Some(syn) = buf.syntax_mut() {
-                  if syn.id() == syn_id {
-                    syn.set_treesitter_tree(parsed_tree);
-                    syn.set_editing_version(parsed_editing_version);
-                    syn.set_highlight_capture(highlight_capture);
-                    syn.set_is_parsing(false);
-                  }
-
-                  // If buffer already has more pending editings, trigger next
-                  // parsing immediately.
-                  if !syn.pending_edits_is_empty() {
-                    chan::send_to_master(
-                      master_tx.clone(),
-                      MasterMessage::SyntaxEditReq(chan::SyntaxEditReq {
-                        buffer_id: buf.id(),
-                      }),
-                    );
-                  }
-                }
-                // Notify syntax parsing/query is completed
-                chan::send_to_master(
-                  master_tx,
-                  MasterMessage::SyntaxEditResp(chan::SyntaxEditResp {
-                    buffer_id: buf.id(),
-                  }),
-                );
-              }
-            });
-          }
-        }
-        MasterMessage::SyntaxEditResp(resp) => {
-          trace!("Recv SyntaxEditResp:{:?}", resp.buffer_id);
-        }
-        MasterMessage::LoadTreeSitterParserReq(req) => {
-          trace!("Recv LoadTreeSitterGrammarReq:{:?}", req.task_id);
-          let syn_manager = self.editor.syntax_manager.clone();
-          let jsrt_tx = self.jsrt_tx.clone();
-
-          self.detached_tracker.spawn(async move {
-            match req.grammar_path.absolutize() {
-              Ok(grammar_path) => {
-                let load_req = SyntaxLoadGrammarRequest {
-                  grammar_path: grammar_path.to_path_buf(),
-                };
-                let load_result =
-                  syntax::async_load_syntax_grammar(syn_manager, &load_req)
-                    .await;
-                match load_result {
-                  Ok(metainfo) => {
-                    let grammar_names = metainfo
-                      .grammars
-                      .iter()
-                      .map(|grammar| grammar.name.to_string())
-                      .collect_vec();
-                    trace!("Load tree-sitter grammars:{:?}", grammar_names);
-                    let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
-                      chan::LoadTreeSitterParserResp {
-                        task_id: req.task_id,
-                        maybe_result: Some(Ok(
-                          postcard::to_allocvec(&grammar_names).unwrap(),
-                        )),
-                      },
-                    ));
-                  }
-                  Err(e) => {
-                    let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
-                      chan::LoadTreeSitterParserResp {
-                        task_id: req.task_id,
-                        maybe_result: Some(Err(e)),
-                      },
-                    ));
-                  }
-                }
-              }
-              Err(_e) => {
-                let e = TheErr::TreeSitterParserNotFound(
-                  req.grammar_path.to_string_lossy().to_compact_string(),
-                );
-                let _ = jsrt_tx.send(JsMessage::LoadTreeSitterParserResp(
-                  chan::LoadTreeSitterParserResp {
-                    task_id: req.task_id,
-                    maybe_result: Some(Err(e)),
-                  },
-                ));
-              }
-            }
-          });
-        }
-        MasterMessage::ReadTextFromChildProcessStdioReq(req) => {
-          trace!(
-            "Recv ReadTextFromChildProcessStdioReq:{:?} rid:{}",
-            req.task_id, req.rid
+      self.detached_tracker.spawn_blocking(move || {
+        let (parsed_tree, parsed_editing_version, highlight_capture) =
+          syntax::parse_and_query(
+            ts_parser,
+            ts_tree,
+            ts_highlight_query,
+            pending_edits,
           );
 
-          let resource_table = self.editor.resource_table.clone();
-          let jsrt_tx = self.jsrt_tx.clone();
-
-          self.detached_tracker.spawn_blocking(move || {
-            let handle_read = |result, payload| match result {
-              Ok(_n) => jsrt_tx
-                .send(JsMessage::ReadTextFromChildProcessStdioResp(
-                  chan::ReadTextFromChildProcessStdioResp {
-                    task_id: req.task_id,
-                    maybe_result: Some(Ok(
-                      postcard::to_allocvec(&payload).unwrap(),
-                    )),
-                  },
-                ))
-                .unwrap(),
-              Err(e) => jsrt_tx
-                .send(JsMessage::ReadTextFromChildProcessStdioResp(
-                  chan::ReadTextFromChildProcessStdioResp {
-                    task_id: req.task_id,
-                    maybe_result: Some(Err(
-                      TheErr::ReadChildProcessStdioFailed(req.rid, e),
-                    )),
-                  },
-                ))
-                .unwrap(),
-            };
-
-            let child_stdio = lock!(resource_table).get(&req.rid).cloned();
-            match child_stdio {
-              Some(child_stdio) => match child_stdio {
-                Resource::ChildProcessStdout(resource) => {
-                  use std::io::Read;
-                  let resource = resource.data();
-                  let mut resource = lock!(resource);
-                  let mut payload = String::new();
-                  let result = resource.read_to_string(&mut payload);
-                  handle_read(result, payload)
-                }
-                Resource::ChildProcessStderr(resource) => {
-                  use std::io::Read;
-                  let resource = resource.data();
-                  let mut resource = lock!(resource);
-                  let mut payload = String::new();
-                  let result = resource.read_to_string(&mut payload);
-                  handle_read(result, payload)
-                }
-                _ => unreachable!(),
-              },
-              None => {
-                // Child process (stdio) not found
-                let _ =
-                  jsrt_tx.send(JsMessage::ReadTextFromChildProcessStdioResp(
-                    chan::ReadTextFromChildProcessStdioResp {
-                      task_id: req.task_id,
-                      maybe_result: Some(Err(TheErr::ChildProcessNotFound(
-                        req.rid,
-                      ))),
-                    },
-                  ));
-              }
+        // If the buffer and its syntax remains the same
+        if let Some(buf) = lock!(buffer_manager).get(&buffer_id) {
+          let mut buf = lock!(buf);
+          if let Some(syn) = buf.syntax_mut() {
+            if syn.id() == syn_id {
+              syn.set_treesitter_tree(parsed_tree);
+              syn.set_editing_version(parsed_editing_version);
+              syn.set_highlight_capture(highlight_capture);
+              syn.set_is_parsing(false);
             }
-          });
-        }
-        MasterMessage::WaitChildProcessReq(req) => {
-          trace!("Recv WaitChildProcessReq:{:?} rid:{}", req.task_id, req.rid);
 
-          let resource_table = self.editor.resource_table.clone();
-          let jsrt_tx = self.jsrt_tx.clone();
-
-          self.detached_tracker.spawn_blocking(move || {
-            let child = lock!(resource_table).get(&req.rid).cloned();
-            match child {
-              Some(child) => match child {
-                Resource::ChildProcess(resource) => {
-                  let resource = resource.data();
-                  let mut resource = lock!(resource);
-                  match resource.wait() {
-                    Ok(exit_status) => {
-                      let success = exit_status.success();
-                      let exit_code = exit_status.code();
-                      let signal: Option<i32> = {
-                        #[cfg(target_family = "unix")]
-                        {
-                          use std::os::unix::process::ExitStatusExt;
-                          exit_status.signal()
-                        }
-                        #[cfg(not(target_family = "unix"))]
-                        {
-                          None
-                        }
-                      };
-                      let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
-                        chan::WaitChildProcessResp {
-                          task_id: req.task_id,
-                          maybe_result: Some(Ok(
-                            postcard::to_allocvec(&(
-                              success, exit_code, signal,
-                            ))
-                            .unwrap(),
-                          )),
-                        },
-                      ));
-                    }
-                    Err(e) => {
-                      let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
-                        chan::WaitChildProcessResp {
-                          task_id: req.task_id,
-                          maybe_result: Some(Err(
-                            TheErr::WaitChildProcessFailed(req.rid, e),
-                          )),
-                        },
-                      ));
-                    }
-                  }
-                }
-                _ => unreachable!(),
-              },
-              None => {
-                // Child process not found
-                let _ = jsrt_tx.send(JsMessage::WaitChildProcessResp(
-                  chan::WaitChildProcessResp {
-                    task_id: req.task_id,
-                    maybe_result: Some(Err(TheErr::ChildProcessNotFound(
-                      req.rid,
-                    ))),
-                  },
-                ));
-              }
+            // If buffer already has more pending editings, trigger next
+            // parsing immediately.
+            if !syn.pending_edits_is_empty() {
+              chan::send_to_master(
+                master_tx.clone(),
+                MasterMessage::SyntaxEditReq(chan::SyntaxEditReq {
+                  buffer_id: buf.id(),
+                }),
+              );
             }
-          });
+          }
+          // Notify syntax parsing/query is completed
+          chan::send_to_master(
+            master_tx,
+            MasterMessage::SyntaxEditResp(chan::SyntaxEditResp {
+              buffer_id: buf.id(),
+            }),
+          );
         }
-      }
+      });
     }
   }
 
@@ -1417,148 +946,6 @@ impl Rsvim {
     self.detached_tracker.close();
     self.blocked_tracker.close();
     self.blocked_tracker.wait().await;
-  }
-
-  /// Reports what the js side was still holding when the loop ended, then
-  /// lets it all be dropped.
-  ///
-  /// Three things happen here, and only these three:
-  ///
-  /// 1. A last [`Rsvim::flush_js_errors`]. A rejection raised while a module is
-  ///    being evaluated never gets a tick to be flushed in, so without this it
-  ///    would vanish without a word.
-  /// 2. A one-shot diagnostic when a module is still sitting on a top-level
-  ///    `await`. Pending timers and pending [`crate::js::JsFuture`]s are
-  ///    dropped silently, which matches Node and Deno: `setTimeout(..., 10000)`
-  ///    must not keep the process alive. A never-settling top-level await is a
-  ///    different animal -- the user wrote code that was supposed to run, so
-  ///    exiting 0 in silence is a trap. We still do not block the exit (the
-  ///    user asked to quit), we just say what got skipped.
-  ///
-  /// NOTE: the trackers are deliberately *not* touched here.
-  /// [`Rsvim::process_cancellation_notify`] already closes and waits for them
-  /// on every exit path; doing it a second time would only lean on
-  /// `TaskTracker::close` being idempotent.
-  ///
-  /// Consequently there is nothing left to `.await`, which is why this is not
-  /// an `async fn`.
-  pub(crate) fn shutdown_js(&mut self) {
-    let Self {
-      ref mut isolate,
-      ref kernel,
-      ..
-    } = *self;
-    let context = kernel.borrow().context.clone();
-
-    v8::scope_with_context!(scope, isolate, context);
-
-    Self::flush_js_errors(kernel, scope);
-
-    let pending = kernel.borrow().module_map.pending_paths(scope);
-    if !pending.is_empty() {
-      warn!(
-        "Exiting with {} module(s) still pending on a top-level await: {}",
-        pending.len(),
-        pending.iter().join(", ")
-      );
-    }
-  }
-
-  /// Lower bound of the background-task backoff, see [`Rsvim::js_backoff`].
-  pub(crate) const JS_BACKOFF_MIN: std::time::Duration =
-    std::time::Duration::from_millis(1);
-  /// Upper bound of the background-task backoff. 16ms is one frame at 60Hz:
-  /// above that a v8 background task would visibly delay the UI.
-  pub(crate) const JS_BACKOFF_MAX: std::time::Duration =
-    std::time::Duration::from_millis(16);
-
-  /// The backoff to arm for this iteration, or `None` when nothing is
-  /// waiting on a v8 background task.
-  fn js_backoff_deadline(&self) -> Option<Instant> {
-    if !self.isolate.has_pending_background_tasks() {
-      return None;
-    }
-    Some(Instant::now() + self.js_backoff)
-  }
-
-  /// Resolves at `deadline`, or never when there is no deadline.
-  ///
-  /// `select!` needs a branch that is always present, so "disabled" is
-  /// expressed as a future that never resolves instead of a conditional arm.
-  async fn js_backoff_tick(deadline: Option<Instant>) {
-    match deadline {
-      Some(deadline) => tokio::time::sleep_until(deadline).await,
-      None => std::future::pending::<()>().await,
-    }
-  }
-
-  /// Doubles the backoff up to [`Rsvim::JS_BACKOFF_MAX`].
-  fn grow_js_backoff(&mut self) {
-    self.js_backoff =
-      std::cmp::min(self.js_backoff.saturating_mul(2), Self::JS_BACKOFF_MAX);
-  }
-
-  /// Any real progress means the next background-task check can be prompt
-  /// again.
-  fn reset_js_backoff(&mut self) {
-    self.js_backoff = Self::JS_BACKOFF_MIN;
-  }
-
-  /// Drains v8's foreground task queue.
-  ///
-  /// A v8 background task does not call back into the embedder when it
-  /// finishes: it posts a task onto the platform's foreground task runner. That
-  /// queue is only drained by [`v8::Platform::pump_message_loop`], and v8 does
-  /// not do it behind our back. Without this call
-  /// [`v8::Isolate::has_pending_background_tasks`] stays true forever, the
-  /// backoff climbs to its ceiling, and the completion never runs -- the
-  /// waiting is correct but nothing ever arrives.
-  ///
-  /// `wait_for_work: false` because the loop's scheduling decision is already
-  /// made elsewhere: this must never block.
-  pub(crate) fn pump_v8_message_loop(&self) {
-    let platform = v8::V8::get_current_platform();
-    v8::Platform::pump_message_loop(&platform, &self.isolate, false);
-  }
-
-  /// Takes every javascript message that has already arrived.
-  ///
-  /// `first` is the message the `[A]` branch already `recv`ed, so it does not
-  /// have to travel through the channel twice.
-  ///
-  /// This is the only source of [`Rsvim::tick_js`]'s inbox, which is what
-  /// keeps `tick_js` from ever touching `self.jsrt_rx` -- otherwise the
-  /// receiver borrow would collide with the isolate borrow inside the tick.
-  fn drain_js_inbox(&mut self, first: Option<JsMessage>) -> Vec<JsMessage> {
-    let mut inbox: Vec<JsMessage> = first.into_iter().collect();
-    while let Ok(msg) = self.jsrt_rx.try_recv() {
-      inbox.push(msg);
-    }
-    inbox
-  }
-
-  /// Takes every io request the javascript side has already issued.
-  ///
-  /// Returns whether anything was handled, so Phase A knows to go around
-  /// again: a handled request may synchronously queue more javascript work,
-  /// and its completion lands on `jsrt_rx`.
-  ///
-  /// This is what removes the last race between "the config script issued a
-  /// write" and "the user pressed Ctrl-D": the request is consumed inside the
-  /// same tick that produced it, instead of competing for a `select!` slot.
-  fn settle_master(&mut self) -> bool {
-    let mut handled = false;
-    while let Ok(req) = self.master_rx.try_recv() {
-      self.process_master_message(req);
-      handled = true;
-    }
-    if handled {
-      // A handled request may have changed `exit_code`, queued a timer, or
-      // dispatched a background task whose completion redraws later. Marking
-      // dirty is the cheap conservative choice: `render_if_dirty` gates it.
-      self.dirty = true;
-    }
-    handled
   }
 
   /// Repaints the terminal, but only if something actually changed.
@@ -1632,7 +1019,7 @@ impl Rsvim {
   where
     S: Stream + Unpin,
     F: Fn(&Option<S::Item>) -> bool,
-    H: Fn(&mut Rsvim, Option<S::Item>),
+    H: Fn(&mut Rsvim, Option<S::Item>) -> bool,
   {
     // The first frame is not drawn here: `initialize()` already did
     // `lock!(tree).draw(...)` + `writer.init_complete(...)`; drawing again
@@ -1651,31 +1038,33 @@ impl Rsvim {
     // so the cancellation branch having done it already costs nothing.
     self.close_trackers().await;
 
-    // Everything that the js side was still holding is reported and dropped
-    // here, before the caller (`rsvim_cli`) reaches `std::process::exit`.
-    self.shutdown_js();
-
     Ok(self.exit_code)
   }
 
   /// One iteration of `Rsvim::run_inner`: **the** top-level loop body.
   ///
-  /// Two phases, in this order, always:
+  /// The loop is event-driven, and javascript is just one of the things that
+  /// produce events. One iteration is:
   ///
-  /// * **Phase A -- run to quiescence.** Consume every io request and every
-  ///   javascript completion that can be advanced right now, and keep ticking
-  ///   until the runtime is quiet. There is no bound.
-  /// * **Phase B -- wait for one external event.** Block until javascript
-  ///   completes something, javascript asks for io, the terminal sends input,
-  ///   cancellation fires, or the v8 background-task backoff expires. Handle
-  ///   that one event and return.
+  /// 1. **Settle.** Handle everything javascript-side that is ready right now
+  ///    ([`Rsvim::tick_event_loop`]): requests javascript made to the editor, ex
+  ///    commands, finished operations, due timers. Bounded, so a source that
+  ///    never runs dry cannot starve the terminal. This comes first so that
+  ///    what was queued before the loop began -- the config script asked to
+  ///    quit, or issued a write -- is served before any terminal input is
+  ///    looked at.
+  /// 2. **Paint** if anything changed, because the next step can block for as
+  ///    long as the user likes.
+  /// 3. **Wait for one event** from any source, and handle it. If it was
+  ///    terminal input, take the rest of the burst that is already waiting, so
+  ///    a run of keys is applied before the screen is repainted once.
   ///
-  /// This ordering is why there is no self-driving budget any more. The old
-  /// code advanced the runtime *inside* `tokio::select!`, so each round had to
-  /// leave the branch after a fixed number of ticks or let a javascript chain
-  /// starve terminal input forever. Here waiting happens only after the work is
-  /// done, so there is nothing to be starved and nothing to bound. See
-  /// `evloop-plan-v2.md` §2 and §5.
+  /// There is no step that drives javascript. Javascript never makes progress
+  /// on its own: it runs when an event above hands it something, through
+  /// [`JsHost::enter`], which also drains the microtask queue and reports
+  /// unhandled rejections. That is why nothing here polls an engine scheduler
+  /// or needs a wake-up bridge, and why every callback the user wrote is
+  /// followed by exactly one chance to repaint.
   ///
   /// Split out of the `loop` so tests can drive the loop one iteration at a
   /// time instead of racing against a real input stream. Production calls it
@@ -1690,64 +1079,31 @@ impl Rsvim {
   where
     S: Stream + Unpin,
     F: Fn(&Option<S::Item>) -> bool,
-    H: Fn(&mut Rsvim, Option<S::Item>),
+    H: Fn(&mut Rsvim, Option<S::Item>) -> bool,
   {
-    // ---- Phase A: run to quiescence ----
-    //
-    // Both halves are needed, and they feed each other: a handled io request can
-    // queue more javascript work, and a javascript tick can queue more io
-    // requests. A round ends only when a whole round moves nothing, i.e. the
-    // runtime is actually quiet. That is the entire scheduling policy.
-    loop {
-      let settled = self.settle_master();
-      let ticked = self.tick_event_loop();
-      if !settled && !ticked {
-        break;
-      }
-
-      // Cancellation is checked between rounds rather than inside them: a
-      // `Ctrl-D` or `MasterMessage::ExitReq` that arrived while the js side was
-      // running must be honoured before going around again.
-      if self.cancellation_token.is_cancelled() {
-        return Ok(ControlFlow::Break(()));
-      }
-
-      // Yield without blocking: io tasks and v8 background tasks get a turn, and
-      // the next round observes whatever they produced.
-      self.reset_js_backoff();
-      tokio::task::yield_now().await;
+    // ---- 1. settle ----
+    self.tick_event_loop();
+    if self.cancellation_token.is_cancelled() {
+      return Ok(ControlFlow::Break(()));
     }
 
-    // Phase B can block indefinitely, so anything Phase A produced has to be on
-    // screen before we go and wait for the next event.
+    // ---- 2. paint before blocking ----
     self.render_if_dirty()?;
 
-    // ---- Phase B: wait for one external event ----
+    // ---- 3. wait for one event ----
     let mut flow = ControlFlow::Continue(());
-
-    // Armed only while v8 still has background tasks: those are *waiting* work,
-    // so they must not self-drive, but nothing else would ever come back to
-    // check them.
-    let backoff = self.js_backoff_deadline();
 
     // NOTE: deliberately **not** `biased;`. `biased` polls the branches in
     // source order and lets the first ready one win, which is the opposite of
-    // fairness: with `[A]` first, a steady stream of javascript completions
-    // would starve terminal input (`[C]`) and master messages (`[B]`) -- the
-    // user could press keys and see nothing. Tokio's default random choice is
-    // what provides fairness here.
+    // fairness: a steady stream of javascript completions would starve terminal
+    // input -- the user could press keys and see nothing. Tokio's default random
+    // choice is what provides fairness here.
     tokio::select! {
 
-      // [A] A javascript completion. Phase A of the next iteration is what runs
-      // it to quiescence; handling it here only spares the message a second trip
-      // through the channel.
+      // [A] An ex command or a finished operation.
       msg = self.jsrt_rx.recv() => {
         match msg {
-          Some(first) => {
-            self.reset_js_backoff();
-            let inbox = self.drain_js_inbox(Some(first));
-            self.tick_js(inbox);
-          }
+          Some(message) => self.apply(Ready::Js(message)),
           // Every sender is gone, so no javascript result can ever arrive.
           // This must not happen on the normal exit path (`jsrt_tx` is owned by
           // `Rsvim`), so bail out instead of hanging silently.
@@ -1755,21 +1111,18 @@ impl Rsvim {
         }
       }
 
-      // [B] A javascript-initiated IO request.
+      // [B] A javascript-initiated request to the editor.
       req = self.master_rx.recv() => {
         if let Some(req) = req {
-          self.process_master_message(req);
-          self.dirty = true;
+          self.apply(Ready::Master(req));
         }
       }
 
       // [C] Terminal input, or the mocked equivalent.
       item = io.next() => {
-        if is_exit(&item) {
-          flow = ControlFlow::Break(());
-        } else {
-          on_input(self, item);
-          self.dirty = true;
+        flow = self.handle_input::<S, F, H>(item, is_exit, on_input);
+        if flow.is_continue() {
+          flow = self.drain_input::<S, F, H>(io, is_exit, on_input).await;
         }
       }
 
@@ -1779,25 +1132,104 @@ impl Rsvim {
         flow = ControlFlow::Break(());
       }
 
-      // [E] Bounded backoff for v8 background tasks, see `js_backoff`.
-      //
-      // Waiting alone is not enough: a finished background task does not call
-      // back into the embedder, it only enqueues a task on the foreground task
-      // runner, and nothing in rsvim ever drained that queue. So the deadline
-      // is where the queue gets drained, which is what actually lets the
-      // completion run. See `pump_v8_message_loop`.
-      //
-      // A false tick means "nothing happened yet", so the interval doubles. The
-      // branch does not tick: Phase A of the next iteration does, which keeps a
-      // single place where javascript is advanced.
-      _ = Self::js_backoff_tick(backoff) => {
-        self.grow_js_backoff();
-        self.pump_v8_message_loop();
+      // [E] A timer came due. `Ready(None)` -- no timer is armed -- disables
+      // the branch for this wait instead of spinning on it.
+      Some(timer) = std::future::poll_fn(|cx| self.js.poll_timer(cx)) => {
+        self.apply(Ready::Timer(timer));
       }
     }
 
-    self.render_if_dirty()?;
+    // Leaving the loop: put the final state on screen. Otherwise the repaint
+    // belongs to the next iteration, after it has settled whatever this event
+    // queued (an ex command), so that one event costs one frame.
+    if flow.is_break() {
+      self.render_if_dirty()?;
+    }
 
     Ok(flow)
   }
+
+  /// Handles one terminal event.
+  fn handle_input<S, F, H>(
+    &mut self,
+    item: Option<S::Item>,
+    is_exit: &F,
+    on_input: &H,
+  ) -> ControlFlow<()>
+  where
+    S: Stream + Unpin,
+    F: Fn(&Option<S::Item>) -> bool,
+    H: Fn(&mut Rsvim, Option<S::Item>) -> bool,
+  {
+    if is_exit(&item) {
+      return ControlFlow::Break(());
+    }
+    if on_input(self, item) {
+      self.dirty = true;
+    }
+    ControlFlow::Continue(())
+  }
+
+  /// Takes the terminal events that are already waiting, without waiting for
+  /// more, up to `INPUT_BATCH`.
+  ///
+  /// The stream is polled with the loop's *own* waker, never with a throwaway
+  /// one (`now_or_never()` polls with a no-op waker). That matters because
+  /// crossterm's `EventStream` remembers the waker of the poll that found
+  /// nothing, wakes only that one when input arrives, and does not register
+  /// another while one is pending. Polling it with a no-op waker therefore
+  /// parks the stream behind a waker nobody listens to: the first key is
+  /// handled, and every later key waits until something else wakes the loop.
+  /// A mocked stream cannot show this; only a real terminal does.
+  async fn drain_input<S, F, H>(
+    &mut self,
+    io: &mut S,
+    is_exit: &F,
+    on_input: &H,
+  ) -> ControlFlow<()>
+  where
+    S: Stream + Unpin,
+    F: Fn(&Option<S::Item>) -> bool,
+    H: Fn(&mut Rsvim, Option<S::Item>) -> bool,
+  {
+    for _ in 0..INPUT_BATCH {
+      let Some(item) = poll_ready(io).await else {
+        break;
+      };
+      if self
+        .handle_input::<S, F, H>(item, is_exit, on_input)
+        .is_break()
+      {
+        return ControlFlow::Break(());
+      }
+    }
+    ControlFlow::Continue(())
+  }
+}
+
+/// Polls `stream` once, with the waker of the task that is running, and says
+/// whether it had something: `None` for "not ready", `Some(item)` otherwise
+/// (where `item` is `None` when the stream ended).
+async fn poll_ready<S: Stream + Unpin>(
+  stream: &mut S,
+) -> Option<Option<S::Item>> {
+  std::future::poll_fn(|cx| match stream.poll_next_unpin(cx) {
+    std::task::Poll::Ready(item) => std::task::Poll::Ready(Some(item)),
+    std::task::Poll::Pending => std::task::Poll::Ready(None),
+  })
+  .await
+}
+
+/// Whether a terminal event can change what is on screen.
+///
+/// The state machines ignore mouse and focus events, but crossterm's
+/// `EnableMouseCapture` asks the terminal to report *every* mouse movement
+/// (`?1003h`), so treating each event as a reason to repaint would repaint on
+/// every twitch of the mouse. Update this when the state machines start
+/// handling them.
+fn event_may_change_state(event: &Event) -> bool {
+  !matches!(
+    event,
+    Event::Mouse(_) | Event::FocusGained | Event::FocusLost
+  )
 }
