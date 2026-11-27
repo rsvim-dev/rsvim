@@ -50,7 +50,7 @@ pub fn shutdown_raw_mode_on_panic() {
       eprintln!("FATAL! Failed to recover terminal!");
     }
 
-    let now = jiff::ZonedDateTime::now();
+    let now = jiff::Zoned::now();
     let btrace = std::backtrace::Backtrace::force_capture();
     println!("FATAL! Rsvim panics at {now}!");
     println!("{panic_hook_info:?}");

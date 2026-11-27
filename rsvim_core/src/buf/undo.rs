@@ -67,7 +67,7 @@ pub enum Operation {
 pub struct Record {
   pub op: Operation,
   pub moment: Instant,
-  pub timestamp: jiff::ZonedDateTime,
+  pub timestamp: jiff::Zoned,
   pub version: usize,
 }
 
@@ -120,7 +120,7 @@ impl Current {
       last.payload.push_str(&op.payload);
       last.end_char = op.end_char;
       last_record.moment = Instant::now();
-      last_record.timestamp = jiff::ZonedDateTime::now();
+      last_record.timestamp = jiff::Zoned::now();
     } else if let Some(last_record) = self.records.last_mut()
       && let Operation::Delete(ref mut last) = last_record.op
       && op.end_char == last.start_char
@@ -130,7 +130,7 @@ impl Current {
       last.payload.insert_str(0, &op.payload);
       last.start_char = op.start_char;
       last_record.moment = Instant::now();
-      last_record.timestamp = jiff::ZonedDateTime::now();
+      last_record.timestamp = jiff::Zoned::now();
     } else if let Some(last_record) = self.records.last_mut()
       && let Operation::Insert(ref mut last) = last_record.op
       && last.payload == op.payload
@@ -145,7 +145,7 @@ impl Current {
       self.records.push(Record {
         op: Operation::Delete(op),
         moment: Instant::now(),
-        timestamp: jiff::ZonedDateTime::now(),
+        timestamp: jiff::Zoned::now(),
         version: INVALID_VERSION,
       });
     }
@@ -167,13 +167,13 @@ impl Current {
       last.payload.push_str(&op.payload);
       last.end_char = op.end_char;
       last_record.moment = Instant::now();
-      last_record.timestamp = jiff::ZonedDateTime::now();
+      last_record.timestamp = jiff::Zoned::now();
     } else {
       trace!("last-2, op:{:?}", op);
       self.records.push(Record {
         op: Operation::Insert(op),
         moment: Instant::now(),
-        timestamp: jiff::ZonedDateTime::now(),
+        timestamp: jiff::Zoned::now(),
         version: INVALID_VERSION,
       });
     }

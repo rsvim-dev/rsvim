@@ -12,7 +12,7 @@ pub fn init() {
   {
     let formatter = "%FT%T%.3f%:z";
     let filter = builder.build();
-    let now = jiff::ZonedDateTime::now();
+    let now = jiff::Zoned::now();
     let log_name = format!(
       "rsvim_{:0>4}-{:0>2}-{:0>2}_{:0>2}-{:0>2}-{:0>2}-{:0>3}.log",
       now.date().year(),
@@ -29,7 +29,7 @@ pub fn init() {
       .format(|out, message, record| {
         out.finish(format_args!(
           "{} {:<5} {}:{}| {}",
-          jiff::ZonedDateTime::now().strftime(formatter),
+          jiff::Zoned::now().strftime(formatter),
           record.level(),
           record.target(),
           record.line().unwrap_or(0),

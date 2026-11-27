@@ -42,11 +42,11 @@ fern = "0.7"
 foldhash = "0.2"
 futures = "0.3"
 geo = "0.33.1"
-gix = "0.91"
+gix = "0.89"
 heck = "0.5"
 icu = { version = "2", features = ["compiled_data"] }
 itertools = "0.15"
-jiff = "1"
+jiff = "0.2"
 junction = "2"
 litemap = "0.8"
 log = { version = "0.4", features = [
@@ -69,8 +69,8 @@ serde_json = "1.0"
 smallvec = "1.15"
 strum = "0.28"
 strum_macros = "0.28"
-syn = { version = "3", features = ["extra-traits"] }
-taffy = "0.16"
+syn = { version = "2", features = ["extra-traits"] }
+taffy = "0.15"
 thiserror = "2"
 tikv-jemallocator = "0.7"
 tokio = { version = "1", features = [
