@@ -26,6 +26,11 @@ use rquickjs::Result as JsResult;
 use rquickjs::String as JsString;
 use rquickjs::Value;
 
+#[cfg(test)]
+mod microtask_tests;
+#[cfg(test)]
+mod text_encoder_tests;
+
 /// `TextEncoder.encode(string)`.
 ///
 /// Returns a `Uint8Array`, which javascript sees as an array of bytes — not an
@@ -260,8 +265,3 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "global_report_error", report_error)?;
   Ok(())
 }
-
-#[cfg(test)]
-mod microtask_tests;
-#[cfg(test)]
-mod text_encoder_tests;
