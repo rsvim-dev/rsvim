@@ -306,7 +306,7 @@ impl std::fmt::Debug for Rsvim {
 pub type EventLoop = Rsvim;
 
 #[cfg(test)]
-pub(crate) fn is_ctrl_d(event: &Option<IoResult<Event>>) -> bool {
+pub fn is_ctrl_d(event: &Option<IoResult<Event>>) -> bool {
   match event {
     Some(Ok(Event::Key(key_event)))
       if key_event.code == KeyCode::Char('d')
@@ -696,7 +696,7 @@ impl Rsvim {
 
   /// Handles one terminal event, and reports whether it may have changed the
   /// editor, i.e. whether the screen needs repainting.
-  pub(crate) fn process_event(
+  pub fn process_event(
     &mut self,
     event: Option<IoResult<Event>>,
   ) -> bool {
@@ -894,7 +894,7 @@ impl Rsvim {
   ///
   /// Every way out of the loop -- Ctrl-D, cancellation, the javascript channel
   /// closing -- funnels through [`Rsvim::run_inner`], which calls this once.
-  pub(crate) async fn close_trackers(&mut self) {
+  pub async fn close_trackers(&mut self) {
     self.detached_tracker.close();
     self.blocked_tracker.close();
     self.blocked_tracker.wait().await;
@@ -904,7 +904,7 @@ impl Rsvim {
   ///
   /// The loop used to draw and write on every iteration, which meant a busy
   /// javascript tick turned into a full repaint per tick.
-  pub(crate) fn render_if_dirty(&mut self) -> IoResult<()> {
+  pub fn render_if_dirty(&mut self) -> IoResult<()> {
     if !self.dirty {
       return Ok(());
     }
@@ -1022,7 +1022,7 @@ impl Rsvim {
   /// time instead of racing against a real input stream. Production calls it
   /// only from `Rsvim::run_inner`, so the split changes no behaviour:
   /// `run_inner` is exactly `loop { if tick(..).is_break() { break } }`.
-  pub(crate) async fn tick<S, F, H>(
+  pub async fn tick<S, F, H>(
     &mut self,
     io: &mut S,
     is_exit: &F,

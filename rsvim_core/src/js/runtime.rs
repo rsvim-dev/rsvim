@@ -99,7 +99,7 @@ pub fn capture_exception<'js>(ctx: &Ctx<'js>) -> Option<JsError> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
   use super::*;
   use crate::tests::js::make_editor;
   use crate::tests::log::init as test_log_init;

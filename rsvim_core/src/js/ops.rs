@@ -59,8 +59,8 @@ pub enum OpKind {
 /// result; [`spawn_op`] is the only place that knows the real type, and the
 /// closure it parks in the table is the only place that downcasts it.
 pub struct Completion {
-  pub(crate) id: OpId,
-  pub(crate) result: Box<dyn Any + Send>,
+  pub id: OpId,
+  pub result: Box<dyn Any + Send>,
 }
 
 impl std::fmt::Debug for Completion {
@@ -76,7 +76,7 @@ impl std::fmt::Debug for Completion {
 /// `aux` is a javascript value the binding wanted to keep alive across the
 /// await: `fs.read` parks the caller's `ArrayBuffer` here, so the bytes are
 /// copied in *after* the read, against the buffer's length at that moment.
-type Reply = Box<
+pub type Reply = Box<
   dyn for<'js> FnOnce(
     &Ctx<'js>,
     Option<Value<'js>>,
@@ -103,11 +103,11 @@ where
 }
 
 /// One operation waiting for its completion.
-pub(crate) struct PendingOp {
-  pub(crate) resolve: Persistent<Function<'static>>,
-  pub(crate) reject: Persistent<Function<'static>>,
-  pub(crate) aux: Option<Persistent<Value<'static>>>,
-  pub(crate) reply: Reply,
+pub struct PendingOp {
+  pub resolve: Persistent<Function<'static>>,
+  pub reject: Persistent<Function<'static>>,
+  pub aux: Option<Persistent<Value<'static>>>,
+  pub reply: Reply,
 }
 
 /// The in-flight operations and the armed timers.
@@ -121,7 +121,7 @@ pub struct OpTable {
   tx: UnboundedSender<JsMessage>,
   blocked: TaskTracker,
   detached: TaskTracker,
-  pub(crate) timers: RefCell<Timers>,
+  pub timers: RefCell<Timers>,
 }
 
 impl OpTable {
@@ -150,7 +150,7 @@ impl OpTable {
     self.timers.borrow().len()
   }
 
-  pub(crate) fn take(&self, id: OpId) -> Option<PendingOp> {
+  pub fn take(&self, id: OpId) -> Option<PendingOp> {
     self.pending.borrow_mut().remove(&id)
   }
 
@@ -165,7 +165,7 @@ impl OpTable {
   }
 }
 
-pub(crate) struct OpTableHandle(pub(crate) Rc<OpTable>);
+pub struct OpTableHandle(pub Rc<OpTable>);
 
 // The table holds no `'js` types, so its lifetime is trivially unchanged.
 unsafe impl<'js> JsLifetime<'js> for OpTableHandle {
