@@ -1,37 +1,37 @@
 //! APIs for the `fs` module — the synchronous half.
 //!
 //! Every `*Sync` function plus `fs.close` and `fs.readDirClose`. The work itself
-//! is in [`crate::js::fs`]; what happens here is argument parsing, turning a
+//! is in [`crate::js::binding::fs::internal`]; what happens here is argument parsing, turning a
 //! `Resourcetable` error into a javascript exception, and boxing results into
 //! the shapes `fs.min.js` expects.
 //!
 //! The promise-returning counterparts are in [`super::fs_async`].
 
+use crate::js::binding::fs::internal::FsDirEntry;
+use crate::js::binding::fs::internal::FsMetadata;
+use crate::js::binding::fs::internal::FsMkdirOptions;
+use crate::js::binding::fs::internal::FsMkdirOptionsBuilder;
+use crate::js::binding::fs::internal::FsOpenOptions;
+use crate::js::binding::fs::internal::FsOpenOptionsBuilder;
+use crate::js::binding::fs::internal::FsSymlinkOptions;
+use crate::js::binding::fs::internal::fs_close_s;
+use crate::js::binding::fs::internal::fs_link_s;
+use crate::js::binding::fs::internal::fs_lstat_s;
+use crate::js::binding::fs::internal::fs_mkdir_s;
+use crate::js::binding::fs::internal::fs_open_s;
+use crate::js::binding::fs::internal::fs_read_dir_close_s;
+use crate::js::binding::fs::internal::fs_read_dir_next_s;
+use crate::js::binding::fs::internal::fs_read_dir_s;
+use crate::js::binding::fs::internal::fs_read_file_s;
+use crate::js::binding::fs::internal::fs_read_s;
+use crate::js::binding::fs::internal::fs_read_text_file_s;
+use crate::js::binding::fs::internal::fs_stat_s;
+use crate::js::binding::fs::internal::fs_symlink_s;
+use crate::js::binding::fs::internal::fs_write_s;
 use crate::js::binding::set_function_to;
 use crate::js::converter::array_buffer_to_vec;
 use crate::js::converter::copy_into_array_buffer;
 use crate::js::converter::vec_to_array_buffer;
-use crate::js::fs::FsDirEntry;
-use crate::js::fs::FsMetadata;
-use crate::js::fs::FsMkdirOptions;
-use crate::js::fs::FsMkdirOptionsBuilder;
-use crate::js::fs::FsOpenOptions;
-use crate::js::fs::FsOpenOptionsBuilder;
-use crate::js::fs::FsSymlinkOptions;
-use crate::js::fs::fs_close_s;
-use crate::js::fs::fs_link_s;
-use crate::js::fs::fs_lstat_s;
-use crate::js::fs::fs_mkdir_s;
-use crate::js::fs::fs_open_s;
-use crate::js::fs::fs_read_dir_close_s;
-use crate::js::fs::fs_read_dir_next_s;
-use crate::js::fs::fs_read_dir_s;
-use crate::js::fs::fs_read_file_s;
-use crate::js::fs::fs_read_s;
-use crate::js::fs::fs_read_text_file_s;
-use crate::js::fs::fs_stat_s;
-use crate::js::fs::fs_symlink_s;
-use crate::js::fs::fs_write_s;
 use crate::js::resource::ResourceId;
 use crate::js::resource::ResourceTableArc;
 use crate::js::runtime::kernel;
@@ -43,6 +43,7 @@ use rquickjs::Exception;
 use rquickjs::Object;
 use rquickjs::Result as JsResult;
 use std::str::FromStr;
+pub mod internal;
 
 /// The editor's resource table.
 pub fn resource_table(ctx: &Ctx<'_>) -> JsResult<ResourceTableArc> {

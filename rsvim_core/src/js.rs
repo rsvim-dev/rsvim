@@ -32,7 +32,6 @@ pub mod command;
 pub mod converter;
 pub mod core_modules;
 pub mod err;
-pub mod fs;
 pub mod fs_loader;
 pub mod host;
 pub mod ids;

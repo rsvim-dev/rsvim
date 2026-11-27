@@ -1,7 +1,7 @@
 //! APIs for the `fs` module — the promise-returning half.
 //!
 //! Every function here answers with a promise instead of a value, which is
-//! what `fs.min.js` awaits. The work itself is in [`crate::js::fs`]: either a
+//! what `fs.min.js` awaits. The work itself is in [`crate::js::binding::fs::internal`]: either a
 //! `tokio::fs` coroutine (`fs_*_a`) or a blocking call (`fs_read_s`,
 //! `fs_write_s`) that has to run off the event loop thread.
 //!
@@ -22,6 +22,20 @@
 //! would see its result once the loop is gone, so exit does not wait.
 
 use crate::js::binding::fs::dir_entry_to_object;
+use crate::js::binding::fs::internal::FsDirEntry;
+use crate::js::binding::fs::internal::FsMetadata;
+use crate::js::binding::fs::internal::fs_link_a;
+use crate::js::binding::fs::internal::fs_lstat_a;
+use crate::js::binding::fs::internal::fs_mkdir_a;
+use crate::js::binding::fs::internal::fs_open_a;
+use crate::js::binding::fs::internal::fs_read_dir_next_s;
+use crate::js::binding::fs::internal::fs_read_dir_s;
+use crate::js::binding::fs::internal::fs_read_file_a;
+use crate::js::binding::fs::internal::fs_read_s;
+use crate::js::binding::fs::internal::fs_read_text_file_a;
+use crate::js::binding::fs::internal::fs_stat_a;
+use crate::js::binding::fs::internal::fs_symlink_a;
+use crate::js::binding::fs::internal::fs_write_s;
 use crate::js::binding::fs::metadata_to_object;
 use crate::js::binding::fs::mkdir_options;
 use crate::js::binding::fs::open_options;
@@ -31,20 +45,6 @@ use crate::js::binding::set_function_to;
 use crate::js::converter::array_buffer_to_vec;
 use crate::js::converter::copy_into_array_buffer;
 use crate::js::converter::vec_to_array_buffer;
-use crate::js::fs::FsDirEntry;
-use crate::js::fs::FsMetadata;
-use crate::js::fs::fs_link_a;
-use crate::js::fs::fs_lstat_a;
-use crate::js::fs::fs_mkdir_a;
-use crate::js::fs::fs_open_a;
-use crate::js::fs::fs_read_dir_next_s;
-use crate::js::fs::fs_read_dir_s;
-use crate::js::fs::fs_read_file_a;
-use crate::js::fs::fs_read_s;
-use crate::js::fs::fs_read_text_file_a;
-use crate::js::fs::fs_stat_a;
-use crate::js::fs::fs_symlink_a;
-use crate::js::fs::fs_write_s;
 use crate::js::ops::OpKind;
 use crate::js::ops::blocking;
 use crate::js::ops::spawn_op;
