@@ -17,10 +17,12 @@ use rquickjs::Object;
 use rquickjs::Result as JsResult;
 use std::str::FromStr;
 
-use crate::js::process_command::ProcessCommandOptions;
-use crate::js::process_command::ProcessCommandOptionsBuilder;
-use crate::js::process_command::Stdio;
-use crate::js::process_command::spawn_child_process;
+mod command;
+
+use crate::js::binding::process::command::ProcessCommandOptions;
+use crate::js::binding::process::command::ProcessCommandOptionsBuilder;
+use crate::js::binding::process::command::Stdio;
+use crate::js::binding::process::command::spawn_child_process;
 
 /// Mirrors the v8 backend's `ProcessCommandOptions::from_v8`, but reads the
 /// object directly: `rquickjs` has no `#[derive(FromJs)]`, and the field set is

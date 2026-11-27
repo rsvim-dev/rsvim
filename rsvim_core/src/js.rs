@@ -38,7 +38,6 @@ pub mod ids;
 pub mod loader;
 pub mod module;
 pub mod ops;
-pub mod process_command;
 pub mod resource;
 pub mod runtime;
 pub mod timers;
