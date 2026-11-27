@@ -16,6 +16,20 @@ pub mod process_async;
 pub mod syn;
 pub mod timer;
 
+#[cfg(test)]
+mod buf_tests;
+#[cfg(test)]
+mod cmd_tests;
+#[cfg(test)]
+mod fs_tests;
+#[cfg(test)]
+mod process_tests;
+#[cfg(test)]
+mod syn_tests;
+
+#[cfg(test)]
+mod timer_tests;
+
 use rquickjs::Ctx;
 use rquickjs::Function;
 use rquickjs::Module;
@@ -136,3 +150,6 @@ mod tests {
     });
   }
 }
+
+#[cfg(test)]
+mod global_tests;

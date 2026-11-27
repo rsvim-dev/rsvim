@@ -72,26 +72,10 @@ pub fn quickjs_version() -> &'static str {
 }
 
 #[cfg(test)]
-mod buf_tests;
-#[cfg(test)]
-mod cmd_tests;
-#[cfg(test)]
 mod fs_loader_tests;
 #[cfg(test)]
-mod fs_tests;
-#[cfg(test)]
 mod host_tests;
-#[cfg(test)]
-mod microtask_tests;
 #[cfg(test)]
 mod module_map_tests;
 #[cfg(test)]
 mod opt_tests;
-#[cfg(test)]
-mod process_tests;
-#[cfg(test)]
-mod syn_tests;
-#[cfg(test)]
-mod text_encoder_tests;
-#[cfg(test)]
-mod timeout_tests;
