@@ -76,5 +76,3 @@ mod fs_loader_tests;
 mod host_tests;
 #[cfg(test)]
 mod module_map_tests;
-#[cfg(test)]
-mod opt_tests;
