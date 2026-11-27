@@ -74,39 +74,3 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "buf_write_sync", write_sync)?;
   Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-  use crate::tests::js::with_kernel;
-  use crate::tests::log::init as test_log_init;
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn empty_editor_has_no_current_buffer() {
-    test_log_init();
-    with_kernel(|ctx, _kernel| {
-      // `make_editor` builds no window, so both calls report emptiness rather
-      // than raising. The js wrapper turns this into `undefined` / `[]`.
-      let current: Option<i32> = ctx
-        .eval("__InternalRsvimGlobalObject.buf_current()")
-        .unwrap();
-      assert_eq!(current, None);
-
-      let list: Vec<i32> =
-        ctx.eval("__InternalRsvimGlobalObject.buf_list()").unwrap();
-      assert!(list.is_empty());
-    });
-  }
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn write_sync_on_a_missing_buffer_is_a_javascript_error() {
-    test_log_init();
-    with_kernel(|ctx, _kernel| {
-      // Buffer ids start at 1, so 99 cannot exist in a fresh editor.
-      let result =
-        ctx.eval::<i32, _>("__InternalRsvimGlobalObject.buf_write_sync(99)");
-      assert!(result.is_err());
-    });
-  }
-}

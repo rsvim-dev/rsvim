@@ -45,6 +45,9 @@ use rquickjs::Result as JsResult;
 use std::str::FromStr;
 pub mod internal;
 
+#[cfg(test)]
+mod internal_tests;
+
 /// The editor's resource table.
 pub fn resource_table(ctx: &Ctx<'_>) -> JsResult<ResourceTableArc> {
   Ok(kernel(ctx)?.borrow().editor.resource_table.clone())
@@ -346,113 +349,4 @@ pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
   set_function_to(ctx, internal, "fs_link_sync", link_sync)?;
   set_function_to(ctx, internal, "fs_mkdir_sync", mkdir_sync)?;
   Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-  use crate::tests::js::with_kernel;
-  use crate::tests::log::init as test_log_init;
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn open_write_read_close_roundtrip() {
-    test_log_init();
-    let file = assert_fs::NamedTempFile::new("rqjs-fs.txt").unwrap();
-    let path = file.path().to_string_lossy().to_string();
-    with_kernel(|ctx, _kernel| {
-      let src = format!(
-        "const rid = __InternalRsvimGlobalObject.fs_open_sync({path:?}, {{create:true,read:true,write:true,truncate:true}});
-        const buf = new Uint8Array([72, 101, 108, 108, 111]).buffer;
-        const n = __InternalRsvimGlobalObject.fs_write_sync(rid, buf);
-        __InternalRsvimGlobalObject.fs_close(rid);
-        n;"
-      );
-      let n: i32 = ctx.eval(src).unwrap();
-      assert_eq!(n, 5);
-    });
-    assert_eq!(std::fs::read_to_string(file.path()).unwrap(), "Hello");
-  }
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn read_sync_fills_the_caller_buffer() {
-    test_log_init();
-    let file = assert_fs::NamedTempFile::new("rqjs-fs-read.txt").unwrap();
-    std::fs::write(file.path(), "abcdef").unwrap();
-    let path = file.path().to_string_lossy().to_string();
-    with_kernel(|ctx, _kernel| {
-      let src = format!(
-        "const rid = __InternalRsvimGlobalObject.fs_open_sync({path:?}, {{read:true}});
-        const buf = new ArrayBuffer(6);
-        const n = __InternalRsvimGlobalObject.fs_read_sync(rid, buf);
-        __InternalRsvimGlobalObject.fs_close(rid);
-        const view = new Uint8Array(buf);
-        globalThis.__n = n;
-        globalThis.__text = Array.from(view).map(c => String.fromCharCode(c)).join('');"
-      );
-      ctx.eval::<(), _>(src).unwrap();
-      let n: i32 = ctx.eval("globalThis.__n").unwrap();
-      let text: String = ctx.eval("globalThis.__text").unwrap();
-      assert_eq!(n, 6);
-      assert_eq!(text, "abcdef");
-    });
-  }
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn stat_sync_reports_a_file() {
-    test_log_init();
-    let file = assert_fs::NamedTempFile::new("rqjs-fs-stat.txt").unwrap();
-    std::fs::write(file.path(), "1234").unwrap();
-    let path = file.path().to_string_lossy().to_string();
-    with_kernel(|ctx, _kernel| {
-      let src = format!(
-        "const meta = __InternalRsvimGlobalObject.fs_stat_sync({path:?});
-        globalThis.__meta = meta;"
-      );
-      ctx.eval::<(), _>(src).unwrap();
-      let is_file: bool = ctx.eval("globalThis.__meta.isFile").unwrap();
-      let is_dir: bool = ctx.eval("globalThis.__meta.isDir").unwrap();
-      let len: u64 = ctx.eval("globalThis.__meta.len").unwrap();
-      assert!(is_file);
-      assert!(!is_dir);
-      assert_eq!(len, 4);
-    });
-  }
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn read_dir_sync_lists_entries() {
-    test_log_init();
-    let dir = assert_fs::TempDir::new().unwrap();
-    std::fs::write(dir.path().join("a.txt"), "").unwrap();
-    let path = dir.path().to_string_lossy().to_string();
-    with_kernel(|ctx, _kernel| {
-      let src = format!(
-        "const rid = __InternalRsvimGlobalObject.fs_read_dir_sync({path:?});
-        const names = [];
-        for (;;) {{
-          const entry = __InternalRsvimGlobalObject.fs_read_dir_next_sync(rid);
-          if (entry === undefined) {{ break; }}
-          names.push(entry.name);
-        }}
-        __InternalRsvimGlobalObject.fs_read_dir_close(rid);
-        names;"
-      );
-      let names: Vec<String> = ctx.eval(src).unwrap();
-      assert_eq!(names, vec!["a.txt".to_string()]);
-    });
-  }
-
-  #[test]
-  #[cfg_attr(miri, ignore)]
-  fn missing_file_is_a_javascript_error() {
-    test_log_init();
-    with_kernel(|ctx, _kernel| {
-      let result = ctx.eval::<rquickjs::Object, _>(
-        "__InternalRsvimGlobalObject.fs_stat_sync('/nonexistent/rsvim/fs')",
-      );
-      assert!(result.is_err());
-    });
-  }
 }

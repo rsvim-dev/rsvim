@@ -21,12 +21,17 @@ mod buf_tests;
 #[cfg(test)]
 mod cmd_tests;
 #[cfg(test)]
+mod fs_async_tests;
+#[cfg(test)]
 mod fs_tests;
+#[cfg(test)]
+mod opt_tests;
+#[cfg(test)]
+mod process_async_tests;
 #[cfg(test)]
 mod process_tests;
 #[cfg(test)]
 mod syn_tests;
-
 #[cfg(test)]
 mod timer_tests;
 
