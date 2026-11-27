@@ -43,7 +43,7 @@ mod test_static_import {
 
     // Before running
     {
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       assert!(contents.message_history().is_empty());
     }
 
@@ -55,11 +55,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("1".to_string()), contents.message_history_mut().pop());
     }
@@ -107,11 +103,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("1".to_string()), contents.message_history_mut().pop());
     }
@@ -193,11 +185,7 @@ mod test_static_import {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("3".to_string()), contents.message_history_mut().pop());
     }
@@ -283,11 +271,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(
         Some("D:C:B:A:5".to_string()),
@@ -372,11 +356,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("9".to_string()), contents.message_history_mut().pop());
     }
@@ -445,11 +425,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(2, contents.message_history().len());
       for _i in 0..2 {
         let actual = contents.message_history_mut().pop();
@@ -523,11 +499,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(2, contents.message_history().len());
       for _i in 0..2 {
         let actual = contents.message_history_mut().pop();
@@ -574,7 +546,7 @@ export function echoD(value) {
 
     // Before running
     {
-      let contents = lock!(event_loop.cmdline_text);
+      let contents = lock!(event_loop.editor.cmdline_text);
       assert!(contents.message_history().is_empty());
     }
 
@@ -586,11 +558,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("1".to_string()), contents.message_history_mut().pop());
     }
@@ -639,11 +607,7 @@ export function echoD(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       assert_eq!(Some("1".to_string()), contents.message_history_mut().pop());
     }
@@ -709,11 +673,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       assert_eq!(2, n);
       for _i in 0..n {
@@ -812,11 +772,7 @@ export function echoD(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       info!("home_dir3 n:{:?}", n);
       assert_eq!(2, n);
@@ -875,11 +831,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       let actual = contents.message_history_mut().pop();
       info!("actual:{:?}", actual);
@@ -974,11 +926,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       info!("home_dir4 n:{:?}", n);
       assert_eq!(2, n);
@@ -1052,11 +1000,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       let n = contents.message_history().len();
       info!("home_dir5 n:{:?}", n);
       assert_eq!(2, n);
@@ -1146,11 +1090,7 @@ export function echoA(value) {
 
     // After
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       let actual = contents.message_history_mut().pop();
       info!("actual:{:?}", actual);
@@ -1243,11 +1183,7 @@ export function echoMain(value) {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(5, contents.message_history().len());
 
       let url = contents.message_history_mut().pop();
@@ -1398,11 +1334,7 @@ setTimeout(() => {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(3, contents.message_history().len());
 
       let url1 = contents.message_history_mut().pop();
@@ -1471,11 +1403,7 @@ mod test_require {
 
     // After running
     {
-      let state_rc = event_loop.js_runtime.get_state();
-      let state = state_rc.borrow();
-      info!("module_map:{:#?}", state.module_map);
-
-      let mut contents = lock!(event_loop.cmdline_text);
+      let mut contents = lock!(event_loop.editor.cmdline_text);
       assert_eq!(1, contents.message_history().len());
       let actual = contents.message_history_mut().pop();
       assert!(actual.is_some());

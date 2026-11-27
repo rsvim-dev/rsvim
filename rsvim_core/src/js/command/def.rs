@@ -1,47 +1,52 @@
 //! Ex command definition.
 
-use crate::is_v8_func;
-use crate::is_v8_str;
-use crate::js::command::attr::*;
-use crate::js::command::opt::*;
-use crate::js::converter::*;
+use crate::js::command::attr::CommandAttributes;
+use crate::js::command::opt::CommandOptions;
 use compact_str::CompactString;
-use compact_str::ToCompactString;
-use std::rc::Rc;
 
-pub type CommandCallback = Rc<v8::Global<v8::Function>>;
+/// The javascript function a user registered with `cmd.create(name, cb)`.
+///
+/// QuickJS hands out [`rquickjs::Persistent`] for "a callable that outlives the
+/// current scope": a `rquickjs::Function` dies with its [`rquickjs::Ctx`].
+///
+/// NOTE: a `Persistent` that outlives its runtime makes QuickJS abort the
+/// process on drop. The command manager lives in [`crate::evloop::Editor`],
+/// which the runtime does not own, so no field order can decide which drops
+/// first; `impl Drop for` [`crate::js::JsHost`] clears the manager before the
+/// runtime goes away.
+#[derive(Clone)]
+pub struct CommandCallback(rquickjs::Persistent<rquickjs::Function<'static>>);
+
+impl std::fmt::Debug for CommandCallback {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str("CommandCallback")
+  }
+}
+
+impl CommandCallback {
+  /// Wraps a freshly created javascript function.
+  pub fn new<'js>(
+    ctx: &rquickjs::Ctx<'js>,
+    callback: rquickjs::Function<'js>,
+  ) -> Self {
+    Self(rquickjs::Persistent::save(ctx, callback))
+  }
+
+  /// Brings the handle back to life inside `ctx`.
+  pub fn restore<'js>(
+    &self,
+    ctx: &rquickjs::Ctx<'js>,
+  ) -> rquickjs::Result<rquickjs::Function<'js>> {
+    self.0.clone().restore(ctx)
+  }
+}
 
 #[derive_where::derive_where(Debug)]
-#[derive(Clone, rsvim_macro::ToV8, rsvim_macro::RcPtr)]
+#[derive(Clone, rsvim_macro::RcPtr)]
 pub struct CommandDefinition {
   pub name: CompactString,
   #[derive_where(skip)]
   pub callback: CommandCallback,
   pub attributes: CommandAttributes,
   pub options: CommandOptions,
-}
-
-impl FromV8CallbackArgs for CommandDefinition {
-  fn from_v8_callback_args<'s>(
-    scope: &mut v8::PinScope<'s, '_>,
-    args: v8::FunctionCallbackArguments<'s>,
-  ) -> Self {
-    debug_assert!(args.length() == 4);
-    debug_assert!(is_v8_str!(args.get(0)));
-    let name = args.get(0).to_rust_string_lossy(scope);
-    debug_assert!(is_v8_func!(args.get(1)));
-    let callback = v8::Local::<v8::Function>::try_from(args.get(1)).unwrap();
-    let callback = Rc::new(v8::Global::new(scope, callback));
-    debug_assert!(args.get(2).is_object());
-    let attributes = CommandAttributes::from_v8(scope, args.get(2));
-    debug_assert!(args.get(3).is_object());
-    let options = CommandOptions::from_v8(scope, args.get(3));
-
-    Self {
-      name: name.to_compact_string(),
-      callback,
-      attributes,
-      options,
-    }
-  }
 }

@@ -46,7 +46,7 @@ async fn test_encode1() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -98,7 +98,7 @@ async fn test_encode2() -> IoResult<()> {
 
   // After
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -148,7 +148,7 @@ async fn test_encode3() -> IoResult<()> {
 
   // After
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -208,7 +208,7 @@ async fn test_decode1() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -274,7 +274,7 @@ async fn test_decode2() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -325,7 +325,7 @@ async fn test_decode3() -> IoResult<()> {
 
   // After
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -378,7 +378,7 @@ async fn test_decode4() -> IoResult<()> {
 
   // After
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -418,7 +418,7 @@ async fn test_decode5() -> IoResult<()> {
 
   // After
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -453,7 +453,7 @@ async fn test_decode_failed1() -> IoResult<()> {
 
   // After
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();

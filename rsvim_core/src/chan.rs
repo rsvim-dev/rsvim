@@ -1,5 +1,5 @@
-//! Messages between [`EventLoop`](crate::evloop::EventLoop) and
-//! [`JsRuntime`](crate::js::JsRuntime).
+//! Messages between [`EventLoop`](crate::evloop::EventLoop) and the
+//! javascript runtime.
 
 pub mod jsrt;
 pub mod master;

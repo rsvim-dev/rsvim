@@ -1,6 +1,6 @@
 use super::fs_loader::*;
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::js::loader::ModuleLoader;
+use crate::js::module::ModuleLoader;
 use crate::prelude::*;
 use crate::tests::evloop::*;
 use crate::tests::log::init as test_log_init;

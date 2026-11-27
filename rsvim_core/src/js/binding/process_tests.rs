@@ -66,7 +66,7 @@ async fn test_new_command1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -106,7 +106,7 @@ async fn test_spawn1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
 
@@ -157,7 +157,7 @@ async fn test_spawn2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -220,7 +220,7 @@ async fn test_spawn3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 
@@ -289,7 +289,7 @@ async fn test_spawn4() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 
@@ -353,7 +353,7 @@ async fn test_spawn5() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -451,4 +451,53 @@ async fn test_exit2() -> IoResult<()> {
   }
 
   Ok(())
+}
+
+use crate::chan::MasterMessage;
+use crate::tests::js::make_js_host;
+use crate::tests::js::with_kernel;
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn exit_sends_an_exit_request() {
+  test_log_init();
+  let mut js = make_js_host();
+  js.run("__InternalRsvimGlobalObject.process_exit(7)");
+  match js.master_rx.try_recv() {
+    Ok(MasterMessage::ExitReq(req)) => assert_eq!(req.exit_code, 7),
+    other => panic!("expected an ExitReq, got {:?}", other),
+  }
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn spawn_of_a_missing_binary_is_a_javascript_error() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    let result = ctx.eval::<rquickjs::Object, _>(
+        "__InternalRsvimGlobalObject.process_spawn_child('/nonexistent/rsvim-test-binary', {})",
+      );
+    assert!(result.is_err());
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn spawn_returns_the_resource_ids() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    // `/bin/true` exists on every unix, and an empty options object must fall
+    // back to the builder defaults (`stdin: null`, `stdout/stderr: piped`).
+    let has_rid: bool = ctx
+        .eval(
+          r#"
+          (() => {
+            const r = __InternalRsvimGlobalObject.process_spawn_child('/bin/true', {});
+            return typeof r.rid === 'number' && typeof r.stdoutRid === 'number';
+          })()
+          "#,
+        )
+        .unwrap();
+    assert!(has_rid);
+  });
 }

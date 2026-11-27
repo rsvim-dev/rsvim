@@ -1114,7 +1114,7 @@ mod tests_buffer_editing {
 
     // After running
     {
-      let buf = lock!(event_loop.buffer_manager)
+      let buf = lock!(event_loop.editor.buffer_manager)
         .first_key_value()
         .unwrap()
         .1
@@ -1189,7 +1189,7 @@ mod tests_buffer_editing {
 
     // After running
     {
-      let buf = lock!(event_loop.buffer_manager)
+      let buf = lock!(event_loop.editor.buffer_manager)
         .first_key_value()
         .unwrap()
         .1

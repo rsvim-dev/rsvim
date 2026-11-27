@@ -108,7 +108,7 @@ impl CmdlineEx {
     let current_buf_id = buffer.id();
 
     chan::send_to_jsrt(
-      context.jsrt_forwarder_tx.clone(),
+      context.jsrt_tx.clone(),
       JsMessage::ExCommandReq(ExCommandReq {
         payload: cmdline_input_content,
         current_buf_id,

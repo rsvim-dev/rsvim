@@ -58,8 +58,8 @@ static RSVIM_VERSION: LazyLock<String> = LazyLock::new(|| {
   } else {
     ""
   };
-  let v8_version = format!("v8 {}", version_tags["v8"]);
-  format!("{}\n{}{}", binary_version, features, v8_version)
+  let quickjs_version = format!("quickjs {}", version_tags["quickjs"]);
+  format!("{}\n{}{}", binary_version, features, quickjs_version)
 });
 
 fn main() -> IoResult<()> {

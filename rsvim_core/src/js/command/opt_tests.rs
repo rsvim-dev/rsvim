@@ -1,25 +1,17 @@
 use super::opt::*;
-use crate::js::converter::*;
-use crate::tests::js::*;
 use compact_str::ToCompactString;
 
 #[test]
-#[cfg_attr(miri, ignore)]
-fn test1() {
-  let mut jsrt = make_js_runtime();
-  let context = jsrt.context();
-  v8::scope_with_context!(scope, &mut jsrt.isolate, context);
+fn test_options_builder() {
+  let o1 = CommandOptionsBuilder::default().build().unwrap();
+  assert!(o1.force);
+  assert_eq!(o1.alias, None);
 
-  let a1 = CommandOptionsBuilder::default().build().unwrap();
-  let obj1 = a1.to_v8(scope);
-  let val1 = CommandOptions::from_v8(scope, obj1);
-  assert_eq!(val1, a1);
-
-  let a2 = CommandOptionsBuilder::default()
+  let o2 = CommandOptionsBuilder::default()
+    .force(false)
     .alias(Some("w".to_compact_string()))
     .build()
     .unwrap();
-  let obj2 = a2.to_v8(scope);
-  let val2 = CommandOptions::from_v8(scope, obj2);
-  assert_eq!(val2, a2);
+  assert!(!o2.force);
+  assert_eq!(o2.alias, Some("w".to_compact_string()));
 }

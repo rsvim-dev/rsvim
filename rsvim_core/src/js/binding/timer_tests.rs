@@ -31,7 +31,7 @@ async fn test_timeout1() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -45,7 +45,7 @@ async fn test_timeout1() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
@@ -83,7 +83,7 @@ async fn test_timeout2() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -97,7 +97,7 @@ async fn test_timeout2() -> IoResult<()> {
 
   // Still remains the same value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -136,7 +136,7 @@ async fn test_timeout3() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -150,12 +150,12 @@ async fn test_timeout3() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
 
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(3, contents.message_history().len());
     let actual1 = contents.message_history_mut().pop();
     assert!(actual1.is_some());
@@ -209,7 +209,7 @@ async fn test_timeout4() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -223,12 +223,12 @@ async fn test_timeout4() -> IoResult<()> {
 
   // Still remains the same value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
 
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(0, contents.message_history().len());
   }
 
@@ -261,7 +261,7 @@ async fn test_timeout5() -> IoResult<()> {
 
   // Before evaluating javascript configs
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert_eq!(global_local_options.wrap(), WRAP);
     assert_eq!(global_local_options.line_break(), LINE_BREAK);
@@ -275,7 +275,7 @@ async fn test_timeout5() -> IoResult<()> {
 
   // After timeout, it changes to new value
   {
-    let tree = lock!(event_loop.tree);
+    let tree = lock!(event_loop.editor.tree);
     let global_local_options = tree.global_local_options();
     assert!(!global_local_options.wrap());
     assert!(global_local_options.line_break());
@@ -320,7 +320,7 @@ async fn test_interval1() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     assert_eq!(3, contents.message_history().len());
     for i in 0..3 {
       let actual = contents.message_history_mut().pop();
@@ -370,7 +370,7 @@ async fn test_interval2() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     info!("n:{}", n);
     assert!(n >= 2);
@@ -427,7 +427,7 @@ async fn test_interval3() -> IoResult<()> {
 
   // After timeout
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     info!("n:{}", n);
     assert!(n >= 2);
@@ -488,7 +488,7 @@ async fn test_timeout6() -> IoResult<()> {
   event_loop.shutdown()?;
 
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     // The `1e10` delay is clamped to `2^31 - 1` millis, which is far beyond the
     // mocked sleep, so only the first two timers fire.
     assert_eq!(2, contents.message_history().len());
@@ -501,4 +501,69 @@ async fn test_timeout6() -> IoResult<()> {
   }
 
   Ok(())
+}
+
+use crate::tests::js::make_js_host;
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn timer_fires_once_after_the_delay() {
+  test_log_init();
+  let mut js = make_js_host();
+
+  js.enter(|ctx| {
+    ctx
+      .eval::<(), _>(
+        r#"
+          globalThis.fired = 0;
+          __InternalRsvimGlobalObject.global_create_timer(() => {
+            globalThis.fired += 1;
+          }, 1, false);
+          "#,
+      )
+      .unwrap();
+  });
+
+  let done = js
+    .run_until(Duration::from_secs(5), |js| {
+      js.enter(|ctx| ctx.eval::<i32, _>("globalThis.fired").unwrap()) == 1
+    })
+    .await;
+  assert!(done, "the timer must fire");
+
+  // A one-shot timer must not come back.
+  js.run_for(Duration::from_millis(30)).await;
+  let fired: i32 = js.enter(|ctx| ctx.eval("globalThis.fired").unwrap());
+  assert_eq!(fired, 1, "a one-shot timer must not fire twice");
+  assert_eq!(
+    js.host.ops().timers_len(),
+    0,
+    "a fired timer leaves the table"
+  );
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn cleared_timer_never_fires() {
+  test_log_init();
+  let mut js = make_js_host();
+
+  js.enter(|ctx| {
+      ctx
+        .eval::<(), _>(
+          r#"
+          globalThis.fired = 0;
+          globalThis.id = __InternalRsvimGlobalObject.global_create_timer(() => {
+            globalThis.fired += 1;
+          }, 1, false);
+          __InternalRsvimGlobalObject.global_clear_timer(globalThis.id);
+          "#,
+        )
+        .unwrap();
+    });
+  assert_eq!(js.host.ops().timers_len(), 0, "clearing removes the entry");
+
+  js.run_for(Duration::from_millis(30)).await;
+  let fired: i32 = js.enter(|ctx| ctx.eval("globalThis.fired").unwrap());
+  assert_eq!(fired, 0, "a cleared timer must not run its callback");
 }

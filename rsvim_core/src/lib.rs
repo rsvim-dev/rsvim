@@ -25,6 +25,8 @@ mod cli_tests;
 #[cfg(test)]
 mod coord_tests;
 #[cfg(test)]
+mod evloop_tests;
+#[cfg(test)]
 mod hl_tests;
 #[cfg(test)]
 mod js_tests;

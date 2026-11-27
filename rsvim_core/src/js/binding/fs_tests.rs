@@ -55,7 +55,7 @@ async fn test_open_close1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -103,7 +103,7 @@ async fn test_open_close2() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
   }
@@ -152,7 +152,7 @@ async fn test_open_close3() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
     assert!(tmpfile.exists());
@@ -202,7 +202,7 @@ async fn test_open_close4() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let actual = contents.message_history().is_empty();
     assert!(actual);
     assert!(tmpfile.exists());
@@ -250,7 +250,7 @@ try {{
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -303,7 +303,7 @@ try {{
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -361,7 +361,7 @@ async fn test_read_write1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -416,7 +416,7 @@ async fn test_read_write2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -469,7 +469,7 @@ async fn test_read_write3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -526,7 +526,7 @@ async fn test_read_write4() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -581,7 +581,7 @@ async fn test_read_file1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -634,7 +634,7 @@ async fn test_read_file2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -686,7 +686,7 @@ async fn test_read_text_file1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -734,7 +734,7 @@ async fn test_read_text_file2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -784,7 +784,7 @@ async fn test_fs_stat1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop().unwrap();
@@ -838,7 +838,7 @@ async fn test_fs_stat2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -895,7 +895,7 @@ async fn test_fs_stat3() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -963,7 +963,7 @@ async fn test_fs_symlink1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1030,7 +1030,7 @@ async fn test_fs_symlink2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1089,7 +1089,7 @@ async fn test_fs_symlink3() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
 
@@ -1155,7 +1155,7 @@ async fn test_fs_link1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
 
@@ -1208,7 +1208,7 @@ async fn test_fs_mkdir1() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -1255,7 +1255,7 @@ async fn test_fs_mkdir2() -> IoResult<()> {
 
   // After running
   {
-    let contents = lock!(event_loop.cmdline_text);
+    let contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 0);
   }
@@ -1369,7 +1369,7 @@ async fn test_read_dir1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 28);
 
@@ -1426,7 +1426,7 @@ async fn test_read_dir2() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 28);
 
@@ -1441,4 +1441,109 @@ async fn test_read_dir2() -> IoResult<()> {
   }
 
   Ok(())
+}
+
+use crate::tests::js::with_kernel;
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn open_write_read_close_roundtrip() {
+  test_log_init();
+  let file = assert_fs::NamedTempFile::new("rqjs-fs.txt").unwrap();
+  let path = file.path().to_string_lossy().to_string();
+  with_kernel(|ctx, _kernel| {
+    let src = format!(
+        "const rid = __InternalRsvimGlobalObject.fs_open_sync({path:?}, {{create:true,read:true,write:true,truncate:true}});
+        const buf = new Uint8Array([72, 101, 108, 108, 111]).buffer;
+        const n = __InternalRsvimGlobalObject.fs_write_sync(rid, buf);
+        __InternalRsvimGlobalObject.fs_close(rid);
+        n;"
+      );
+    let n: i32 = ctx.eval(src).unwrap();
+    assert_eq!(n, 5);
+  });
+  assert_eq!(std::fs::read_to_string(file.path()).unwrap(), "Hello");
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn read_sync_fills_the_caller_buffer() {
+  test_log_init();
+  let file = assert_fs::NamedTempFile::new("rqjs-fs-read.txt").unwrap();
+  std::fs::write(file.path(), "abcdef").unwrap();
+  let path = file.path().to_string_lossy().to_string();
+  with_kernel(|ctx, _kernel| {
+    let src = format!(
+        "const rid = __InternalRsvimGlobalObject.fs_open_sync({path:?}, {{read:true}});
+        const buf = new ArrayBuffer(6);
+        const n = __InternalRsvimGlobalObject.fs_read_sync(rid, buf);
+        __InternalRsvimGlobalObject.fs_close(rid);
+        const view = new Uint8Array(buf);
+        globalThis.__n = n;
+        globalThis.__text = Array.from(view).map(c => String.fromCharCode(c)).join('');"
+      );
+    ctx.eval::<(), _>(src).unwrap();
+    let n: i32 = ctx.eval("globalThis.__n").unwrap();
+    let text: String = ctx.eval("globalThis.__text").unwrap();
+    assert_eq!(n, 6);
+    assert_eq!(text, "abcdef");
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn stat_sync_reports_a_file() {
+  test_log_init();
+  let file = assert_fs::NamedTempFile::new("rqjs-fs-stat.txt").unwrap();
+  std::fs::write(file.path(), "1234").unwrap();
+  let path = file.path().to_string_lossy().to_string();
+  with_kernel(|ctx, _kernel| {
+    let src = format!(
+      "const meta = __InternalRsvimGlobalObject.fs_stat_sync({path:?});
+        globalThis.__meta = meta;"
+    );
+    ctx.eval::<(), _>(src).unwrap();
+    let is_file: bool = ctx.eval("globalThis.__meta.isFile").unwrap();
+    let is_dir: bool = ctx.eval("globalThis.__meta.isDir").unwrap();
+    let len: u64 = ctx.eval("globalThis.__meta.len").unwrap();
+    assert!(is_file);
+    assert!(!is_dir);
+    assert_eq!(len, 4);
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn read_dir_sync_lists_entries() {
+  test_log_init();
+  let dir = assert_fs::TempDir::new().unwrap();
+  std::fs::write(dir.path().join("a.txt"), "").unwrap();
+  let path = dir.path().to_string_lossy().to_string();
+  with_kernel(|ctx, _kernel| {
+    let src = format!(
+      "const rid = __InternalRsvimGlobalObject.fs_read_dir_sync({path:?});
+        const names = [];
+        for (;;) {{
+          const entry = __InternalRsvimGlobalObject.fs_read_dir_next_sync(rid);
+          if (entry === undefined) {{ break; }}
+          names.push(entry.name);
+        }}
+        __InternalRsvimGlobalObject.fs_read_dir_close(rid);
+        names;"
+    );
+    let names: Vec<String> = ctx.eval(src).unwrap();
+    assert_eq!(names, vec!["a.txt".to_string()]);
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn missing_file_is_a_javascript_error() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    let result = ctx.eval::<rquickjs::Object, _>(
+      "__InternalRsvimGlobalObject.fs_stat_sync('/nonexistent/rsvim/fs')",
+    );
+    assert!(result.is_err());
+  });
 }

@@ -1,312 +1,237 @@
-//! `TextEncoder` APIs.
+//! `TextEncoder` and `TextDecoder` — the encoding half of the web globals.
+//!
+//! The timer half of the web globals (`setTimeout`/`setInterval`) belongs to the
+//! async step: a timer has to park a callback and come back to it later, which
+//! needs the completion channel that step introduces.
 
-use crate::is_v8_bool;
-use crate::is_v8_int;
-use crate::is_v8_str;
-use crate::js::JsRuntime;
-use crate::js::binding;
-use crate::js::converter::*;
+use crate::js::binding::set_function_to;
+use crate::js::converter::array_buffer_to_vec;
+use crate::js::converter::copy_into_array_buffer;
 use crate::js::resource::Resource;
 use crate::js::resource::ResourceId;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
-use compact_str::ToCompactString;
 use encoding_rs::CoderResult;
 use encoding_rs::Decoder;
 use encoding_rs::DecoderResult;
 use encoding_rs::Encoding;
-use itertools::Itertools;
+use rquickjs::ArrayBuffer;
+use rquickjs::Coerced;
+use rquickjs::Ctx;
+use rquickjs::Exception;
+use rquickjs::Object;
+use rquickjs::Result as JsResult;
+use rquickjs::String as JsString;
 
-// Returns v8 BackingStore data, read (chars), written (bytes)
-fn encode_impl<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  payload: v8::Local<'s, v8::String>,
-  bufsize: usize,
-) -> (Vec<u8>, usize, usize) {
-  let mut buf: Vec<u8> = Vec::with_capacity(bufsize);
-  let mut read: usize = 0;
+#[cfg(test)]
+#[path = "text_encoder_tests.rs"]
+mod text_encoder_tests;
 
-  let written = payload.write_utf8_uninit_v2(
-    scope,
-    // Step-1: Get uninit buffer inside vec
-    buf.spare_capacity_mut(),
-    v8::WriteFlags::kReplaceInvalidUtf8,
-    Some(&mut read),
-  );
-  unsafe {
-    // Step-2: Set length for the buffer, because it doesn't know memory
-    // changes made by v8 "writeUtf8" API.
-    buf.set_len(written);
-  }
-  trace!(
-    "|encode_impl| written:{:?}, read:{:?}, buf.len:{:?}",
-    written,
-    read,
-    buf.len()
-  );
-
-  (buf, read, written)
+/// `TextEncoder.encode(string)`.
+///
+/// Returns a `Uint8Array`, which javascript sees as an array of bytes — not an
+/// `ArrayBuffer`. `00__web.min.js` passes the result on to `fs.write` unchanged.
+pub fn encoding_encode<'js>(
+  ctx: Ctx<'js>,
+  payload: Coerced<String>,
+) -> JsResult<rquickjs::TypedArray<'js, u8>> {
+  let bytes = payload.0.into_bytes();
+  rquickjs::TypedArray::new(ctx, bytes)
 }
 
-/// `TextEncoder.encode` API.
-pub fn encode<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let payload = args.get(0).to_string(scope).unwrap();
-  trace!("|encode| payload:{:?}", payload.to_rust_string_lossy(scope));
+/// `TextEncoder.encodeInto(string, uint8array)`.
+///
+/// Writes as many bytes as fit and reports both counts, per the encoding
+/// standard.
+pub fn encoding_encode_into<'js>(
+  ctx: Ctx<'js>,
+  payload: Coerced<String>,
+  buffer: ArrayBuffer<'js>,
+) -> JsResult<Object<'js>> {
+  let bytes = payload.0.into_bytes();
+  let n = copy_into_array_buffer(&buffer, &bytes).ok_or_else(|| {
+    Exception::throw_type(&ctx, "encodeInto: detached buffer")
+  })?;
 
-  let buf_size = payload.utf8_length(scope);
-  let (data, _read, _written) = encode_impl(scope, payload, buf_size);
-  debug_assert_eq!(_written, data.len());
-
-  let store = v8::ArrayBuffer::new_backing_store_from_vec(data);
-  let buf = v8::ArrayBuffer::with_backing_store(scope, &store.make_shared());
-  let buf = v8::Uint8Array::new(scope, buf, 0, buf.byte_length()).unwrap();
-  rv.set(buf.into());
+  let result = Object::new(ctx.clone())?;
+  result.set("read", n)?;
+  result.set("written", n)?;
+  Ok(result)
 }
 
-/// `TextEncoder.encodeInto` API.
-pub fn encode_into<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let payload = args.get(0).to_string(scope).unwrap();
-  trace!(
-    "|encode_into| payload:{:?}",
-    payload.to_rust_string_lossy(scope)
-  );
-
-  debug_assert!(args.get(1).is_array_buffer());
-  let buf = args.get(1).cast::<v8::ArrayBuffer>();
-  let buf_size = buf.byte_length();
-  let buf_store = buf.get_backing_store();
-
-  let (data, read, written) = encode_impl(scope, payload, buf_size);
-
-  debug_assert_eq!(written, data.len());
-  debug_assert!(data.len() <= buf_size);
-  for (i, b) in data.iter().enumerate() {
-    buf_store[i].set(*b);
-  }
-
-  let result = v8::Object::new(scope);
-  let read_value = (read as u32).to_v8(scope);
-  binding::set_property_to(scope, result, "read", read_value);
-  let written_value = (written as u32).to_v8(scope);
-  binding::set_property_to(scope, result, "written", written_value);
-
-  rv.set(result.into());
+/// `TextEncoder`'s `checkEncodingLabel` helper.
+pub fn encoding_check_encoding_label(
+  _ctx: Ctx<'_>,
+  label: Coerced<String>,
+) -> JsResult<bool> {
+  Ok(Encoding::for_label(label.0.as_bytes()).is_some())
 }
 
-/// Check whether encoding label is valid.
-pub fn check_encoding_label<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let label = args.get(0).to_rust_string_lossy(scope).to_compact_string();
-  let valid = Encoding::for_label(label.as_bytes()).is_some();
-  rv.set_bool(valid);
-}
-
-fn create_decoder_impl(label: &str, ignore_bom: bool) -> Decoder {
-  let encoding = Encoding::for_label(label.as_bytes()).unwrap();
-  if ignore_bom {
+fn create_decoder(label: &str, ignore_bom: bool) -> JsResult<Decoder> {
+  let encoding = Encoding::for_label(label.as_bytes()).ok_or_else(|| {
+    rquickjs::Error::new_from_js_message(
+      "string",
+      "encoding label",
+      "unknown encoding",
+    )
+  })?;
+  Ok(if ignore_bom {
     encoding.new_decoder_without_bom_handling()
   } else {
     encoding.new_decoder_with_bom_removal()
-  }
+  })
 }
 
-fn decode_impl<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  rv: &mut v8::ReturnValue,
+/// Shared body of the two decode entry points. Mirrors `decode_impl` in the v8
+/// backend: fatal decoders reject malformed input, lenient ones substitute.
+fn decode<'js>(
+  ctx: &Ctx<'js>,
   decoder: &mut Decoder,
   data: &[u8],
   fatal: bool,
   stream: bool,
-) {
-  let max_buffer_length = decoder.max_utf16_buffer_length(data.len());
-
-  if max_buffer_length.is_none() {
-    binding::throw_range_error(scope, &TheErr::ValueTooLarge(data.len()));
-    return;
-  }
-
-  let max_buffer_length = max_buffer_length.unwrap();
-  let mut output = vec![0; max_buffer_length];
+) -> JsResult<JsString<'js>> {
+  let Some(max_len) = decoder.max_utf16_buffer_length(data.len()) else {
+    return Err(Exception::throw_range(ctx, "input too large"));
+  };
+  let mut out = vec![0u16; max_len];
 
   if fatal {
     let (result, _read, written) =
-      decoder.decode_to_utf16_without_replacement(data, &mut output, !stream);
+      decoder.decode_to_utf16_without_replacement(data, &mut out, !stream);
     match result {
-      DecoderResult::InputEmpty => {
-        output.truncate(written);
-        let output = v8::String::new_from_two_byte(
-          scope,
-          &output,
-          v8::NewStringType::Normal,
-        )
-        .unwrap();
-        rv.set(output.into());
-      }
+      DecoderResult::InputEmpty => {}
       DecoderResult::OutputFull => {
-        binding::throw_type_error(
-          scope,
-          &TheErr::BufferTooSmall(max_buffer_length),
-        );
+        return Err(Exception::throw_type(ctx, "output buffer too small"));
       }
       DecoderResult::Malformed(_, _) => {
-        binding::throw_type_error(scope, &TheErr::DataInvalid);
+        return Err(Exception::throw_type(ctx, "malformed input"));
       }
     }
+    out.truncate(written);
   } else {
     let (result, _read, written, _had_errors) =
-      decoder.decode_to_utf16(data, &mut output, !stream);
+      decoder.decode_to_utf16(data, &mut out, !stream);
     match result {
-      CoderResult::InputEmpty => {
-        output.truncate(written);
-        let output = v8::String::new_from_two_byte(
-          scope,
-          &output,
-          v8::NewStringType::Normal,
-        )
-        .unwrap();
-        rv.set(output.into());
-      }
+      CoderResult::InputEmpty => {}
       CoderResult::OutputFull => {
-        binding::throw_type_error(
-          scope,
-          &TheErr::BufferTooSmall(max_buffer_length),
-        );
+        return Err(Exception::throw_type(ctx, "output buffer too small"));
       }
     }
+    out.truncate(written);
   }
+
+  // `String::from_str` only takes UTF-8, and the decoder produces UTF-16.
+  // Round-tripping through `String::from_utf16` is safe because the decoder's
+  // output is always valid UTF-16.
+  let text = std::string::String::from_utf16(&out).map_err(|_| {
+    Exception::throw_type(ctx, "decoder produced invalid utf-16")
+  })?;
+  JsString::from_str(ctx.clone(), &text)
 }
 
-/// `TextDecoder.decode` API on non-stream, single pass.
-pub fn decode_single<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 4);
-  debug_assert!(args.get(0).is_array_buffer());
-  let data = args.get(0).cast::<v8::ArrayBuffer>();
-  let data: Vec<u8> = data
-    .get_backing_store()
-    .iter()
-    .map(|b| b.get())
-    .collect_vec();
-  debug_assert!(is_v8_str!(args.get(1)));
-  let label = args.get(1).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_bool!(args.get(2)));
-  let fatal = bool::from_v8(scope, args.get(2));
-  debug_assert!(is_v8_bool!(args.get(3)));
-  let ignore_bom = bool::from_v8(scope, args.get(3));
-  trace!(
-    "|decode_single| data:{:?}, label:{:?}, fatal:{:?}, ignore_bom:{:?}",
-    data, label, fatal, ignore_bom
-  );
-
-  let mut decoder = create_decoder_impl(&label, ignore_bom);
-  decode_impl(scope, &mut rv, &mut decoder, &data, fatal, false);
+/// `TextDecoder.decode(buffer, label, fatal, ignoreBom)` — one-shot decoding.
+pub fn encoding_decode_single<'js>(
+  ctx: Ctx<'js>,
+  data: ArrayBuffer<'js>,
+  label: Coerced<String>,
+  fatal: bool,
+  ignore_bom: bool,
+) -> JsResult<JsString<'js>> {
+  let bytes = array_buffer_to_vec(&ctx, data.into_value())?;
+  let mut decoder = create_decoder(&label.0, ignore_bom)?;
+  decode(&ctx, &mut decoder, &bytes, fatal, false)
 }
 
-/// `new TextDecoder()` API for stream decoding.
-pub fn create_stream_decoder<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 2);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let label = args.get(0).to_rust_string_lossy(scope);
-  debug_assert!(is_v8_bool!(args.get(1)));
-  let ignore_bom = bool::from_v8(scope, args.get(1));
-  trace!(
-    "|create_stream_decoder| label:{:?}, ignore_bom:{:?}",
-    label, ignore_bom
-  );
-
-  let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
-
-  let decoder_handle = create_decoder_impl(&label, ignore_bom);
-  let decoder_rid = lock!(resource_table).add_text_decoder(decoder_handle);
-  let decoder_rid = Into::<i32>::into(decoder_rid);
-  trace!("|create_stream_decoder| rid:{:?}", decoder_rid);
-  let decoder_rid = decoder_rid.to_v8(scope);
-
-  rv.set(decoder_rid);
+/// `new TextDecoder().decode(..., {stream: true})` — allocates a decoder and
+/// returns its resource id.
+pub fn encoding_create_stream_decoder(
+  ctx: Ctx<'_>,
+  label: Coerced<String>,
+  ignore_bom: bool,
+) -> JsResult<i32> {
+  let decoder = create_decoder(&label.0, ignore_bom)?;
+  let kernel = kernel(&ctx)?;
+  let table = kernel.borrow().editor.resource_table.clone();
+  let rid = lock!(table).add_text_decoder(decoder);
+  Ok(rid.into())
 }
 
-/// `TextDecoder.decode` API.
-pub fn decode_stream<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 4);
-  debug_assert!(args.get(0).is_array_buffer());
-  let data = args.get(0).cast::<v8::ArrayBuffer>();
-  let data: Vec<u8> = data
-    .get_backing_store()
-    .iter()
-    .map(|b| b.get())
-    .collect_vec();
-  debug_assert!(is_v8_int!(args.get(1)));
-  let decoder_rid = i32::from_v8(scope, args.get(1));
-  let decoder_rid = ResourceId::from(decoder_rid);
-  debug_assert!(is_v8_bool!(args.get(2)));
-  let fatal = bool::from_v8(scope, args.get(2));
-  debug_assert!(is_v8_bool!(args.get(3)));
-  let stream = bool::from_v8(scope, args.get(3));
-  trace!(
-    "|decode_stream| data:{:?}, fatal:{:?}, stream:{:?}",
-    data, fatal, stream
-  );
-
-  let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
-
-  let decoder_handle = lock!(resource_table).get(&decoder_rid).cloned();
-  debug_assert!(decoder_handle.is_some());
-  match decoder_handle.unwrap() {
+/// Continues a streaming decode with the decoder allocated above.
+pub fn encoding_decode_stream<'js>(
+  ctx: Ctx<'js>,
+  data: ArrayBuffer<'js>,
+  decoder_rid: Coerced<i32>,
+  fatal: bool,
+  stream: bool,
+) -> JsResult<JsString<'js>> {
+  let bytes = array_buffer_to_vec(&ctx, data.into_value())?;
+  let rid = ResourceId::from(decoder_rid.0);
+  let kernel = kernel(&ctx)?;
+  let table = kernel.borrow().editor.resource_table.clone();
+  let handle = lock!(table).get(&rid).cloned().ok_or_else(|| {
+    Exception::throw_type(&ctx, "unknown text decoder handle")
+  })?;
+  match handle {
     Resource::TextDecoder(res) => {
       let decoder = res.data();
       let mut decoder = lock!(decoder);
-      decode_impl(scope, &mut rv, &mut decoder, &data, fatal, stream);
+      decode(&ctx, &mut decoder, &bytes, fatal, stream)
     }
-    _ => unreachable!(),
+    _ => Err(Exception::throw_type(&ctx, "handle is not a text decoder")),
   }
 }
 
-pub fn close_stream_decoder<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut _rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_int!(args.get(0)));
-  let decoder_rid = i32::from_v8(scope, args.get(0));
-  let decoder_rid = ResourceId::from(decoder_rid);
-  trace!("|close_stream_decoder| decoder_rid:{:?}", decoder_rid);
+/// Frees a streaming decoder.
+pub fn encoding_close_stream_decoder(
+  ctx: Ctx<'_>,
+  decoder_rid: Coerced<i32>,
+) -> JsResult<()> {
+  let rid = ResourceId::from(decoder_rid.0);
+  let kernel = kernel(&ctx)?;
+  let table = kernel.borrow().editor.resource_table.clone();
+  let _ = lock!(table).remove(&rid);
+  Ok(())
+}
 
-  let state_rc = JsRuntime::state(scope);
-  let resource_table = state_rc.borrow().resource_table.clone();
-
-  let mut decoder_handle = lock!(resource_table).remove(&decoder_rid);
-  debug_assert!(decoder_handle.is_some());
-
-  // Drop decoder handle
-  decoder_handle.take();
+/// Installs the `TextEncoder`/`TextDecoder` bindings.
+pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
+  set_function_to(ctx, internal, "global_encoding_encode", encoding_encode)?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_encode_into",
+    encoding_encode_into,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_check_encoding_label",
+    encoding_check_encoding_label,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_decode_single",
+    encoding_decode_single,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_create_stream_decoder",
+    encoding_create_stream_decoder,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_decode_stream",
+    encoding_decode_stream,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "global_encoding_close_stream_decoder",
+    encoding_close_stream_decoder,
+  )?;
+  Ok(())
 }

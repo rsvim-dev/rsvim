@@ -1,168 +1,177 @@
 //! Syntax APIs.
+//!
+//! `syn.listParsers`, `syn.getParserMetadata`, `syn.loadParserSync` and
+//! `syn.loadParser`.
 
-pub mod load;
-pub mod metadata;
-
-use crate::js;
-use crate::js::JsRuntime;
-use crate::js::binding;
-use crate::js::converter::*;
-use crate::js::pending;
+use crate::js::binding::set_function_to;
+use crate::js::ops::OpKind;
+use crate::js::ops::spawn_simple_op;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use crate::syntax;
 use crate::syntax::SyntaxLoadGrammarRequest;
-use compact_str::ToCompactString;
-pub use load::SynLoadTreeSitterParserFuture;
-pub use load::SynLoadTreeSitterParserOptions;
-pub use metadata::SynTreeSitterParserMetadata;
+use crate::syntax::SyntaxTreeSitterGrammarRepository;
+use rquickjs::Ctx;
+use rquickjs::Exception;
+use rquickjs::Object;
+use rquickjs::Promise;
+use rquickjs::Result as JsResult;
+use rquickjs::Value;
+use rquickjs::function::Opt;
 
-/// Javascript `loadParserSync` API.
-pub fn load_parser_sync<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  let options = SynLoadTreeSitterParserOptions::from_v8(scope, args.get(0));
-  trace!("syn.loadParserSync:{:?}", options);
-
-  let state_rc = JsRuntime::state(scope);
-  let state = state_rc.borrow();
-
-  match Path::new(&options.grammar_path).absolutize() {
-    Ok(grammar_path) => {
-      let load_req = SyntaxLoadGrammarRequest {
-        grammar_path: grammar_path.to_path_buf(),
-      };
-      match syntax::load_syntax_grammar(state.syntax_manager.clone(), &load_req)
-      {
-        Ok(metainfo) => {
-          let parser_names = metainfo
-            .grammars
-            .iter()
-            .map(|grammar| grammar.name.to_string())
-            .collect::<Vec<String>>();
-          trace!("syn.loadParserSync result:{:?}", parser_names);
-          let parser_names = parser_names.to_v8(scope);
-          rv.set(parser_names);
-        }
-        Err(e) => {
-          binding::throw_exception(scope, &e);
-        }
-      }
-    }
-    Err(_e) => {
-      let e = TheErr::TreeSitterParserNotFound(options.grammar_path.clone());
-      binding::throw_exception(scope, &e);
-    }
-  }
+/// Builds the javascript object `getParserMetadata` hands back.
+///
+/// The v8 backend gets this for free from `#[derive(ToV8)]`, which turns every
+/// field into a lowerCamelCase property. `rquickjs` has no such derive for an
+/// arbitrary struct, and the field set is small enough that spelling it out is
+/// cheaper than a macro.
+fn metadata_to_object<'js>(
+  ctx: &Ctx<'js>,
+  metadata: &crate::syntax::SyntaxTreeSitterGrammarMetadata,
+) -> JsResult<Object<'js>> {
+  let object = Object::new(ctx.clone())?;
+  object.set("name", metadata.name.to_string())?;
+  object.set("camelcase", metadata.camelcase.to_string())?;
+  object.set("scope", metadata.scope.to_string())?;
+  object.set("path", metadata.path.to_string_lossy().to_string())?;
+  let file_types = metadata
+    .file_types
+    .iter()
+    .map(|t| t.to_string())
+    .collect::<Vec<String>>();
+  object.set("fileTypes", file_types)?;
+  object.set(
+    "highlightsPath",
+    metadata
+      .highlights_path
+      .as_ref()
+      .map(|p| p.to_string_lossy().to_string()),
+  )?;
+  object.set("highlightsQuery", metadata.highlights_query.as_deref())?;
+  object.set(
+    "tagsPath",
+    metadata
+      .tags_path
+      .as_ref()
+      .map(|p| p.to_string_lossy().to_string()),
+  )?;
+  object.set("tagsQuery", metadata.tags_query.as_deref())?;
+  object.set(
+    "injectionsPath",
+    metadata
+      .injections_path
+      .as_ref()
+      .map(|p| p.to_string_lossy().to_string()),
+  )?;
+  object.set("injectionsQuery", metadata.injections_query.as_deref())?;
+  object.set("injectionRegex", metadata.injection_regex.clone())?;
+  Ok(object)
 }
 
-/// Javascript `loadParser` API.
-pub fn load_treesitter_parser<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  let options = SynLoadTreeSitterParserOptions::from_v8(scope, args.get(0));
-  trace!("syn.loadParser:{:?}", options);
-
-  let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
-  let promise = promise_resolver.get_promise(scope);
-
-  let state_rc = JsRuntime::state(scope);
-  let load_cb = {
-    let promise = v8::Global::new(scope, promise_resolver);
-    let state_rc = state_rc.clone();
-    move |maybe_result: Option<TheResult<Vec<u8>>>| {
-      let fut = SynLoadTreeSitterParserFuture {
-        promise: promise.clone(),
-        maybe_result,
-      };
-      let mut state = state_rc.borrow_mut();
-      state.pending_futures.push(Box::new(fut));
-    }
-  };
-
-  let mut state = state_rc.borrow_mut();
-  let task_id = js::TaskId::next();
-  let grammar_path = Path::new(&options.grammar_path);
-  pending::create_syn_load_parser(
-    &mut state,
-    task_id,
-    grammar_path,
-    Box::new(load_cb),
-  );
-
-  rv.set(promise.into());
-}
-
-/// Javascript `listParsers` API.
-pub fn list_parsers<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 0);
+/// `syn.listParsers()`.
+pub fn list_parsers<'js>(ctx: Ctx<'js>) -> JsResult<Vec<String>> {
   trace!("syn.listParsers");
-
-  let state_rc = JsRuntime::state(scope);
-  let state = state_rc.borrow();
-
-  let syntax_manager = state.syntax_manager.clone();
+  let kernel = kernel(&ctx)?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let parser_names = lock!(syntax_manager).list_grammar_names();
   trace!("syn.listParsers result:{:?}", parser_names);
-  let parser_names = parser_names.to_v8(scope);
-  rv.set(parser_names);
+  Ok(parser_names.into_iter().map(|n| n.to_string()).collect())
 }
 
-/// Javascript `getParserMetadata` API.
-pub fn get_parser_metadata<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  let parser_name = args.get(0).to_rust_string_lossy(scope);
+/// `syn.getParserMetadata(parserName)`.
+///
+/// Returns `undefined` when the parser is unknown, matching the v8 backend.
+pub fn get_parser_metadata<'js>(
+  ctx: Ctx<'js>,
+  parser_name: String,
+) -> JsResult<Option<Object<'js>>> {
   trace!("syn.getParserMetadata:{:?}", parser_name);
-
-  let state_rc = JsRuntime::state(scope);
-  let state = state_rc.borrow();
-
-  let syntax_manager = state.syntax_manager.clone();
+  let kernel = kernel(&ctx)?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
-  match syntax_manager.get_metadata(&parser_name) {
-    Some(metadata) => {
-      trace!("syn.getParserMetadata result:{:?}", metadata);
-      let metadata1 = SynTreeSitterParserMetadata {
-        name: metadata.name.clone(),
-        camelcase: metadata.camelcase.clone(),
-        scope: metadata.scope.clone(),
-        path: metadata.path.to_string_lossy().to_compact_string(),
-        file_types: metadata.file_types.clone(),
-        highlights_path: metadata
-          .highlights_path
-          .as_ref()
-          .map(|p| p.to_string_lossy().to_compact_string()),
-        highlights_query: metadata.highlights_query.clone(),
-        tags_path: metadata
-          .tags_path
-          .as_ref()
-          .map(|p| p.to_string_lossy().to_compact_string()),
-        tags_query: metadata.tags_query.clone(),
-        injections_path: metadata
-          .injections_path
-          .as_ref()
-          .map(|p| p.to_string_lossy().to_compact_string()),
-        injections_query: metadata.injections_query.clone(),
-        injection_regex: metadata.injection_regex.clone(),
-      };
-      let metadata1 = metadata1.to_v8(scope);
-      rv.set(metadata1);
-    }
-    None => {
-      rv.set_undefined();
-    }
+  let metadata = syntax_manager.get_metadata(&parser_name);
+  trace!("syn.getParserMetadata result:{:?}", metadata);
+  metadata.map(|m| metadata_to_object(&ctx, m)).transpose()
+}
+
+/// Reads `{grammarPath}` and absolutizes it.
+///
+/// `syn.min.js` defaults the whole object, so a missing argument only happens
+/// for a caller that skips the wrapper; an empty path then fails to absolutize
+/// and surfaces as `TreeSitterParserNotFound`, which is the right error.
+fn grammar_request<'js>(
+  ctx: &Ctx<'js>,
+  options: Option<Value<'js>>,
+) -> JsResult<SyntaxLoadGrammarRequest> {
+  let grammar_path: String = options
+    .and_then(|v| v.as_object().cloned())
+    .and_then(|object| object.get("grammarPath").ok())
+    .unwrap_or_default();
+  trace!("syn.loadParser:{:?}", grammar_path);
+
+  match Path::new(&grammar_path).absolutize() {
+    Ok(path) => Ok(SyntaxLoadGrammarRequest {
+      grammar_path: path.to_path_buf(),
+    }),
+    Err(_) => Err(Exception::throw_message(
+      ctx,
+      &TheErr::TreeSitterParserNotFound(grammar_path.into()).to_string(),
+    )),
   }
+}
+
+/// The names of the parsers a grammar provides.
+fn grammar_names(metainfo: &SyntaxTreeSitterGrammarRepository) -> Vec<String> {
+  metainfo
+    .grammars
+    .iter()
+    .map(|g| g.name.to_string())
+    .collect()
+}
+
+/// `syn.loadParserSync(options)`.
+///
+/// Loads a tree-sitter grammar and returns the parser names it provides.
+pub fn load_parser_sync<'js>(
+  ctx: Ctx<'js>,
+  options: Opt<Value<'js>>,
+) -> JsResult<Vec<String>> {
+  let req = grammar_request(&ctx, options.0)?;
+  let syntax_manager = kernel(&ctx)?.borrow().editor.syntax_manager.clone();
+  syntax::load_syntax_grammar(syntax_manager, &req)
+    .map(|metainfo| grammar_names(&metainfo))
+    .map_err(|e| Exception::throw_message(&ctx, &e.to_string()))
+}
+
+/// `syn.loadParser(options)` -> `Promise<string[]>`.
+///
+/// The grammar load is already a coroutine (`syntax::async_load_syntax_grammar`),
+/// so unlike `fs.read` there is nothing to hand off to a blocking pool: the
+/// future runs straight inside the operation.
+pub fn load_parser<'js>(
+  ctx: Ctx<'js>,
+  options: Opt<Value<'js>>,
+) -> JsResult<Promise<'js>> {
+  let req = grammar_request(&ctx, options.0)?;
+  let syntax_manager = kernel(&ctx)?.borrow().editor.syntax_manager.clone();
+
+  spawn_simple_op(&ctx, "syn.loadParser", OpKind::Detached, async move {
+    syntax::async_load_syntax_grammar(syntax_manager, &req)
+      .await
+      .map(|metainfo| grammar_names(&metainfo))
+  })
+}
+
+/// Installs the `syn_*` built-ins on `internal`.
+pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
+  set_function_to(ctx, internal, "syn_list_parsers", list_parsers)?;
+  set_function_to(
+    ctx,
+    internal,
+    "syn_get_parser_metadata",
+    get_parser_metadata,
+  )?;
+  set_function_to(ctx, internal, "syn_load_parser_sync", load_parser_sync)?;
+  set_function_to(ctx, internal, "syn_load_parser", load_parser)?;
+  Ok(())
 }

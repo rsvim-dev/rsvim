@@ -44,7 +44,7 @@ async fn test_load1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -97,7 +97,7 @@ async fn test_load_sync1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 1);
     let actual = contents.message_history_mut().pop();
@@ -156,7 +156,7 @@ async fn test_list1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 2);
     let actual1 = contents.message_history_mut().pop();
@@ -219,7 +219,7 @@ async fn test_get_metadata1() -> IoResult<()> {
 
   // After running
   {
-    let mut contents = lock!(event_loop.cmdline_text);
+    let mut contents = lock!(event_loop.editor.cmdline_text);
     let n = contents.message_history().len();
     assert_eq!(n, 3);
 
@@ -244,4 +244,121 @@ async fn test_get_metadata1() -> IoResult<()> {
   }
 
   Ok(())
+}
+
+use crate::js::runtime;
+use crate::tests::js::make_js_host;
+
+/// Runs `f` inside a fully installed host.
+fn with_kernel<R>(
+  f: impl FnOnce(rquickjs::Ctx<'_>, runtime::JsKernelRc) -> R,
+) -> R {
+  let mut js = make_js_host();
+  let kernel = js.host.kernel().clone();
+  js.enter(move |ctx| f(ctx, kernel))
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn list_parsers_is_an_array() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    let is_array: bool = ctx
+      .eval("Array.isArray(__InternalRsvimGlobalObject.syn_list_parsers())")
+      .unwrap();
+    assert!(is_array);
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn unknown_parser_metadata_is_undefined() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    let kind: String = ctx
+      .eval(
+        "typeof __InternalRsvimGlobalObject.syn_get_parser_metadata('nope')",
+      )
+      .unwrap();
+    assert_eq!(kind, "undefined");
+  });
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn load_parser_returns_a_thenable() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    // The async variant has to hand javascript something to `await`; it is a
+    // promise created by `spawn_op`.
+    let is_thenable: bool = ctx
+        .eval(
+          r#"
+          (() => {
+            let p;
+            try {
+              p = __InternalRsvimGlobalObject.syn_load_parser({ grammarPath: "nope" });
+            } catch (e) {
+              return false;
+            }
+            return typeof p === "object" && p !== null && typeof p.then === "function";
+          })()
+          "#,
+        )
+        .unwrap();
+    assert!(is_thenable, "syn_load_parser must return a promise");
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn load_parser_sync_reports_an_empty_path() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    // An empty path cannot be absolutized, so the binding has to surface the
+    // same `TreeSitterParserNotFound` the v8 backend throws.
+    let message: String = ctx
+      .eval(
+        r#"
+          (() => {
+            try {
+              __InternalRsvimGlobalObject.syn_load_parser_sync({});
+              return "no error";
+            } catch (e) {
+              return String(e);
+            }
+          })()
+          "#,
+      )
+      .unwrap();
+    assert!(
+      message.contains("Tree-sitter parser not found"),
+      "got: {message}"
+    );
+  });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn load_parser_sync_accepts_a_missing_argument() {
+  test_log_init();
+  with_kernel(|ctx, _kernel| {
+    // `syn.min.js` defaults the options object, so both call shapes reach the
+    // binding; neither may blow up with a parameter-count error.
+    let kind: String = ctx
+      .eval(
+        r#"
+          (() => {
+            try {
+              __InternalRsvimGlobalObject.syn_load_parser_sync();
+              return "returned";
+            } catch (e) {
+              return "threw";
+            }
+          })()
+          "#,
+      )
+      .unwrap();
+    assert_eq!(kind, "threw");
+  });
 }

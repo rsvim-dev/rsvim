@@ -1,12 +1,20 @@
 //! Fs (filesystem) module loader.
 
 use crate::cfg::path_cfg::PATH_CONFIG;
-use crate::js::loader::ModuleLoader;
+use crate::js::module::ModuleLoader;
 use crate::js::module::ModulePath;
 use crate::js::module::ModuleSource;
 use crate::prelude::*;
 use oxc_resolver::ResolveOptions;
 use oxc_resolver::Resolver;
+use rquickjs::Ctx;
+use rquickjs::Error as JsError;
+use rquickjs::Module;
+use rquickjs::Result as JsResult;
+use rquickjs::loader::ImportAttributes;
+use rquickjs::loader::Loader;
+use rquickjs::loader::Resolver as JsResolver;
+use rquickjs::module::Declared;
 
 /// Checks if path is a JSON file.
 fn is_json_import(path: &Path) -> bool {
@@ -138,5 +146,43 @@ impl ModuleLoader for FsModuleLoader {
     let path = Path::new(specifier);
     let maybe_source = sync_load::load_as_file(path)?;
     Ok(maybe_source.1)
+  }
+}
+
+// The two traits below are the same resolution and loading as
+// [`ModuleLoader`], expressed in rquickjs' vocabulary. QuickJS walks the
+// dependency graph itself and calls back through them, so this is where the
+// filesystem loader actually gets used from: the engine resolves `import
+// "./x.js"` by asking the resolver, then asks the loader for the source.
+//
+// Errors are reported as resolving/loading failures rather than thrown
+// exceptions, because that is what tells QuickJS' tuple dispatch to try the
+// next loader (see `rquickjs::loader`'s impl for tuples). A plain thrown
+// exception would end the search instead.
+
+impl JsResolver for FsModuleLoader {
+  fn resolve<'js>(
+    &mut self,
+    _ctx: &Ctx<'js>,
+    base: &str,
+    name: &str,
+    _attributes: Option<ImportAttributes<'js>>,
+  ) -> JsResult<String> {
+    self
+      .resolve_impl(&self.resolver, base, name)
+      .map_err(|_| JsError::new_resolving(base, name))
+  }
+}
+
+impl Loader for FsModuleLoader {
+  fn load<'js>(
+    &mut self,
+    ctx: &Ctx<'js>,
+    name: &str,
+    _attributes: Option<ImportAttributes<'js>>,
+  ) -> JsResult<Module<'js, Declared>> {
+    let source = sync_load::load_as_file(Path::new(name))
+      .map_err(|e| JsError::new_loading_message(name, e.to_string()))?;
+    Module::declare(ctx.clone(), name.to_string(), source.1)
   }
 }

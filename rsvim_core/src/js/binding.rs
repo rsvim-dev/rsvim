@@ -1,407 +1,160 @@
-//! Js runtime bindings.
+//! Js runtime bindings for the QuickJS-ng backend.
+//!
+//! A context is created, one internal object (`__InternalRsvimGlobalObject`) is
+//! hung off the global, and every built-in function is a plain function on that
+//! object. The javascript modules in `rsvim_core/js/*.min.js` never touch
+//! anything else.
 
 pub mod buf;
 pub mod cmd;
 pub mod fs;
+pub mod fs_async;
 pub mod global;
 pub mod opt;
 pub mod process;
+pub mod process_async;
 pub mod syn;
+pub mod timer;
 
 #[cfg(test)]
 mod buf_tests;
 #[cfg(test)]
 mod cmd_tests;
 #[cfg(test)]
+mod fs_async_tests;
+#[cfg(test)]
 mod fs_tests;
 #[cfg(test)]
 mod opt_tests;
 #[cfg(test)]
+mod process_async_tests;
+#[cfg(test)]
 mod process_tests;
 #[cfg(test)]
 mod syn_tests;
+#[cfg(test)]
+mod timer_tests;
 
-use crate::prelude::*;
-// use crate::dns;
-// use crate::exceptions;
-// use crate::file;
-// use crate::http_parser;
-// use crate::js::report_and_exit;
-// use crate::net;
-// use crate::perf_hooks;
-// use crate::process;
-// use crate::promise;
-// use crate::js::{check_exceptions, JsRuntime};
-// use crate::signals;
-// use crate::stdio;
-// use crate::timers;
-// use crate::prelude::*;
-use std::ffi::c_void;
+use rquickjs::Ctx;
+use rquickjs::Function;
+use rquickjs::Module;
+use rquickjs::Object;
+use rquickjs::Result as JsResult;
+use rquickjs::function::IntoJsFunc;
 
-// /// Function pointer for the bindings initializers.
-// type BindingInitFn = fn(&mut v8::PinScope<'s, 'b>) -> v8::Global<v8::Object>;
-//
-// lazy_static! {
-//   pub static ref BINDINGS: FoldMap<&'static str, BindingInitFn> = {
-//     let bindings: Vec<(&'static str, BindingInitFn)> = vec![
-//       ("stdio", stdio::initialize),
-//       ("timers", timers::initialize),
-//       ("fs", file::initialize),
-//       ("perf_hooks", perf_hooks::initialize),
-//       ("dns", dns::initialize),
-//       ("net", net::initialize),
-//       ("promise", promise::initialize),
-//       ("http_parser", http_parser::initialize),
-//       ("signals", signals::initialize),
-//       ("exceptions", exceptions::initialize),
-//     ];
-//     FoldMap::from_iter(bindings.into_iter())
-//   };
-// }
+/// The name of the object every js-callable built-in hangs off.
+///
+/// Kept identical to the v8 backend on purpose: `rsvim_core/js/*.min.js` call
+/// `__InternalRsvimGlobalObject.cmd_echo(...)` and friends, and those sources
+/// are shared.
+pub const INTERNAL_OBJECT_NAME: &str = "__InternalRsvimGlobalObject";
 
-/// Populates a new JavaScript context with low-level Rust bindings.
-pub fn create_new_context<'s, 'b>(
-  scope: &mut v8::PinScope<'s, 'b, ()>,
-) -> v8::Local<'s, v8::Context> {
-  // Create and enter a new JavaScript context.
-  let context = v8::Context::new(scope, Default::default());
-  let global = context.global(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  // set_function_to(scope, global, "print", global_print);
-  // set_function_to(scope, global, "$$reportError", global_report_error);
-  // set_function_to(scope, global, "$$queueMicrotask", global_queue_micro);
-
-  // Register the `__InternalRsvimGlobalObject` global object.
-  let vim = create_object_under(scope, global, "__InternalRsvimGlobalObject");
-
-  // For `globalThis`
-  {
-    set_function_to(
-      scope,
-      vim,
-      "global_create_timer",
-      global::timeout::create_timer,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_clear_timer",
-      global::timeout::clear_timer,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_encode",
-      global::text_encoder::encode,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_encode_into",
-      global::text_encoder::encode_into,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_check_encoding_label",
-      global::text_encoder::check_encoding_label,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_decode_single",
-      global::text_encoder::decode_single,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_create_stream_decoder",
-      global::text_encoder::create_stream_decoder,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_decode_stream",
-      global::text_encoder::decode_stream,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_encoding_close_stream_decoder",
-      global::text_encoder::close_stream_decoder,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_queue_microtask",
-      global::microtask::queue_microtask,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "global_report_error",
-      global::microtask::report_error,
-    );
-  }
-
-  // For `buf`
-  {
-    set_function_to(scope, vim, "buf_write_sync", buf::write_sync);
-    set_function_to(scope, vim, "buf_current", buf::current);
-    set_function_to(scope, vim, "buf_list", buf::list);
-  }
-
-  // For `cmd`
-  {
-    set_function_to(scope, vim, "cmd_create", cmd::create);
-    set_function_to(scope, vim, "cmd_echo", cmd::echo);
-    set_function_to(scope, vim, "cmd_list", cmd::list);
-    set_function_to(scope, vim, "cmd_get", cmd::get);
-    set_function_to(scope, vim, "cmd_remove", cmd::remove);
-  }
-
-  // For `fs`
-  {
-    set_function_to(scope, vim, "fs_open", fs::open_async);
-    set_function_to(scope, vim, "fs_open_sync", fs::open_sync);
-    set_function_to(scope, vim, "fs_close", fs::close_sync);
-    set_function_to(scope, vim, "fs_read", fs::read_async);
-    set_function_to(scope, vim, "fs_read_sync", fs::read_sync);
-    set_function_to(scope, vim, "fs_read_dir", fs::read_dir_async);
-    set_function_to(scope, vim, "fs_read_dir_sync", fs::read_dir_sync);
-    set_function_to(scope, vim, "fs_read_dir_next", fs::read_dir_next_async);
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_dir_next_sync",
-      fs::read_dir_next_sync,
-    );
-    set_function_to(scope, vim, "fs_read_dir_close", fs::read_dir_close);
-    set_function_to(scope, vim, "fs_write", fs::write_async);
-    set_function_to(scope, vim, "fs_write_sync", fs::write_sync);
-    set_function_to(scope, vim, "fs_read_file", fs::read_file_async);
-    set_function_to(scope, vim, "fs_read_file_sync", fs::read_file_sync);
-    set_function_to(scope, vim, "fs_read_text_file", fs::read_text_file_async);
-    set_function_to(
-      scope,
-      vim,
-      "fs_read_text_file_sync",
-      fs::read_text_file_sync,
-    );
-    set_function_to(scope, vim, "fs_lstat", fs::lstat_async);
-    set_function_to(scope, vim, "fs_lstat_sync", fs::lstat_sync);
-    set_function_to(scope, vim, "fs_stat", fs::stat_async);
-    set_function_to(scope, vim, "fs_stat_sync", fs::stat_sync);
-    set_function_to(scope, vim, "fs_symlink", fs::symlink_async);
-    set_function_to(scope, vim, "fs_symlink_sync", fs::symlink_sync);
-    set_function_to(scope, vim, "fs_link", fs::link_async);
-    set_function_to(scope, vim, "fs_link_sync", fs::link_sync);
-    set_function_to(scope, vim, "fs_mkdir", fs::mkdir_async);
-    set_function_to(scope, vim, "fs_mkdir_sync", fs::mkdir_sync);
-  }
-
-  // For `opt`
-  {
-    set_function_to(scope, vim, "opt_get_wrap", opt::get_wrap);
-    set_function_to(scope, vim, "opt_set_wrap", opt::set_wrap);
-    set_function_to(scope, vim, "opt_get_line_break", opt::get_line_break);
-    set_function_to(scope, vim, "opt_set_line_break", opt::set_line_break);
-    set_function_to(scope, vim, "opt_get_tab_stop", opt::get_tab_stop);
-    set_function_to(scope, vim, "opt_set_tab_stop", opt::set_tab_stop);
-    set_function_to(scope, vim, "opt_get_expand_tab", opt::get_expand_tab);
-    set_function_to(scope, vim, "opt_set_expand_tab", opt::set_expand_tab);
-    set_function_to(scope, vim, "opt_get_shift_width", opt::get_shift_width);
-    set_function_to(scope, vim, "opt_set_shift_width", opt::set_shift_width);
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_file_encoding",
-      opt::get_file_encoding,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_file_encoding",
-      opt::set_file_encoding,
-    );
-    set_function_to(scope, vim, "opt_get_file_format", opt::get_file_format);
-    set_function_to(scope, vim, "opt_set_file_format", opt::set_file_format);
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_fix_end_of_line",
-      opt::get_fix_end_of_line,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_fix_end_of_line",
-      opt::set_fix_end_of_line,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_get_syntax_parser_lib_path",
-      opt::get_syntax_parser_lib_path,
-    );
-    set_function_to(
-      scope,
-      vim,
-      "opt_set_syntax_parser_lib_path",
-      opt::set_syntax_parser_lib_path,
-    );
-  }
-
-  // For `process`
-  {
-    set_function_to(scope, vim, "process_spawn_child", process::spawn_child);
-    set_function_to(
-      scope,
-      vim,
-      "process_read_text_from_child",
-      process::read_text_from_child,
-    );
-    set_function_to(scope, vim, "process_wait_child", process::wait_child);
-    set_function_to(scope, vim, "process_exit", process::exit);
-  }
-
-  // For `syn`
-  {
-    set_function_to(scope, vim, "syn_load_parser", syn::load_treesitter_parser);
-    set_function_to(scope, vim, "syn_load_parser_sync", syn::load_parser_sync);
-    set_function_to(scope, vim, "syn_list_parsers", syn::list_parsers);
-    set_function_to(
-      scope,
-      vim,
-      "syn_get_parser_metadata",
-      syn::get_parser_metadata,
-    );
-  }
-
-  context
-}
-
-/// Adds a property with the given name and value, into the given object.
-pub fn set_property_to(
-  scope: &mut v8::PinScope,
-  target: v8::Local<v8::Object>,
+/// Registers `f` as a function named `name` on `target`.
+///
+/// `P` is spelled out rather than defaulted because it is the parameter list
+/// `F` implements [`IntoJsFunc`] for; leaving it to inference would make the
+/// call site unnameable whenever `F` is a closure over borrowed state.
+pub fn set_function_to<'js, F, P>(
+  ctx: &Ctx<'js>,
+  target: &Object<'js>,
   name: &str,
-  value: v8::Local<v8::Value>,
-) {
-  let key = v8::String::new(scope, name).unwrap();
-  target.set(scope, key.into(), value);
+  f: F,
+) -> JsResult<()>
+where
+  F: IntoJsFunc<'js, P> + 'js,
+  P: 'js,
+{
+  let func = Function::new(ctx.clone(), f)?;
+  target.set(name, func)?;
+  Ok(())
 }
 
-/// Adds a read-only property with the given name and value, into the given object.
-pub fn set_constant_to(
-  scope: &mut v8::PinScope,
-  target: v8::Local<v8::Object>,
-  name: &str,
-  value: v8::Local<v8::Value>,
-) {
-  let key = v8::String::new(scope, name).unwrap();
-  target.define_own_property(
-    scope,
-    key.into(),
-    value,
-    v8::PropertyAttribute::READ_ONLY,
-  );
+/// Creates the object the built-in functions live on and returns it.
+pub fn create_internal_object<'js>(ctx: &Ctx<'js>) -> JsResult<Object<'js>> {
+  let global = ctx.globals();
+  let object = Object::new(ctx.clone())?;
+  global.set(INTERNAL_OBJECT_NAME, object.clone())?;
+  Ok(object)
 }
 
-/// Adds a `Function` object which calls the given Rust function
-pub fn set_function_to(
-  scope: &mut v8::PinScope,
-  target: v8::Local<v8::Object>,
-  name: &str,
-  callback: impl v8::MapFnTo<v8::FunctionCallback>,
-) {
-  let key = v8::String::new(scope, name).unwrap();
-  let template = v8::FunctionTemplate::new(scope, callback);
-  let val = template.get_function(scope).unwrap();
-
-  target.set(scope, key.into(), val.into());
+/// Installs every js-callable built-in on a fresh context.
+///
+/// This is the rqjs counterpart of `crate::js::v8::binding::create_new_context`:
+/// it does not create the context (the caller already has one), it only fills it
+/// in. Callers are expected to run it exactly once per context.
+pub fn install_bindings<'js>(ctx: &Ctx<'js>) -> JsResult<()> {
+  let internal = create_internal_object(ctx)?;
+  buf::install(ctx, &internal)?;
+  cmd::install(ctx, &internal)?;
+  fs::install(ctx, &internal)?;
+  fs_async::install(ctx, &internal)?;
+  global::install(ctx, &internal)?;
+  opt::install(ctx, &internal)?;
+  process::install(ctx, &internal)?;
+  process_async::install(ctx, &internal)?;
+  syn::install(ctx, &internal)?;
+  timer::install(ctx, &internal)?;
+  Ok(())
 }
 
-/// Creates an object with a given name under a `target` object.
-pub fn create_object_under<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  target: v8::Local<v8::Object>,
-  name: &str,
-) -> v8::Local<'s, v8::Object> {
-  let template = v8::ObjectTemplate::new(scope);
-  let key = v8::String::new(scope, name).unwrap();
-  let value = template.new_instance(scope).unwrap();
-
-  target.set(scope, key.into(), value.into());
-  value
+/// Loads the bootstrap module that installs `setTimeout`, `TextEncoder` and the
+/// rest of the web-shaped globals.
+///
+/// The v8 backend feeds the same file through `fetch_module_tree` + `evaluate`;
+/// QuickJS walks the dependency graph through the loader instead, so this only
+/// has to evaluate the entry module and drive the promise it returns.
+pub fn install_web_globals<'js>(ctx: &Ctx<'js>) -> JsResult<()> {
+  let promise = Module::evaluate(
+    ctx.clone(),
+    "00__web.js",
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/js/00__web.min.js")),
+  )?;
+  promise.finish::<()>()?;
+  Ok(())
 }
 
-/// Stores a Rust type inside a v8 object.
-pub fn set_internal_ref<T>(
-  scope: &mut v8::PinScope,
-  target: v8::Local<v8::Object>,
-  index: usize,
-  data: T,
-) -> *mut T {
-  let boxed_ref = Box::new(data);
-  let addr = Box::into_raw(boxed_ref);
-  let v8_ext = v8::External::new(scope, addr as *mut c_void);
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::js::loader::CoreLoader;
+  use crate::js::loader::CoreResolver;
+  use crate::tests::log::init as test_log_init;
+  use rquickjs::Context;
+  use rquickjs::Runtime;
 
-  target.set_internal_field(index, v8_ext.into());
-  addr
-}
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  fn web_globals_install() {
+    test_log_init();
+    let rt = Runtime::new().unwrap();
+    let ctx = Context::full(&rt).unwrap();
+    rt.set_loader(CoreResolver, CoreLoader);
+    ctx.with(|ctx| {
+      install_web_globals(&ctx).unwrap();
+      // The bootstrap is what makes these globals exist at all; without it the
+      // `rsvim:*` modules would call into thin air.
+      let kind: String = ctx.eval("typeof globalThis.setTimeout").unwrap();
+      assert_eq!(kind, "function");
+      let kind: String = ctx.eval("typeof globalThis.TextEncoder").unwrap();
+      assert_eq!(kind, "function");
+    });
+  }
 
-/// Gets a previously stored Rust type from a v8 object.
-pub fn get_internal_ref<'s, T>(
-  scope: &mut v8::PinScope<'s, '_>,
-  source: v8::Local<v8::Object>,
-  index: usize,
-) -> &'s mut T {
-  let v8_ref = source.get_internal_field(scope, index).unwrap();
-  let external = v8_ref.cast::<v8::External>();
-  let value = external.value() as *mut T;
-
-  unsafe { &mut *value }
-}
-
-/// Sets error code to exception if possible.
-pub fn set_exception_code(
-  scope: &mut v8::PinScope,
-  exception: v8::Local<v8::Value>,
-  error: &TheErr,
-) {
-  let exception = exception.to_object(scope).unwrap();
-  match error {
-    TheErr::LoadModuleFailed(_, e)
-    | TheErr::SaveBufferFailed(_, _, e)
-    | TheErr::OpenFileFailed(_, e) => {
-      let key = v8::String::new(scope, "code").unwrap();
-      let value = v8::String::new(scope, &format!("{:?}", e.kind())).unwrap();
-      exception.set(scope, key.into(), value.into());
-    }
-    _ => {}
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  fn internal_object_is_reachable_from_javascript() {
+    test_log_init();
+    let rt = Runtime::new().unwrap();
+    let ctx = Context::full(&rt).unwrap();
+    ctx.with(|ctx| {
+      let internal = create_internal_object(&ctx).unwrap();
+      set_function_to(&ctx, &internal, "answer", || 42i32).unwrap();
+      let answer: i32 =
+        ctx.eval("__InternalRsvimGlobalObject.answer()").unwrap();
+      assert_eq!(answer, 42);
+    });
   }
 }
 
-/// Useful utility to throw v8 exceptions.
-pub fn throw_exception(scope: &mut v8::PinScope, error: &TheErr) {
-  let message = v8::String::new(scope, &error.to_string()).unwrap();
-  let exception = v8::Exception::error(scope, message);
-  set_exception_code(scope, exception, error);
-  scope.throw_exception(exception);
-}
-
-/// Useful utility to throw v8 type errors.
-pub fn throw_type_error(scope: &mut v8::PinScope, error: &TheErr) {
-  let message = v8::String::new(scope, &error.to_string()).unwrap();
-  let exception = v8::Exception::type_error(scope, message);
-  scope.throw_exception(exception);
-}
-
-/// Useful utility to throw v8 range errors.
-pub fn throw_range_error(scope: &mut v8::PinScope, error: &TheErr) {
-  let message = v8::String::new(scope, &error.to_string()).unwrap();
-  let exception = v8::Exception::range_error(scope, message);
-  scope.throw_exception(exception);
-}
+#[cfg(test)]
+mod global_tests;

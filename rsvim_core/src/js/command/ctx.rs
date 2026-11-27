@@ -4,9 +4,7 @@ use crate::buf::BufferId;
 use crate::ui::tree::NodeId;
 use compact_str::CompactString;
 
-#[derive(
-  Debug, Clone, PartialEq, Eq, derive_builder::Builder, rsvim_macro::ToV8,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_builder::Builder)]
 pub struct CommandContext {
   #[builder(default = false)]
   // bang

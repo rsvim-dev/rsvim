@@ -134,3 +134,9 @@ pub enum TheErr {
 pub type TheResult<T> = Result<T, TheErr>;
 
 // thiserror }
+
+impl From<JsError> for TheErr {
+  fn from(e: JsError) -> Self {
+    TheErr::JsError(Box::new(e))
+  }
+}

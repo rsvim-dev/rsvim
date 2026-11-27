@@ -1,297 +1,240 @@
-//! APIs for `opt` module.
+//! APIs for the `opt` module.
+//!
+//! Every function here is a plain getter or setter over `Editor` state, so the
+//! rquickjs shape is much smaller than the v8 one: no `ReturnValue`, no
+//! `FunctionCallbackArguments`, no `debug_assert!` on the argument count
+//! (`rquickjs` checks parameters against the signature before calling). A getter
+//! returns its value, a setter returns `()`.
+//!
+//! Arguments that v8 coerced with `to_integer` / `to_rust_string_lossy` are taken
+//! as `Coerced<T>`, which performs the same `JS_ToNumber` / `JS_ToString` step.
 
 use crate::buf::opt::FileEncodingOption;
 use crate::buf::opt::FileFormatOption;
-use crate::is_v8_bool;
-use crate::is_v8_int;
-use crate::is_v8_str;
-use crate::js::JsRuntime;
-use crate::js::converter::*;
+use crate::js::binding::set_function_to;
+use crate::js::runtime::kernel;
 use crate::prelude::*;
 use compact_str::ToCompactString;
+use rquickjs::Coerced;
+use rquickjs::Ctx;
+use rquickjs::Exception;
+use rquickjs::Object;
+use rquickjs::Result as JsResult;
 
-/// Get the _wrap_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27wrap%27>
-/// Also known as _line-wrap_, see: <https://en.wikipedia.org/wiki/Line_wrap_and_word_wrap>.
-pub fn get_wrap(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+/// `opt.getWrap()`.
+pub fn get_wrap<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
+  let kernel = kernel(&ctx)?;
+  let tree = kernel.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().wrap();
   trace!("get_wrap: {:?}", value);
-  rv.set_bool(value);
+  Ok(value)
 }
 
-/// Set the _wrap_ option.
-pub fn set_wrap<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut _rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_bool!(args.get(0)));
-  let value = bool::from_v8(scope, args.get(0));
+/// `opt.setWrap(value)`.
+pub fn set_wrap<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_wrap: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let kernel = kernel(&ctx)?;
+  let tree = kernel.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_wrap(value);
+  Ok(())
 }
 
-/// Get the _line-break_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27linebreak%27>
-/// Also known as _word-wrap_, see: <https://en.wikipedia.org/wiki/Line_wrap_and_word_wrap>.
-pub fn get_line_break(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+/// `opt.getLineBreak()`.
+pub fn get_line_break<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
+  let kernel = kernel(&ctx)?;
+  let tree = kernel.borrow().editor.tree.clone();
   let tree = lock!(tree);
   let value = tree.global_local_options().line_break();
   trace!("get_line_break: {:?}", value);
-  rv.set_bool(value);
+  Ok(value)
 }
 
-/// Set the _line-break_ option.
-pub fn set_line_break<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  mut _rv: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_bool!(args.get(0)));
-  let value = bool::from_v8(scope, args.get(0));
+/// `opt.setLineBreak(value)`.
+pub fn set_line_break<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_line_break: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let tree = state_rc.borrow().tree.clone();
+  let kernel = kernel(&ctx)?;
+  let tree = kernel.borrow().editor.tree.clone();
   let mut tree = lock!(tree);
   tree.global_local_options_mut().set_line_break(value);
+  Ok(())
 }
 
-/// Get the _tap-stop_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27tabstop%27>
-pub fn get_tab_stop(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getTabStop()`.
+pub fn get_tab_stop<'js>(ctx: Ctx<'js>) -> JsResult<u32> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().tab_stop();
   trace!("get_tab_stop: {:?}", value);
-  rv.set_int32(value as i32);
+  Ok(value as u32)
 }
 
-/// Set the _tab-stop_ option.
-pub fn set_tab_stop<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_int!(args.get(0)));
-  let value = u32::from_v8(scope, args.get(0));
+/// `opt.setTabStop(value)`.
+pub fn set_tab_stop<'js>(ctx: Ctx<'js>, value: Coerced<i32>) -> JsResult<()> {
+  let value = value.0;
   trace!("set_tab_stop: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  if !(0..=u8::MAX as i32).contains(&value) {
+    return Err(Exception::throw_range(
+      &ctx,
+      &format!("setTabStop: out of range: {}", value),
+    ));
+  }
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
-  debug_assert!(value <= u8::MAX as u32);
   buffer_manager
     .global_local_options_mut()
     .set_tab_stop(value as u8);
+  Ok(())
 }
 
-/// Get the _expand-tab_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27expandtab%27>
-pub fn get_expand_tab(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getExpandTab()`.
+pub fn get_expand_tab<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().expand_tab();
   trace!("get_expand_tab: {:?}", value);
-  rv.set_bool(value);
+  Ok(value)
 }
 
-/// Set the _expand-tab_ option.
-pub fn set_expand_tab<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_bool!(args.get(0)));
-  let value = bool::from_v8(scope, args.get(0));
+/// `opt.setExpandTab(value)`.
+pub fn set_expand_tab<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_expand_tab: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
   buffer_manager
     .global_local_options_mut()
     .set_expand_tab(value);
+  Ok(())
 }
 
-/// Get the _shift-width_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27shiftwidth%27>
-pub fn get_shift_width(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getShiftWidth()`.
+pub fn get_shift_width<'js>(ctx: Ctx<'js>) -> JsResult<u32> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().shift_width();
   trace!("get_shift_width: {:?}", value);
-  rv.set_int32(value as i32);
+  Ok(value as u32)
 }
 
-/// Set the _shift-width_ option.
-pub fn set_shift_width<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_int!(args.get(0)));
-  let value = u32::from_v8(scope, args.get(0));
+/// `opt.setShiftWidth(value)`.
+pub fn set_shift_width<'js>(
+  ctx: Ctx<'js>,
+  value: Coerced<i32>,
+) -> JsResult<()> {
+  let value = value.0;
   trace!("set_shift_width: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  if !(0..=u8::MAX as i32).contains(&value) {
+    return Err(Exception::throw_range(
+      &ctx,
+      &format!("setShiftWidth: out of range: {}", value),
+    ));
+  }
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
-  debug_assert!(value <= u8::MAX as u32);
   buffer_manager
     .global_local_options_mut()
     .set_shift_width(value as u8);
+  Ok(())
 }
 
-/// Get the _file-encoding_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27fileencoding%27>
-pub fn get_file_encoding(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getFileEncoding()`.
+pub fn get_file_encoding<'js>(ctx: Ctx<'js>) -> JsResult<String> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_encoding();
   trace!("get_file_encoding: {:?}", value);
-  let value = value.to_compact_string().to_v8(scope);
-  rv.set(value);
+  Ok(value.to_compact_string().to_string())
 }
 
-/// Set the _file-encoding_ option.
-pub fn set_file_encoding<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
+/// `opt.setFileEncoding(value)`.
+pub fn set_file_encoding<'js>(
+  ctx: Ctx<'js>,
+  value: Coerced<String>,
+) -> JsResult<()> {
+  // v8 lowercased before matching, so the js side may pass any casing.
+  let value = value.0.to_lowercase();
   trace!("set_file_encoding: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let value = FileEncodingOption::try_from(value.as_str()).map_err(|_| {
+    Exception::throw_range(
+      &ctx,
+      &format!("setFileEncoding: unknown encoding {:?}", value),
+    )
+  })?;
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
-  let value = FileEncodingOption::try_from(value.as_str()).unwrap();
   buffer_manager
     .global_local_options_mut()
     .set_file_encoding(value);
+  Ok(())
 }
 
-/// Get the _file-format_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27fileformat%27>
-pub fn get_file_format(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getFileFormat()`.
+pub fn get_file_format<'js>(ctx: Ctx<'js>) -> JsResult<String> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().file_format();
   trace!("get_file_format: {:?}", value);
-  let value = value.to_compact_string().to_v8(scope);
-  rv.set(value);
+  Ok(value.to_string())
 }
 
-/// Set the _file-format_ option.
-pub fn set_file_format<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let value = args.get(0).to_rust_string_lossy(scope).to_lowercase();
+/// `opt.setFileFormat(value)`.
+pub fn set_file_format<'js>(
+  ctx: Ctx<'js>,
+  value: Coerced<String>,
+) -> JsResult<()> {
+  let value = value.0.to_lowercase();
   trace!("set_file_format: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let value = FileFormatOption::try_from(value.as_str()).map_err(|_| {
+    Exception::throw_range(
+      &ctx,
+      &format!("setFileFormat: unknown format {:?}", value),
+    )
+  })?;
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
-  let value = FileFormatOption::try_from(value.as_str()).unwrap();
   buffer_manager
     .global_local_options_mut()
     .set_file_format(value);
+  Ok(())
 }
 
-/// Get the _fix-end-of-line_ option.
-/// See: <https://vimhelp.org/options.txt.html#%27fixendofline%27>
-pub fn get_fix_end_of_line(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+/// `opt.getFixEndOfLine()`.
+pub fn get_fix_end_of_line<'js>(ctx: Ctx<'js>) -> JsResult<bool> {
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let buffer_manager = lock!(buffer_manager);
   let value = buffer_manager.global_local_options().fix_end_of_line();
   trace!("get_fix_end_of_line: {:?}", value);
-  rv.set_bool(value);
+  Ok(value)
 }
 
-/// Set the _fix-end-of-line_ option.
-pub fn set_fix_end_of_line<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_bool!(args.get(0)));
-  let value = bool::from_v8(scope, args.get(0));
+/// `opt.setFixEndOfLine(value)`.
+pub fn set_fix_end_of_line<'js>(ctx: Ctx<'js>, value: bool) -> JsResult<()> {
   trace!("set_fix_end_of_line: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let buffer_manager = state_rc.borrow().buffer_manager.clone();
+  let kernel = kernel(&ctx)?;
+  let buffer_manager = kernel.borrow().editor.buffer_manager.clone();
   let mut buffer_manager = lock!(buffer_manager);
-
   buffer_manager
     .global_local_options_mut()
     .set_fix_end_of_line(value);
+  Ok(())
 }
 
-/// Get the _syntax-parser-lib-path_ option.
-pub fn get_syntax_parser_lib_path(
-  scope: &mut v8::PinScope,
-  _args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
-) {
-  let state_rc = JsRuntime::state(scope);
-  let syntax_manager = state_rc.borrow().syntax_manager.clone();
+/// `opt.getSyntaxParserLibPath()`.
+pub fn get_syntax_parser_lib_path<'js>(ctx: Ctx<'js>) -> JsResult<String> {
+  let kernel = kernel(&ctx)?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   let value = syntax_manager
     .loader()
@@ -299,24 +242,64 @@ pub fn get_syntax_parser_lib_path(
     .to_string_lossy()
     .to_string();
   trace!("get_syntax_parser_lib_path: {:?}", value);
-  let value = value.to_v8(scope);
-  rv.set(value);
+  Ok(value)
 }
 
-/// Set the _syntax-parser-lib-path_ option.
-pub fn set_syntax_parser_lib_path<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
-  args: v8::FunctionCallbackArguments<'s>,
-  _: v8::ReturnValue,
-) {
-  debug_assert!(args.length() == 1);
-  debug_assert!(is_v8_str!(args.get(0)));
-  let value = args.get(0).to_rust_string_lossy(scope);
+/// `opt.setSyntaxParserLibPath(value)`.
+pub fn set_syntax_parser_lib_path<'js>(
+  ctx: Ctx<'js>,
+  value: Coerced<String>,
+) -> JsResult<()> {
+  let value = value.0;
   trace!("set_syntax_parser_lib_path: {:?}", value);
-  let state_rc = JsRuntime::state(scope);
-  let syntax_manager = state_rc.borrow().syntax_manager.clone();
+  let kernel = kernel(&ctx)?;
+  let syntax_manager = kernel.borrow().editor.syntax_manager.clone();
   let syntax_manager = lock!(syntax_manager);
   syntax_manager
     .loader()
     .set_treesitter_parser_lib_path(Path::new(&value).to_path_buf());
+  Ok(())
+}
+
+/// Installs the `opt_*` built-ins on `internal`.
+pub fn install<'js>(ctx: &Ctx<'js>, internal: &Object<'js>) -> JsResult<()> {
+  set_function_to(ctx, internal, "opt_get_wrap", get_wrap)?;
+  set_function_to(ctx, internal, "opt_set_wrap", set_wrap)?;
+  set_function_to(ctx, internal, "opt_get_line_break", get_line_break)?;
+  set_function_to(ctx, internal, "opt_set_line_break", set_line_break)?;
+  set_function_to(ctx, internal, "opt_get_tab_stop", get_tab_stop)?;
+  set_function_to(ctx, internal, "opt_set_tab_stop", set_tab_stop)?;
+  set_function_to(ctx, internal, "opt_get_expand_tab", get_expand_tab)?;
+  set_function_to(ctx, internal, "opt_set_expand_tab", set_expand_tab)?;
+  set_function_to(ctx, internal, "opt_get_shift_width", get_shift_width)?;
+  set_function_to(ctx, internal, "opt_set_shift_width", set_shift_width)?;
+  set_function_to(ctx, internal, "opt_get_file_encoding", get_file_encoding)?;
+  set_function_to(ctx, internal, "opt_set_file_encoding", set_file_encoding)?;
+  set_function_to(ctx, internal, "opt_get_file_format", get_file_format)?;
+  set_function_to(ctx, internal, "opt_set_file_format", set_file_format)?;
+  set_function_to(
+    ctx,
+    internal,
+    "opt_get_fix_end_of_line",
+    get_fix_end_of_line,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "opt_set_fix_end_of_line",
+    set_fix_end_of_line,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "opt_get_syntax_parser_lib_path",
+    get_syntax_parser_lib_path,
+  )?;
+  set_function_to(
+    ctx,
+    internal,
+    "opt_set_syntax_parser_lib_path",
+    set_syntax_parser_lib_path,
+  )?;
+  Ok(())
 }
