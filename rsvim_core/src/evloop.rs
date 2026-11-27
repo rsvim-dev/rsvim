@@ -696,10 +696,7 @@ impl Rsvim {
 
   /// Handles one terminal event, and reports whether it may have changed the
   /// editor, i.e. whether the screen needs repainting.
-  pub fn process_event(
-    &mut self,
-    event: Option<IoResult<Event>>,
-  ) -> bool {
+  pub fn process_event(&mut self, event: Option<IoResult<Event>>) -> bool {
     match event {
       Some(Ok(event)) => {
         trace!("Polled terminal event ok: {:?}", event);

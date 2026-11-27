@@ -45,7 +45,7 @@ use rquickjs::Result as JsResult;
 use std::str::FromStr;
 
 /// The editor's resource table.
-pub(super) fn resource_table(ctx: &Ctx<'_>) -> JsResult<ResourceTableArc> {
+pub fn resource_table(ctx: &Ctx<'_>) -> JsResult<ResourceTableArc> {
   Ok(kernel(ctx)?.borrow().editor.resource_table.clone())
 }
 
@@ -59,7 +59,7 @@ fn throw(ctx: &Ctx<'_>, e: TheErr) -> rquickjs::Error {
 /// `fs.min.js` always passes a fully populated object (it spreads defaults over
 /// the caller's argument), so a missing property here only happens when a test
 /// calls the internal binding directly — fall back to the defaults then.
-pub(super) fn open_options<'js>(
+pub fn open_options<'js>(
   ctx: &Ctx<'js>,
   options: Option<Object<'js>>,
 ) -> JsResult<FsOpenOptions> {
@@ -90,7 +90,7 @@ pub(super) fn open_options<'js>(
 }
 
 /// Parses the options object `fs.mkdir(path, options)` takes.
-pub(super) fn mkdir_options<'js>(
+pub fn mkdir_options<'js>(
   ctx: &Ctx<'js>,
   options: Option<Object<'js>>,
 ) -> JsResult<FsMkdirOptions> {
@@ -110,7 +110,7 @@ pub(super) fn mkdir_options<'js>(
 
 /// Parses the `type` argument of `fs.symlink` / `fs.symlinkSync`; `api` names
 /// the caller in the error.
-pub(super) fn symlink_options(
+pub fn symlink_options(
   ctx: &Ctx<'_>,
   api: &str,
   options: Option<String>,
@@ -213,7 +213,7 @@ pub fn read_dir_close<'js>(ctx: Ctx<'js>, rid: Coerced<i32>) -> JsResult<()> {
   Ok(())
 }
 
-pub(super) fn metadata_to_object<'js>(
+pub fn metadata_to_object<'js>(
   ctx: &Ctx<'js>,
   meta: &FsMetadata,
 ) -> JsResult<Object<'js>> {
@@ -250,7 +250,7 @@ pub(super) fn metadata_to_object<'js>(
   Ok(object)
 }
 
-pub(super) fn dir_entry_to_object<'js>(
+pub fn dir_entry_to_object<'js>(
   ctx: &Ctx<'js>,
   entry: &FsDirEntry,
 ) -> JsResult<Object<'js>> {
